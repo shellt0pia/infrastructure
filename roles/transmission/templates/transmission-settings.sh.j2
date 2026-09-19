@@ -1,0 +1,23 @@
+#!/usr/bin/with-contenv bash
+# shellcheck shell=bash
+# Managed by Ansible - roles/transmission
+
+SETTINGS='/config/settings.json'
+
+if [[ ! -f "${SETTINGS}" ]]; then
+    echo 'transmission-settings: settings.json not found, skipping'
+    exit 0
+fi
+
+OVERRIDES=$(cat <<'JSON'
+{{ transmission_settings | to_nice_json }}
+JSON
+)
+
+if PATCHED=$(jq --argjson overrides "${OVERRIDES}" '. * $overrides' "${SETTINGS}"); then
+    # Truncate in place so the abc:abc ownership set by init-transmission-config is preserved.
+    printf '%s\n' "${PATCHED}" >"${SETTINGS}"
+    echo 'transmission-settings: applied Ansible-managed settings'
+else
+    echo 'transmission-settings: jq failed, settings.json left untouched' >&2
+fi

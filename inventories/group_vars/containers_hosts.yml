@@ -48,6 +48,7 @@ containers_images_tags:
   gluetun: 'latest'
   transmission: 'latest'
   sabnzbd: 'latest'
+  cross_seed: '6'
   flaresolverr: 'latest'
   unpackerr: '0'
   profilarr: 'latest'

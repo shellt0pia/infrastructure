@@ -1,24 +1,24 @@
 [Unit]
-Description=Sonarr
+Description=cross-seed
 Documentation=man:podman-systemd.unit(5)
 
 [Container]
-ContainerName=sonarr
-Image={{ containers_images.sonarr }}:{{ containers_images_tags.sonarr }}
+ContainerName=cross-seed
+Image={{ containers_images.cross_seed }}:{{ containers_images_tags.cross_seed }}
 Network=web-egress
 Network=common-internal
 ExposeHostPort=8989
-Volume={{ containers_storage_path }}/data/sonarr:/config:Z
+Volume={{ containers_storage_path }}/data/cross-seed:/config:Z
 Volume={{ storage_server_shares_mounts_path }}/media/download:/mnt/media/download:slave
 Volume={{ storage_server_shares_mounts_path }}/media/library/tv:/mnt/media/library/tv:slave
 Timezone={{ timezone }}
 Environment="TZ={{ timezone }}"
 Label="traefik.enable=true"
 Label="traefik.docker.network=common-internal"
-Label="traefik.http.routers.sonarr.rule=Host(`sonarr.{{ domain_name }}`)"
-Label="traefik.http.routers.sonarr.entrypoints=websecure"
-Label="traefik.http.routers.sonarr.middlewares=restrict-external-access@file"
-Label="traefik.http.services.sonarr.loadbalancer.server.port=8989"
+Label="traefik.http.routers.cross-seed.rule=Host(`cross-seed.{{ domain_name }}`)"
+Label="traefik.http.routers.cross-seed.entrypoints=websecure"
+Label="traefik.http.routers.cross-seed.middlewares=restrict-external-access@file"
+Label="traefik.http.services.cross-seed.loadbalancer.server.port=2468"
 AutoUpdate=local
 
 [Service]

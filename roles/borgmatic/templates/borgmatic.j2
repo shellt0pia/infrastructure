@@ -21,10 +21,7 @@ podman run \
 --volume {{ storage_server_shares_mounts_path }}/backups/documents:{{ storage_server_shares_mounts_path }}/backups/documents:slave \
 --volume {{ storage_server_shares_mounts_path }}/backups/groupware:{{ storage_server_shares_mounts_path }}/backups/groupware:slave \
 --volume {{ storage_server_shares_mounts_path }}/backups/servers:{{ storage_server_shares_mounts_path }}/backups/servers:slave \
---volume {{ storage_server_shares_mounts_path }}/medias/audiodrama:{{ storage_server_shares_mounts_path }}/medias/audiodrama:slave \
---volume {{ storage_server_shares_mounts_path }}/medias/audiobooks:{{ storage_server_shares_mounts_path }}/medias/audiobooks:slave \
---volume {{ storage_server_shares_mounts_path }}/medias/books:{{ storage_server_shares_mounts_path }}/medias/books:slave \
---volume {{ storage_server_shares_mounts_path }}/medias/comics:{{ storage_server_shares_mounts_path }}/medias/comics:slave \
+--volume {{ storage_server_shares_mounts_path }}/media/library:{{ storage_server_shares_mounts_path }}/media/library:slave \
 --secret=borgmatic_documents_encryption_passphrase \
 --secret=borgmatic_groupware_encryption_passphrase \
 --secret=borgmatic_medias_encryption_passphrase \

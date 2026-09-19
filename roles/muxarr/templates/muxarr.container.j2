@@ -9,8 +9,8 @@ Network=web-egress
 Network=common-internal
 ExposeHostPort=8183
 Volume={{ containers_storage_path }}/data/muxarr:/config:Z
-Volume={{ storage_server_shares_mounts_path }}/medias/movies:/movies:slave
-Volume={{ storage_server_shares_mounts_path }}/medias/series:/tv:slave
+Volume={{ storage_server_shares_mounts_path }}/media/library/movies:/mnt/media/library/movies:slave
+Volume={{ storage_server_shares_mounts_path }}/media/library/tv:/mnt/media/library/tv:slave
 Timezone={{ timezone }}
 Environment="TZ={{ timezone }}"
 Label="traefik.enable=true"

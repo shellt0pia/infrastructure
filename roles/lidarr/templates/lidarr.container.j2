@@ -9,8 +9,8 @@ Network=web-egress
 Network=common-internal
 ExposeHostPort=8686
 Volume={{ containers_storage_path }}/data/lidarr:/config:Z
-Volume={{ storage_server_shares_mounts_path }}/downloads:/downloads:slave
-Volume={{ storage_server_shares_mounts_path }}/medias/music:/music:slave
+Volume={{ storage_server_shares_mounts_path }}/media/download:/mnt/media/download:slave
+Volume={{ storage_server_shares_mounts_path }}/media/library/music:/mnt/media/library/music:slave
 Timezone={{ timezone }}
 Environment="TZ={{ timezone }}"
 Label="traefik.enable=true"

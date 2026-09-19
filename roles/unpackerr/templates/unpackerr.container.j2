@@ -6,18 +6,18 @@ Documentation=man:podman-systemd.unit(5)
 ContainerName=unpackerr
 Image={{ containers_images.unpackerr }}:{{ containers_images_tags.unpackerr }}
 Network=common-internal
-Volume={{ storage_server_shares_mounts_path }}/downloads/bittorrent/downloads:/downloads/bittorrent/downloads:slave
+Volume={{ storage_server_shares_mounts_path }}/media/download/bittorrent:/mnt/media/download/bittorrent:slave
 Timezone={{ timezone }}
 EnvironmentFile={{ containers_storage_path }}/env/unpackerr/unpackerr.env
 Environment="TZ={{ timezone }}"
 Environment="UN_SONARR_0_URL=http://sonarr:8989"
-Environment="UN_SONARR_0_PATHS_0=/downloads/bittorrent/downloads/tv"
+Environment="UN_SONARR_0_PATHS_0=/mnt/media/download/bittorrent/tv"
 Environment="UN_SONARR_0_PROTOCOLS=torrent"
 Environment="UN_RADARR_0_URL=http://radarr:7878"
-Environment="UN_RADARR_0_PATHS_0=/downloads/bittorrent/downloads/movies"
+Environment="UN_RADARR_0_PATHS_0=/mnt/media/download/bittorrent/movies"
 Environment="UN_RADARR_0_PROTOCOLS=torrent"
 Environment="UN_LIDARR_0_URL=http://lidarr:8686"
-Environment="UN_LIDARR_0_PATHS_0=/downloads/bittorrent/downloads/audio"
+Environment="UN_LIDARR_0_PATHS_0=/mnt/media/download/bittorrent/audio"
 Environment="UN_LIDARR_0_PROTOCOLS=torrent"
 AutoUpdate=local
 

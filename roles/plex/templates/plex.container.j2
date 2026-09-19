@@ -13,11 +13,11 @@ AddDevice=/dev/dri/card1:/dev/dri/card1
 AddDevice=/dev/dri/renderD128:/dev/dri/renderD128
 Volume={{ containers_storage_path }}/data/plex:/config:Z
 Volume={{ containers_storage_path }}/runtime/plex:/transcode:Z
-Volume={{ storage_server_shares_mounts_path }}/medias/audiobooks:/data/audiobooks:slave,ro
-Volume={{ storage_server_shares_mounts_path }}/medias/audiodrama:/data/audiodrama:slave,ro
-Volume={{ storage_server_shares_mounts_path }}/medias/movies:/data/movies:slave,ro
-Volume={{ storage_server_shares_mounts_path }}/medias/music:/data/music:slave,ro
-Volume={{ storage_server_shares_mounts_path }}/medias/series:/data/series:slave,ro
+Volume={{ storage_server_shares_mounts_path }}/media/library/audiobooks:/mnt/media/library/audiobooks:slave,ro
+Volume={{ storage_server_shares_mounts_path }}/media/library/audiodrama:/mnt/media/library/audiodrama:slave,ro
+Volume={{ storage_server_shares_mounts_path }}/media/library/movies:/mnt/media/library/movies:slave,ro
+Volume={{ storage_server_shares_mounts_path }}/media/library/music:/mnt/media/library/music:slave,ro
+Volume={{ storage_server_shares_mounts_path }}/media/library/tv:/mnt/media/library/tv:slave,ro
 Timezone={{ timezone }}
 Environment="TZ={{ timezone }}"
 Environment="PLEX_CLAIM={{ plex.claim_token }}"

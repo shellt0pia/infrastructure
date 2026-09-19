@@ -9,9 +9,7 @@ Network=web-egress
 Network=common-internal
 ExposeHostPort=8080
 Volume={{ containers_storage_path }}/data/sabnzbd:/config:Z
-Volume={{ storage_server_shares_mounts_path }}/downloads/usenet/completed:/downloads:slave
-Volume={{ storage_server_shares_mounts_path }}/downloads/usenet/processing:/incomplete-downloads:slave
-Volume={{ storage_server_shares_mounts_path }}/downloads/usenet/watching:/watching:slave
+Volume={{ storage_server_shares_mounts_path }}/media/download/usenet:/mnt/media/download/usenet:slave
 Timezone={{ timezone }}
 Environment="TZ={{ timezone }}"
 Label="traefik.enable=true"

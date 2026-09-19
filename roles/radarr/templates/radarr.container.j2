@@ -9,8 +9,8 @@ Network=web-egress
 Network=common-internal
 ExposeHostPort=7878
 Volume={{ containers_storage_path }}/data/radarr:/config:Z
-Volume={{ storage_server_shares_mounts_path }}/downloads:/downloads:slave
-Volume={{ storage_server_shares_mounts_path }}/medias/movies:/movies:slave
+Volume={{ storage_server_shares_mounts_path }}/media/download:/mnt/media/download:slave
+Volume={{ storage_server_shares_mounts_path }}/media/library/movies:/mnt/media/library/movies:slave
 Timezone={{ timezone }}
 Environment="TZ={{ timezone }}"
 Label="traefik.enable=true"
