@@ -5,3 +5,12 @@ containers_images:
 containers_images_tags:
   gluetun: 'latest'
   transmission: 'latest'
+
+# settings.json keys not exposed as environment variables by the LinuxServer
+# image. Deep-merged into settings.json on every container start.
+transmission_settings:
+  cache-size-mb: 256
+  download-dir: '/mnt/media/download/bittorrent'
+  incomplete-dir-enabled: false
+  preallocation: 1
+  watch-dir-enabled: false

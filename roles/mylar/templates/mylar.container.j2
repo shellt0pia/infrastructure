@@ -9,8 +9,9 @@ Network=web-egress
 Network=common-internal
 ExposeHostPort=8090
 Volume={{ containers_storage_path }}/data/mylar:/config:Z
-Volume={{ storage_server_shares_mounts_path }}/downloads:/downloads:slave
-Volume={{ storage_server_shares_mounts_path }}/medias/comics:/comics:slave
+Volume={{ storage_server_shares_mounts_path }}/media/download/bittorrent/comics:/mnt/media/download/bittorrent/comics:slave,ro
+Volume={{ storage_server_shares_mounts_path }}/media/download/usenet/complete/comics:/mnt/media/download/usenet/complete/comics:slave,ro
+Volume={{ storage_server_shares_mounts_path }}/media/library/comics:/mnt/media/library/comics:slave
 Timezone={{ timezone }}
 Environment="TZ={{ timezone }}"
 Label="traefik.enable=true"

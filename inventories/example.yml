@@ -60,10 +60,7 @@ all:
         - name: 'backups/documents'
         - name: 'backups/groupware'
         - name: 'backups/servers'
-        - name: 'medias/audiobooks'
-        - name: 'medias/audiodrama'
-        - name: 'medias/books'
-        - name: 'medias/comics'
+        - name: 'media'
       traefik:
         api:
           user: ''
@@ -334,15 +331,7 @@ all:
         type: 'nfs'
         shares_base_path: '/mnt/nas'
       storage_server_shares:
-        - name: 'downloads/bittorrent'
-        - name: 'downloads/usenet'
-        - name: 'medias/audiobooks'
-        - name: 'medias/audiodrama'
-        - name: 'medias/books'
-        - name: 'medias/comics'
-        - name: 'medias/movies'
-        - name: 'medias/music'
-        - name: 'medias/series'
+        - name: 'media'
       traefik:
         api:
           user: ''

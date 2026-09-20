@@ -10,7 +10,7 @@ Network=common-internal
 ExposeHostPort=25600
 Volume={{ containers_storage_path }}/data/komga:/config:Z
 Volume={{ containers_storage_path }}/runtime/komga:/tmp:Z
-Volume={{ storage_server_shares_mounts_path }}/medias/comics:/books:slave
+Volume={{ storage_server_shares_mounts_path }}/media/library/comics:/mnt/media/library/comics:slave
 Timezone={{ timezone }}
 Environment="TZ={{ timezone }}"
 Label="traefik.enable=true"

@@ -108,6 +108,9 @@
     - path: 'data/gluetun'
       owner: 'root'
       group: 'root'
+    - path: 'config/transmission'
+      owner: 'root'
+      group: 'root'
     - path: 'data/transmission'
       owner: 911
       group: 911
@@ -134,6 +137,15 @@
     group: 'root'
     mode: '0400'
   register: 'gluetun_environment_file'
+
+- name: 'Create Transmission custom init script from template'
+  ansible.builtin.template:
+    src: 'transmission-settings.sh.j2'
+    dest: '{{ containers_storage_path }}/config/transmission/transmission-settings.sh'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+  register: 'transmission_settings_script'
 
 - name: 'Create Transmission pod quadlet units from templates'
   ansible.builtin.template:
@@ -162,4 +174,4 @@
     name: 'transmission-gluetun-pod.service'
     daemon_reload: true
     state: 'restarted'
-  when: (quadlet_units.changed and not systemd_start.changed)
+  when: ((quadlet_units.changed or transmission_settings_script.changed) and not systemd_start.changed)

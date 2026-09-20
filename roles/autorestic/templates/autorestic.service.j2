@@ -9,10 +9,7 @@ RequiresMountsFor={{ containers_storage_path }}/config/autorestic/autorestic.yml
 RequiresMountsFor={{ storage_server_shares_mounts_path }}/backups/documents
 RequiresMountsFor={{ storage_server_shares_mounts_path }}/backups/groupware
 RequiresMountsFor={{ storage_server_shares_mounts_path }}/backups/servers
-RequiresMountsFor={{ storage_server_shares_mounts_path }}/medias/audiodrama
-RequiresMountsFor={{ storage_server_shares_mounts_path }}/medias/audiobooks
-RequiresMountsFor={{ storage_server_shares_mounts_path }}/medias/books
-RequiresMountsFor={{ storage_server_shares_mounts_path }}/medias/comics
+RequiresMountsFor={{ storage_server_shares_mounts_path }}/media/library
 
 [X-Container]
 Image={{ containers_images.autorestic }}:{{ containers_images_tags.autorestic }}
@@ -38,10 +35,7 @@ ExecStart=/usr/bin/podman container run \
 	--volume {{ storage_server_shares_mounts_path }}/backups/documents:{{ storage_server_shares_mounts_path }}/backups/documents:slave,ro \
 	--volume {{ storage_server_shares_mounts_path }}/backups/groupware:{{ storage_server_shares_mounts_path }}/backups/groupware:slave,ro \
 	--volume {{ storage_server_shares_mounts_path }}/backups/servers:{{ storage_server_shares_mounts_path }}/backups/servers:slave,ro \
-	--volume {{ storage_server_shares_mounts_path }}/medias/audiodrama:{{ storage_server_shares_mounts_path }}/medias/audiodrama:slave,ro \
-	--volume {{ storage_server_shares_mounts_path }}/medias/audiobooks:{{ storage_server_shares_mounts_path }}/medias/audiobooks:slave,ro \
-	--volume {{ storage_server_shares_mounts_path }}/medias/books:{{ storage_server_shares_mounts_path }}/medias/books:slave,ro \
-	--volume {{ storage_server_shares_mounts_path }}/medias/comics:{{ storage_server_shares_mounts_path }}/medias/comics:slave,ro \
+	--volume {{ storage_server_shares_mounts_path }}/media/library:{{ storage_server_shares_mounts_path }}/media/library:slave,ro \
 	--tz {{ timezone }} \
 	--env TZ={{ timezone }} {{ containers_images.autorestic }}:{{ containers_images_tags.autorestic }} -c /config/autorestic.yml --ci backup -a
 ExecStop=/usr/bin/podman rm -v -f -i --cidfile=%t/%N.cid
