@@ -21,7 +21,7 @@
 
 - name: 'Remove Unpackerr container quadlet unit'
   ansible.builtin.file:
-    path: '/etc/container/systemd/unpackerr.container'
+    path: '/etc/containers/systemd/unpackerr.container'
     state: 'absent'
   notify: 'Reload systemd daemon'
 
