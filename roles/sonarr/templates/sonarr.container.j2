@@ -9,8 +9,8 @@ Network=web-egress
 Network=common-internal
 ExposeHostPort=8989
 Volume={{ containers_storage_path }}/data/sonarr:/config:Z
-Volume={{ storage_server_shares_mounts_path }}/media/download/bittorrent/tv:/mnt/media/download/bittorrent/tv:slave,ro
-Volume={{ storage_server_shares_mounts_path }}/media/download/usenet/complete/tv:/mnt/media/download/usenet/complete/tv:slave,ro
+Volume={{ storage_server_shares_mounts_path }}/media/download/bittorrent/tv:/mnt/media/download/bittorrent/tv:slave
+Volume={{ storage_server_shares_mounts_path }}/media/download/usenet/complete/tv:/mnt/media/download/usenet/complete/tv:slave
 Volume={{ storage_server_shares_mounts_path }}/media/library/tv:/mnt/media/library/tv:slave
 Timezone={{ timezone }}
 Environment="TZ={{ timezone }}"
