@@ -51,6 +51,27 @@ storage:
         inline: |
           vm.swappiness = 180
           vm.page-cluster = 0
+    - path: /etc/NetworkManager/conf.d/99-ipv6.conf
+      mode: 0644
+      contents:
+        inline: |
+          [connection]
+          ipv6.ip6-privacy=0
+          {#
+          man 5 NetworkManager.conf --> connection section
+          "Note that while nmcli supports various aliases and convenience features for configuring properties, the
+          settings in this section do not. For example, enum values usually only can be configured via their numeric
+          magic number." ipv6.addr-gen-mode enum mapping is:
+          `0` = eui64, `1` = stable-privacy, `2` = default-or-eui64 and `3` = default
+          #}
+          ipv6.addr-gen-mode=0
+          {#
+          Some services depends on network-online.target being reached when both IPv4 and IPv6 are available but by
+          default NetworkManager declares the connection activated as soon as the first address family (DHCPv4)
+          completes, while SLAAC/DAD is still running. So we require waiting up to 5000ms for the IPv6 configuration
+          to finish before reaching network-oneline.target.
+          #}
+          ipv6.required-timeout=5000
     - path: /etc/containers/storage.conf
       mode: 0644
       contents:

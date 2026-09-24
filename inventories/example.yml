@@ -440,7 +440,6 @@ all:
       ssh_keys:
         - 'ssh-ed25519 xxx'
     home_network:
-      ipv6_gua: 'fe80:ba0:bab:0::/56'
       proxy_protocol_trusted_ips:
         - '192.168.0.1'
         - 'fe80:ba0:bab:0::1'
