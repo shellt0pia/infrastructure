@@ -455,6 +455,10 @@ all:
       server: ''
       user: ''
       password: ''
+    cloudflare_ddns:
+      pushover:
+        user_key: ''
+        api_token: ''
     healthchecks_ping_key: '' # https://healthchecks.domain.tld/projects/PROJECT_UUID/settings/ > API Access > Ping key
     healthchecksio_ping_key: '' # https://healthchecks.io/projects/PROJECT_UUID/settings/ > API Access > Ping key
     tmdb_api_key: '' # https://www.themoviedb.org/settings/api

@@ -1,0 +1,57 @@
+---
+- name: 'Create Cloudflare DDNS env bind mount path'
+  ansible.builtin.file:
+    path: '{{ containers_storage_path }}/env/cloudflare-ddns'
+    owner: 'root'
+    group: 'root'
+    mode: '0700'
+    state: 'directory'
+
+- name: 'Create Cloudflare DDNS secrets'
+  containers.podman.podman_secret:
+    name: '{{ item.name }}'
+    data: '{{ item.data }}'
+    skip_existing: true
+    state: 'present'
+  loop:
+    - name: 'cloudflare_ddns_token'
+      data: '{{ cloudflare_dns_token }}'
+      services: 'cloudflare-ddns.service'
+  loop_control:
+    label: '{{ item.name }}'
+  register: 'podman_secrets'
+
+- name: 'Create Cloudflare DDNS environment file'
+  ansible.builtin.copy:
+    content: |
+      SHOUTRRR=pushover://{{ cloudflare_ddns.pushover.api_token }}@{{ cloudflare_ddns.pushover.user_key }}
+    dest: '{{ containers_storage_path }}/env/cloudflare-ddns/cloudflare-ddns.env'
+    owner: 'root'
+    group: 'root'
+    mode: '0400'
+  register: 'environment_file'
+
+- name: 'Create Cloudflare DDNS quadlet unit from template'
+  ansible.builtin.template:
+    src: 'cloudflare-ddns.container.j2'
+    dest: '/etc/containers/systemd/cloudflare-ddns.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'quadlet_unit'
+  notify: 'Reload systemd daemon'
+
+- name: 'Enable and start Cloudflare DDNS container'
+  ansible.builtin.systemd_service:
+    name: 'cloudflare-ddns.service'
+    daemon_reload: true
+    enabled: true
+    state: 'started'
+  register: 'systemd_start'
+
+- name: 'Restart Cloudflare DDNS service if environment file or quadlet unit has changed while service was already started'
+  ansible.builtin.systemd_service:
+    name: 'cloudflare-ddns.service'
+    daemon_reload: true
+    state: 'restarted'
+  when: ((environment_file.changed or quadlet_unit.changed) and not systemd_start.changed)

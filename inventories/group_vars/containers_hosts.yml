@@ -1,5 +1,6 @@
 ---
 containers_images_tags:
+  cloudflare_ddns: '2'
   cockpit: 'latest'
   sshd_rsync: 'latest'
   rsync_servers: 'latest'

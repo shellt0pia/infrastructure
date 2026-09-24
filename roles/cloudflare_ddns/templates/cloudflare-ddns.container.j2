@@ -1,0 +1,23 @@
+[Unit]
+Description=Cloudflare DDNS
+Documentation=man:podman-systemd.unit(5)
+
+[Container]
+ContainerName=cloudflare-ddns
+Image={{ containers_images.cloudflare_ddns }}:{{ containers_images_tags.cloudflare_ddns }}
+Network=web-egress
+Secret=cloudflare_ddns_token
+Timezone={{ timezone }}
+EnvironmentFile={{ containers_storage_path }}/env/cloudflare-ddns/cloudflare-ddns.env
+Environment="TZ={{ timezone }}"
+Environment="CLOUDFLARE_API_TOKEN_FILE=/run/secrets/cloudflare_ddns_token"
+Environment="DOMAINS={{ ansible_facts["fqdn"] }}{% if "cloud_hosts" in group_names %}, wg-{{ ansible_facts["fqdn"] }}{% endif %}"
+AutoUpdate=local
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+TimeoutStopSec=70
+
+[Install]
+WantedBy=default.target
