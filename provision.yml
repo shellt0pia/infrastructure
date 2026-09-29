@@ -18,6 +18,7 @@
 - name: 'Common containers'
   hosts: 'containers_hosts'
   roles:
+    - 'cloudflare_ddns'
     - 'traefik'
     - 'cockpit'
     - 'sshd_rsync'
