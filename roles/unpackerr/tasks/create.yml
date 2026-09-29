@@ -10,9 +10,9 @@
 - name: 'Create Unpackerr environment file'
   ansible.builtin.copy:
     content: |
-      UN_SONARR_0_API_KEY={{ unpackerr.sonarr_api_key }}
-      UN_RADARR_0_API_KEY={{ unpackerr.radarr_api_key }}
-      UN_LIDARR_0_API_KEY={{ unpackerr.lidarr_api_key }}
+      UN_SONARR_0_API_KEY={{ sonarr.api_key }}
+      UN_RADARR_0_API_KEY={{ radarr.api_key }}
+      UN_LIDARR_0_API_KEY={{ lidarr.api_key }}
     dest: '{{ containers_storage_path }}/env/unpackerr/unpackerr.env'
     owner: 'root'
     group: 'root'
