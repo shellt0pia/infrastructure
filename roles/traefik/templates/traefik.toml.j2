@@ -32,7 +32,7 @@
 {% if "cloud_hosts" in group_names %}
     [entryPoints.websecure.http3]
 {% endif %}
-{% if inventory_hostname == "documents" %}{# Required for Immich, see https://immich.app/docs/administration/reverse-proxy/#traefik-proxy-example-config #}
+{% if inventory_hostname == "cloud" %}{# Required for Immich, see https://immich.app/docs/administration/reverse-proxy/#traefik-proxy-example-config #}
     [entryPoints.websecure.transport.respondingTimeouts]
       readTimeout = "600s"
       idleTimeout = "600s"

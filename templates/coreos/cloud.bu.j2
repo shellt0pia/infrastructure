@@ -10,8 +10,6 @@ storage:
           size_mib: 16384
           resize: true
         - label: var-lib-containers
-          size_mib: 24576
-        - label: var-containers
           size_mib: 0
   filesystems:
     - device: /dev/disk/by-partlabel/root
@@ -23,18 +21,11 @@ storage:
       format: btrfs
       label: var-lib-containers
       with_mount_unit: true
-    - path: /var/containers
-      device: /dev/disk/by-partlabel/var-containers
-      format: btrfs
-      label: var-containers
-      mount_options:
-        - compress=zstd
-      with_mount_unit: true
   files:
     - path: /etc/hostname
       mode: 0644
       contents:
-        inline: {{ hostvars['medias']['ansible_host'] }}
+        inline: {{ hostvars['cloud']['ansible_host'] }}
     - path: /etc/vconsole.conf
       mode: 0644
       contents:
@@ -51,27 +42,6 @@ storage:
         inline: |
           vm.swappiness = 180
           vm.page-cluster = 0
-    - path: /etc/NetworkManager/conf.d/99-ipv6.conf
-      mode: 0644
-      contents:
-        inline: |
-          [connection]
-          ipv6.ip6-privacy=0
-          {#
-          man 5 NetworkManager.conf --> connection section
-          "Note that while nmcli supports various aliases and convenience features for configuring properties, the
-          settings in this section do not. For example, enum values usually only can be configured via their numeric
-          magic number." ipv6.addr-gen-mode enum mapping is:
-          `0` = eui64, `1` = stable-privacy, `2` = default-or-eui64 and `3` = default
-          #}
-          ipv6.addr-gen-mode=0
-          {#
-          Some services depends on network-online.target being reached when both IPv4 and IPv6 are available but by
-          default NetworkManager declares the connection activated as soon as the first address family (DHCPv4)
-          completes, while SLAAC/DAD is still running. So we require waiting up to 5000ms for the IPv6 configuration
-          to finish before reaching network-oneline.target.
-          #}
-          ipv6.required-timeout=5000
     - path: /etc/containers/storage.conf
       mode: 0644
       contents:
@@ -85,12 +55,47 @@ storage:
       contents:
         inline: |
           [Service]
-          Environment=PACKAGE_LIST="python3"
+          Environment=PACKAGE_LIST="qemu-guest-agent python3"
+    - path: /etc/NetworkManager/system-connections/Wired connection 1.nmconnection
+      mode: 0600
+      contents:
+        inline: |
+          [connection]
+          id=Wired connection 1
+          type=ethernet
+          interface-name=ens3
+
+          [ipv4]
+          method=auto
+
+          [ipv6]
+          address1={{ hostvars['cloud']['network_config']['ipv6']['address'] }}/64,fe80::1
+          dns=2a01:4ff:ff00::add:1;2a01:4ff:ff00::add:2;
+          method=manual
+    - path: /etc/wireguard/wg0.conf
+      mode: 0600
+      contents:
+        inline: |
+          [Interface]
+          Address = {% for cidr in hostvars['cloud']['wireguard_tunnel']['interface']['addresses'] %}{{ cidr }}{{ "," if not loop.last else "" }}{% endfor %}
+          ListenPort = 51821
+          PrivateKey = {{ hostvars['cloud']['wireguard_tunnel']['interface']['private_key'] }}
+          PostUp = resolvectl dns %i {% for ip in hostvars['cloud']['wireguard_tunnel']['interface']['dns_servers'] %}{{ ip }}{{ " " if not loop.last else "" }}{% endfor %}; resolvectl domain %i {% for domain in hostvars['cloud']['wireguard_tunnel']['interface']['search_domains'] %}~{{ domain }}{{ " " if not loop.last else "" }}{% endfor %}
+
+          [Peer]
+          PublicKey = {{ hostvars['cloud']['wireguard_tunnel']['peer']['public_key'] }}
+          PresharedKey = {{ hostvars['cloud']['wireguard_tunnel']['peer']['preshared_key'] }}
+          AllowedIPs = {% for cidr in hostvars['cloud']['wireguard_tunnel']['peer']['allowed_ips'] %}{{ cidr }}{{ "," if not loop.last else "" }}{% endfor %}
+          Endpoint = {{ hostvars['cloud']['wireguard_tunnel']['peer']['endpoint'] }}
   links:
     - path: /etc/localtime
       target: ../usr/share/zoneinfo/Europe/Paris
 systemd:
   units:
+    - name: qemu-guest-agent.service
+      enabled: true
+    - name: wg-quick@wg0.service
+      enabled: true
     - name: bootupd-auto-update.service
       enabled: true
       contents: |
@@ -121,10 +126,25 @@ systemd:
 
         [Install]
         WantedBy=multi-user.target
+    - name: var-containers.mount
+      enabled: true
+      contents: |
+        [Unit]
+        Requires=systemd-fsck@dev-disk-by\x2dpartlabel-var\x2dcontainers.service
+        After=systemd-fsck@dev-disk-by\x2dpartlabel-var\x2dcontainers.service
+
+        [Mount]
+        Where=/var/containers
+        What=/dev/disk/by-partlabel/var-containers
+        Type=btrfs
+        Options=compress=zstd
+
+        [Install]
+        RequiredBy=local-fs.target
 passwd:
   users:
     - name: core
-      password_hash: {{ hostvars['medias']['linux_password_hash'] }}
+      password_hash: {{ hostvars['cloud']['linux_password_hash'] }}
       ssh_authorized_keys:
 {% for key in admin_user.ssh_keys %}
         - {{ key }}

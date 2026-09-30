@@ -1,8 +1,0 @@
-[Unit]
-Description=SMART long test of %f
-OnSuccess=ping-healthchecks-slug@%l-smart-test-%i:success.service
-OnFailure=ping-healthchecks-slug@%l-smart-test-%i:failure.service
-
-[Service]
-ExecStart=/usr/sbin/smartctl -t long %f
-Type=simple

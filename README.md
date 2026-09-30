@@ -4,22 +4,20 @@ This is a mono repository for my home infrastructure, managed with Ansible.
 
 ## Stack Overview
 
-I have 2 DELL Optiplex Micro to run my home workloads. One is running Proxmox VE and the other one Fedora CoreOS. On the Proxmox host there are 3 Virtual Machines, all running Fedora CoreOS.
-
-I also have a Hetzner VM to run my "critical" services that need to be always online even when my home network is down.
+I have a DELL Optiplex Micro to run my home workloads and a Hetzner VM to run my "critical" services that need to be always online even when my home network is down.
 
 As well as the following resources :
 
 - An OPNsense firewall with:
   - A public IPv4 and IPv6 prefix.
-  - Unbound configured with a record for each hosts.
-  - HAProxy as a transparent SNI proxy to route external HTTPS traffic to the proper host based on the SNI header.
-- A DNS zone for my public domain name managed by deSEC.
+  - Unbound configured with A+AAAA records for each hosts.
+  - HAProxy as a transparent SNI proxy to route external IPv4 HTTPS traffic to the proper host based on the SNI header.
+- A DNS zone for my public domain name managed by Cloudflare.
 - A TrueNAS server that host all my files and provide NFS exports to my containers hosts.
 
 I chose the following software stack for my container hosts:
 
-- OS : Fedora CoreOS, I already use Fedora on my desktop and laptop and I wanted an immutable OS for my servers using the same base.
+- OS : Fedora CoreOS, I already use Fedora Silverblue on my desktop and laptop and I also wanted an atomic fedora OS for my servers.
 - Services runtime : Podman with systemd quadlets units to manage the containers.
 
 ## Codebase Overview
@@ -30,7 +28,7 @@ The `Makefile` contains all the useful commands to manage the infrastructure, ru
 
 ### Secrets management
 
-All the secrets are stored in the `inventories/production.yml` which is encrypted using `ansible-vault`. The `vault-pass.sh` uses the bitwarden CLI to retrieve the vault password from my Bitwarden vault.
+All the secrets are stored in the `inventories/production.yml` which is encrypted using `ansible-vault`. The `vault-pass.sh` uses the bitwarden CLI to retrieve the vault password from my 1Password vault.
 
 Run `make vault` to edit the `production.yml` inventory in your `$EDITOR`.
 
@@ -44,7 +42,6 @@ The `ignition.yml` playbook will template the butane files and generate the Igni
 
 The Ansible code configures and deploys the following:
 
-- The Proxmox VE host (networking, alerting, smart monitoring etc.)
 - The Fedora CoreOS hosts (networking, NFS mounts, Podman installation etc.)
 - All the containerized services running on the Fedora CoreOS hosts
 
@@ -62,7 +59,7 @@ Run `make provision` to provision all the hosts using Ansible.
 
 ### Updating
 
-All the containers hosts are configured to auto-update:
+All the hosts are configured to auto-update:
 
 - Their OS every week using `zincati`.
 - Their containers using "custom" systemd timers that pull the latest image before `zincati` execution and eventual host reboot. If the host didn't reboot an other script recreate the containers that have pulled a new image.

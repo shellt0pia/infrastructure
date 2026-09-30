@@ -1,6 +1,0 @@
----
-- name: 'Hardcode ESP location in /etc/fwupd/daemon.conf'
-  ansible.builtin.lineinfile:
-    path: '/etc/fwupd/daemon.conf'
-    regexp: '^EspLocation='
-    line: 'EspLocation=/boot/efi'

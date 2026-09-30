@@ -105,7 +105,7 @@
       dest: '{{ containers_storage_path }}/config/traefik/providers/cockpit.toml'
     - src: 'home-assistant.toml.j2'
       dest: '{{ containers_storage_path }}/config/traefik/providers/home-assistant.toml'
-      host: 'medias'
+      host: 'home'
   loop_control:
     label: '{{ item.dest }}'
   register: 'configuration_files'

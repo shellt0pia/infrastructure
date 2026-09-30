@@ -36,9 +36,9 @@ ExecStart=/usr/bin/podman container run \
 	--env HEALTHCHECKS_URL=healthchecks.{{ domain_name }}/ping \
 	--env HEALTHCHECKS_UUID={{ rsync_servers.healthchecks_uuid }} \
 	--env CONTAINERS_HOSTS="{% for host in groups['containers_hosts'] %}{{ hostvars[host].ansible_host }}{{ " " if not loop.last else "" }}{% endfor %}" \
-	--env DOCUMENTS_HOST="{{ hostvars['documents'].ansible_host }}" \
+	--env DOCUMENTS_HOST="{{ hostvars['cloud'].ansible_host }}" \
 	--env CONTAINERS_HOSTS_REMOTE_PATH={{ containers_storage_path }}/.snapshot/data \
-	--env DOCUMENTS_HOST_REMOTE_PATH={{ hostvars['documents'].storage_server_shares_mounts_path }} \
+	--env DOCUMENTS_HOST_REMOTE_PATH={{ hostvars['cloud'].storage_server_shares_mounts_path }} \
 	--env CONTAINERS_HOSTS_LOCAL_PATH={{ storage_server_shares_mounts_path }}/backups/servers \
 	--env DOCUMENTS_HOST_LOCAL_PATH={{ storage_server_shares_mounts_path }}/backups/documents {{ containers_images.rsync_servers }}:{{ containers_images_tags.rsync_servers }}
 ExecStopPost=-/usr/bin/podman rm -v -f -i --cidfile=%t/%N.cid
