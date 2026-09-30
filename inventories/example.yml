@@ -357,10 +357,19 @@ all:
       transmission:
         user: ''
         password: ''
-      unpackerr:
-        sonarr_api_key: '' # https://sonarr.domain.tld/settings/general > Security > API Key
-        radarr_api_key: '' # https://radarr.domain.tld/settings/general > Security > API Key
-        lidarr_api_key: '' # https://lidarr.domain.tld/settings/general > Security > API Key
+      cross_seed:
+        api_key: '' # podman run --rm ghcr.io/cross-seed/cross-seed api-key
+        torznab_indexer_ids: # https://prowlarr.domain.tld > Indexer name > ID
+          - 1
+          - 2
+      prowlarr:
+        api_key: '' # https://prowlarr.domain.tld/settings/general > Security > API Key
+      sonarr:
+        api_key: '' # https://sonarr.domain.tld/settings/general > Security > API Key
+      radarr:
+        api_key: '' # https://radarr.domain.tld/settings/general > Security > API Key
+      lidarr:
+        api_key: '' # https://lidarr.domain.tld/settings/general > Security > API Key
       profilarr:
         oidc:
           client_id: ''

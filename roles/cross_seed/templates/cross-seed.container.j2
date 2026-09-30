@@ -1,0 +1,33 @@
+[Unit]
+Description=cross-seed
+Documentation=man:podman-systemd.unit(5)
+
+[Container]
+ContainerName=cross-seed
+Image={{ containers_images.cross_seed }}:{{ containers_images_tags.cross_seed }}
+Exec=daemon
+User=911
+Group=911
+Network=web-egress
+Network=common-internal
+ExposeHostPort=2468
+Volume={{ containers_storage_path }}/data/cross-seed:/config:Z
+Volume={{ containers_storage_path }}/config/cross-seed/config.js:/config/config.js:Z
+Volume={{ storage_server_shares_mounts_path }}/media/download/bittorrent:/mnt/media/download/bittorrent:slave
+Timezone={{ timezone }}
+Environment="TZ={{ timezone }}"
+Label="traefik.enable=true"
+Label="traefik.docker.network=common-internal"
+Label="traefik.http.routers.cross-seed.rule=Host(`cross-seed.{{ domain_name }}`)"
+Label="traefik.http.routers.cross-seed.entrypoints=websecure"
+Label="traefik.http.routers.cross-seed.middlewares=restrict-external-access@file"
+Label="traefik.http.services.cross-seed.loadbalancer.server.port=2468"
+AutoUpdate=local
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+TimeoutStopSec=70
+
+[Install]
+WantedBy=default.target
