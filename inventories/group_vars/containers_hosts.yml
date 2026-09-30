@@ -46,7 +46,7 @@ containers_images_tags:
   calibre: 'latest'
   calibre_web: 'latest'
   komga: 'latest'
-  gluetun: 'latest'
+  gluetun: 'v3'
   transmission: 'latest'
   sabnzbd: 'latest'
   cross_seed: '6'
