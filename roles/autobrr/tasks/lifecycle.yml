@@ -1,0 +1,53 @@
+---
+- name: 'Pull autobrr image'
+  containers.podman.podman_image:
+    name: '{{ containers_images.autobrr }}:{{ containers_images_tags.autobrr }}'
+    pull: true
+    force: true
+    state: 'present'
+  register: 'container_image_pull'
+  tags: ['never', 'containers-pull', 'containers-update']
+
+- name: 'Update autobrr tag in quadlet unit' # noqa: no-handler
+  ansible.builtin.template:
+    src: 'autobrr.container.j2'
+    dest: '/etc/containers/systemd/autobrr.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  when: (container_image_pull.changed)
+  register: 'quadlet_unit'
+  tags: ['never', 'containers-update']
+
+- name: 'Restart autobrr container'
+  ansible.builtin.systemd_service:
+    name: 'autobrr.service'
+    daemon_reload: '{{ ("true" | bool) if quadlet_unit.changed else ("false" | bool) }}'
+    state: 'restarted'
+  when: ("containers-restart" in ansible_run_tags or
+        ("containers-update" in ansible_run_tags and container_image_pull.changed))
+  tags: ['never', 'containers-restart', 'containers-update']
+
+- name: 'Disable autobrr container'
+  ansible.builtin.systemd_service:
+    name: 'autobrr.service'
+    enabled: false
+  tags: ['never', 'containers-disable']
+
+- name: 'Stop autobrr container'
+  ansible.builtin.systemd_service:
+    name: 'autobrr.service'
+    state: 'stopped'
+  tags: ['never', 'containers-stop']
+
+- name: 'Enable autobrr container'
+  ansible.builtin.systemd_service:
+    name: 'autobrr.service'
+    enabled: true
+  tags: ['never', 'containers-enable']
+
+- name: 'Start autobrr container'
+  ansible.builtin.systemd_service:
+    name: 'autobrr.service'
+    state: 'started'
+  tags: ['never', 'containers-start']

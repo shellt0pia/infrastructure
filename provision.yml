@@ -54,6 +54,7 @@
     - 'komga'
     - 'transmission'
     - 'sabnzbd'
+    - 'autobrr'
     - 'cross_seed'
     - 'flaresolverr'
     - 'unpackerr'

@@ -254,6 +254,11 @@ all:
       transmission:
         user: ''
         password: ''
+      autobrr:
+        oidc: # Redirect URI to configure in the identity provider: https://autobrr.domain.tld/api/auth/oidc/callback
+          client_id: ''
+          client_secret: ''
+          issuer: '' # e.g. https://idp.domain.tld
       cross_seed:
         api_key: '' # podman run --rm ghcr.io/cross-seed/cross-seed api-key
         torznab_indexer_ids: # https://prowlarr.domain.tld > Indexer name > ID
