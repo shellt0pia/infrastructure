@@ -1,0 +1,96 @@
+---
+- name: 'Pull qBittorrent stack images'
+  containers.podman.podman_image:
+    name: '{{ item.name }}'
+    pull: true
+    force: true
+    state: 'present'
+  loop:
+    - name: '{{ containers_images.qbittorrent.gluetun }}:{{ containers_images_tags.qbittorrent.gluetun }}'
+      services: ['qbittorrent-pod.service']
+    - name: '{{ containers_images.qbittorrent.server }}:{{ containers_images_tags.qbittorrent.server }}'
+      services: ['qbittorrent-pod.service']
+    - name: '{{ containers_images.qbittorrent.qui }}:{{ containers_images_tags.qbittorrent.qui }}'
+      services: ['qui.service']
+  loop_control:
+    label: '{{ item.name }}'
+  register: 'containers_images_pull'
+  tags: ['never', 'containers-pull', 'containers-update']
+
+- name: 'Update qBittorrent stack tags in quadlet units' # noqa: no-handler
+  ansible.builtin.template:
+    src: '{{ item.name }}.j2'
+    dest: '/etc/containers/systemd/{{ item.name }}'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  loop:
+    - name: 'qbittorrent.pod'
+      services: ['qbittorrent-pod.service']
+    - name: 'qbittorrent-gluetun.container'
+      services: ['qbittorrent-pod.service']
+    - name: 'qbittorrent-server.container'
+      services: ['qbittorrent-pod.service']
+    - name: 'qui.container'
+      services: ['qui.service']
+  loop_control:
+    label: '{{ item.name }}'
+  when: (containers_images_pull.changed)
+  register: 'quadlet_units'
+  tags: ['never', 'containers-update']
+
+- name: 'Restart qBittorrent stack'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    daemon_reload: '{{ ("true" | bool) if (quadlet_units is defined and quadlet_units.changed) else ("false" | bool) }}'
+    state: 'restarted'
+  loop:
+    - 'qbittorrent-pod.service'
+    - 'qui.service'
+  when: ("containers-restart" in ansible_run_tags)
+  tags: ['never', 'containers-restart']
+
+- name: 'Restart qBittorrent stack services whose image has been updated'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    daemon_reload: '{{ ("true" | bool) if (quadlet_units is defined and quadlet_units.changed) else ("false" | bool) }}'
+    state: 'restarted'
+  loop: '{{ containers_images_pull.results | selectattr("changed") | map(attribute="item.services") | ansible.builtin.flatten | unique }}'
+  when: ("containers-update" in ansible_run_tags and containers_images_pull.changed)
+  tags: ['never', 'containers-update']
+
+- name: 'Disable qBittorrent stack'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    enabled: false
+  loop:
+    - 'qui.service'
+    - 'qbittorrent-pod.service'
+  tags: ['never', 'containers-disable']
+
+- name: 'Stop qBittorrent stack'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    state: 'stopped'
+  loop:
+    - 'qui.service'
+    - 'qbittorrent-pod.service'
+  tags: ['never', 'containers-stop']
+
+- name: 'Enable qBittorrent stack'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    enabled: true
+  loop:
+    - 'qbittorrent-pod.service'
+    - 'qui.service'
+  tags: ['never', 'containers-enable']
+
+- name: 'Start qBittorrent stack'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    state: 'started'
+  loop:
+    - 'qbittorrent-pod.service'
+    - 'qui.service'
+  tags: ['never', 'containers-start']

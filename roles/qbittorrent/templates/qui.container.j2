@@ -1,0 +1,40 @@
+[Unit]
+Description=qui
+Documentation=man:podman-systemd.unit(5)
+
+[Container]
+ContainerName=qui
+Image={{ containers_images.qbittorrent.qui }}:{{ containers_images_tags.qbittorrent.qui }}
+User=1000
+Group=1000
+Network=web-egress
+Network=common-internal
+ExposeHostPort=7476
+Volume={{ containers_storage_path }}/data/qui:/config:Z
+Volume={{ storage_server_shares_mounts_path }}/media/download/bittorrent:/mnt/media/download/bittorrent:slave
+Secret=qui_oidc_client_secret
+Timezone={{ timezone }}
+Environment="TZ={{ timezone }}"
+Environment="QUI__HOST=0.0.0.0"
+Environment="QUI__PORT=7476"
+Environment="QUI__OIDC_ENABLED=true"
+Environment="QUI__OIDC_ISSUER={{ qbittorrent.qui.oidc.issuer }}"
+Environment="QUI__OIDC_CLIENT_ID={{ qbittorrent.qui.oidc.client_id }}"
+Environment="QUI__OIDC_CLIENT_SECRET_FILE=/run/secrets/qui_oidc_client_secret"
+Environment="QUI__OIDC_REDIRECT_URL=https://qui.{{ domain_name }}/api/auth/oidc/callback"
+Environment="QUI__OIDC_DISABLE_BUILT_IN_LOGIN=true"
+Label="traefik.enable=true"
+Label="traefik.docker.network=common-internal"
+Label="traefik.http.routers.qui.rule=Host(`qui.{{ domain_name }}`)"
+Label="traefik.http.routers.qui.entrypoints=websecure"
+Label="traefik.http.routers.qui.middlewares=restrict-external-access@file"
+Label="traefik.http.services.qui.loadbalancer.server.port=7476"
+AutoUpdate=local
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+TimeoutStopSec=70
+
+[Install]
+WantedBy=default.target
