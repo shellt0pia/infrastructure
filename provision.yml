@@ -53,6 +53,7 @@
     - 'calibre_web'
     - 'komga'
     - 'transmission'
+    - 'qbittorrent'
     - 'sabnzbd'
     - 'autobrr'
     - 'cross_seed'

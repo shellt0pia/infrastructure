@@ -1,7 +1,7 @@
 ---
-- name: 'Ensure the user really wants to remove the Transmission pod'
+- name: 'Ensure the user really wants to remove the qBittorrent stack'
   ansible.builtin.pause:
-    prompt: "WARNING! DO YOU REALLY WANT TO REMOVE THE TRANSMISSION POD?\nTHIS ACTION WILL DELETE ALL TRANSMISSION APP DATA AND IS IRREVERSIBLE!\nAnswer yes in capital letters to confirm"
+    prompt: "WARNING! DO YOU REALLY WANT TO REMOVE THE QBITTORRENT STACK?\nTHIS ACTION WILL DELETE ALL QBITTORRENT AND QUI APP DATA AND IS IRREVERSIBLE!\nAnswer yes in capital letters to confirm"
     echo: true
   register: remove_prompt
 
@@ -10,30 +10,34 @@
     msg: "Stopping playbook execution because the playbook was called with the tag 'containers-remove' but the user didn't want to remove the containers."
   when: (remove_prompt.user_input != "YES")
 
-- name: 'Disable and stop Transmission pod'
+- name: 'Disable and stop qBittorrent stack'
   ansible.builtin.systemd_service:
-    name: 'transmission-gluetun-pod.service'
+    name: '{{ item }}'
     daemon_reload: true
     enabled: false
     state: 'stopped'
-  register: systemd_unit
-  failed_when: (systemd_unit.failed and not "Could not find the requested service" in systemd_unit.msg)
+  loop:
+    - 'qui.service'
+    - 'qbittorrent-pod.service'
+  register: systemd_units
+  failed_when: (systemd_units.failed and not "Could not find the requested service" in systemd_units.msg)
 
-- name: 'Remove Transmission pod quadlet units'
+- name: 'Remove qBittorrent stack quadlet units'
   ansible.builtin.file:
     path: '/etc/containers/systemd/{{ item }}'
     state: 'absent'
   loop:
-    - 'transmission-gluetun.pod'
-    - 'transmission.container'
-    - 'gluetun.container'
+    - 'qui.container'
+    - 'qbittorrent-server.container'
+    - 'qbittorrent-gluetun.container'
+    - 'qbittorrent.pod'
   notify: 'Reload systemd daemon'
 
-- name: 'Remove Gluetun network from firewalld trusted zone'
+- name: 'Remove qBittorrent Gluetun network from firewalld trusted zone'
   block:
     - name: 'Get podman networks info'
       containers.podman.podman_network_info:
-        name: 'gluetun-external'
+        name: 'qbittorrent-gluetun-external'
       register: 'podman_network'
       failed_when: (podman_network.failed and not "network not found" in podman_network.msg)
 
@@ -46,18 +50,18 @@
         state: 'disabled'
       loop: '{{ podman_network | community.general.json_query("networks[*].subnets[*].subnet") | ansible.builtin.flatten }}'
 
-- name: 'Remove Gluetun network'
+- name: 'Remove qBittorrent Gluetun network'
   containers.podman.podman_network:
-    name: 'gluetun-external'
+    name: 'qbittorrent-gluetun-external'
     state: 'absent'
 
-- name: 'Check if the qBittorrent pod still needs TUN and WireGuard'
+- name: 'Check if the Transmission pod still needs TUN and WireGuard'
   ansible.builtin.stat:
-    path: '/etc/containers/systemd/qbittorrent.pod'
-  register: 'qbittorrent_pod_quadlet'
+    path: '/etc/containers/systemd/transmission-gluetun.pod'
+  register: 'transmission_pod_quadlet'
 
 - name: 'Remove TUN and WireGuard host configuration'
-  when: (not qbittorrent_pod_quadlet.stat.exists)
+  when: (not transmission_pod_quadlet.stat.exists)
   block:
     - name: 'Check if SELinux is configured to allow the use of TUN in containers'
       ansible.builtin.shell:
@@ -89,19 +93,20 @@
         - 'tun'
         - 'wireguard'
 
-- name: 'Remove Transmission container secrets'
+- name: 'Remove qBittorrent stack secrets'
   containers.podman.podman_secret:
     name: '{{ item }}'
     state: 'absent'
   loop:
-    - 'transmission_user'
-    - 'transmission_password'
+    - 'qui_oidc_client_secret'
 
-- name: 'Remove Transmission data bind mount path'
+- name: 'Remove qBittorrent stack bind mounts paths'
   ansible.builtin.file:
     path: '{{ containers_storage_path }}/{{ item }}'
     state: 'absent'
   loop:
-    - 'env/gluetun'
-    - 'data/gluetun'
-    - 'data/transmission'
+    - 'env/qbittorrent-gluetun'
+    - 'data/qbittorrent-gluetun'
+    - 'config/qbittorrent-gluetun'
+    - 'data/qbittorrent-server'
+    - 'data/qui'

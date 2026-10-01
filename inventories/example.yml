@@ -250,10 +250,33 @@ all:
             public_key: ''
             preshared_key: '' # wg genpsk
         firewall:
-          vpn_input_ports: ''
+          vpn_input_ports: '' # Static forwarded port(s), comma separated (e.g. AirVPN); the first one is used by qBittorrent. Leave empty to use gluetun automatic port forwarding (e.g. ProtonVPN, PIA), which requires qBittorrent's "Bypass authentication for clients on localhost"
+        # port_forwarding:
+        #   provider: '' # Optional, only when the port forwarding provider differs from provider.name
       transmission:
         user: ''
         password: ''
+      qbittorrent:
+        gluetun:
+          provider:
+            name: 'provider'
+            countries:
+              - 'Country'
+          wireguard:
+            private_key: '' # wg genkey
+            addresses: '172.16.0.2/32,fd00::2/128'
+            endpoint:
+              public_key: ''
+              preshared_key: '' # wg genpsk
+          firewall:
+            vpn_input_ports: '' # Static forwarded port(s), comma separated (e.g. AirVPN); the first one is used by qBittorrent. Leave empty to use gluetun automatic port forwarding (e.g. ProtonVPN, PIA), which requires qBittorrent's "Bypass authentication for clients on localhost"
+          # port_forwarding:
+          #   provider: '' # Optional, only when the port forwarding provider differs from provider.name
+        qui:
+          oidc: # Redirect URI to configure in the identity provider: https://qui.domain.tld/api/auth/oidc/callback
+            client_id: ''
+            client_secret: ''
+            issuer: '' # e.g. https://idp.domain.tld
       autobrr:
         oidc: # Redirect URI to configure in the identity provider: https://autobrr.domain.tld/api/auth/oidc/callback
           client_id: ''

@@ -48,6 +48,10 @@ containers_images_tags:
   komga: 'latest'
   gluetun: 'v3'
   transmission: 'latest'
+  qbittorrent:
+    gluetun: 'v3'
+    server: 'latest'
+    qui: 'latest'
   sabnzbd: 'latest'
   autobrr: 'latest'
   cross_seed: '6'
