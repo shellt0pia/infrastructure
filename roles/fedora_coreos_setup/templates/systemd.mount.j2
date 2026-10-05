@@ -1,7 +1,7 @@
 [Unit]
 Description={{ storage_server.name }} {{ item.name }} {{ storage_server.type }} share
-After=nss-lookup.target
-Wants=nss-lookup.target
+After=network-online.target nss-lookup.target
+Wants=network-online.target nss-lookup.target
 
 [Mount]
 {% if storage_server.type == "nfs" %}
