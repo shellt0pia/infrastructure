@@ -51,11 +51,20 @@ storage:
         inline: |
           vm.swappiness = 180
           vm.page-cluster = 0
-    - path: /etc/NetworkManager/conf.d/99-ipv6.conf
+    - path: /etc/NetworkManager/conf.d/99-ip-settings.conf
       mode: 0644
       contents:
         inline: |
           [connection]
+          {#
+          Some services depends on network-online.target being reached when both IPv4 and IPv6 are available but by
+          default NetworkManager declares the connection activated as soon as the first address family completes,
+          while the other is still running. So we require waiting up to 10s for both IPv4 and IPv6 configuration
+          to finish before reaching network-oneline.target.
+          #}
+          ipv4.required-timeout=10000
+          ipv6.required-timeout=10000
+          {# Disabled IPv6 privacy extensions to avoid generating temporary addresses for outgoing connections. #}
           ipv6.ip6-privacy=0
           {#
           man 5 NetworkManager.conf --> connection section
@@ -65,13 +74,6 @@ storage:
           `0` = eui64, `1` = stable-privacy, `2` = default-or-eui64 and `3` = default
           #}
           ipv6.addr-gen-mode=0
-          {#
-          Some services depends on network-online.target being reached when both IPv4 and IPv6 are available but by
-          default NetworkManager declares the connection activated as soon as the first address family (DHCPv4)
-          completes, while SLAAC/DAD is still running. So we require waiting up to 5000ms for the IPv6 configuration
-          to finish before reaching network-oneline.target.
-          #}
-          ipv6.required-timeout=5000
     - path: /etc/containers/storage.conf
       mode: 0644
       contents:
