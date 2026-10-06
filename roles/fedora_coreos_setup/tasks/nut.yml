@@ -17,6 +17,23 @@
     mode: '0640'
   notify: 'Reload nut-monitor service'
 
+- name: 'Create nut-monitor systemd unit override directory'
+  ansible.builtin.file:
+    path: '/etc/systemd/system/nut-monitor.service.d'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+    state: 'directory'
+
+- name: 'Copy nut-monitor systemd unit override'
+  ansible.builtin.copy:
+    src: 'nut-monitor-service-d-network.conf'
+    dest: '/etc/systemd/system/nut-monitor.service.d/network.conf'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  notify: 'Reload systemd daemon'
+
 - name: 'Enable and start nut-monitor'
   ansible.builtin.systemd_service:
     name: 'nut-monitor.service'
