@@ -96,18 +96,6 @@ systemd:
       enabled: true
     - name: wg-quick@wg0.service
       enabled: true
-    - name: bootupd-auto-update.service
-      enabled: true
-      contents: |
-        [Unit]
-        Description=Bootupd automatic update
-
-        [Service]
-        ExecStart=/usr/bin/bootupctl update
-        RemainAfterExit=yes
-
-        [Install]
-        WantedBy=multi-user.target
     - name: rpm-ostree-install.service
       enabled: true
       contents: |

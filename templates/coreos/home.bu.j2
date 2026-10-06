@@ -93,18 +93,6 @@ storage:
       target: ../usr/share/zoneinfo/Europe/Paris
 systemd:
   units:
-    - name: bootupd-auto-update.service
-      enabled: true
-      contents: |
-        [Unit]
-        Description=Bootupd automatic update
-
-        [Service]
-        ExecStart=/usr/bin/bootupctl update
-        RemainAfterExit=yes
-
-        [Install]
-        WantedBy=multi-user.target
     - name: rpm-ostree-install.service
       enabled: true
       contents: |

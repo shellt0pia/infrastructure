@@ -18,9 +18,6 @@
     - name: 'Configure PAM'
       ansible.builtin.import_tasks: 'pam.yml'
 
-    - name: 'Configure bootupd'
-      ansible.builtin.import_tasks: 'bootupd.yml'
-
     - name: 'Configure zincati'
       ansible.builtin.import_tasks: 'zincati.yml'
 
