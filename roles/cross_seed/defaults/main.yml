@@ -1,5 +1,0 @@
----
-containers_images:
-  cross_seed: 'ghcr.io/cross-seed/cross-seed'
-containers_images_tags:
-  cross_seed: 'latest'

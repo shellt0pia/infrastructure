@@ -1,0 +1,42 @@
+[Unit]
+Description=qBittorrent Gluetun
+Documentation=man:podman-systemd.unit(5)
+
+[Container]
+ContainerName=qbittorrent-gluetun
+Pod=qbittorrent.pod
+Image={{ containers_images.qbittorrent.gluetun }}:{{ containers_images_tags.qbittorrent.gluetun }}
+AddCapability=NET_ADMIN
+Sysctl=net.ipv6.conf.all.disable_ipv6=0
+AddDevice=/dev/net/tun:/dev/net/tun
+Volume={{ containers_storage_path }}/data/qbittorrent-gluetun:/gluetun:Z
+{% if qbittorrent_port_forwarding | bool %}
+Volume={{ containers_storage_path }}/config/qbittorrent-gluetun:/scripts:ro,Z
+{% endif %}
+Timezone={{ timezone }}
+EnvironmentFile={{ containers_storage_path }}/env/qbittorrent-gluetun/gluetun.env
+Environment="TZ={{ timezone }}"
+Environment="VPN_TYPE=wireguard"
+Environment="VPN_SERVICE_PROVIDER={{ qbittorrent.gluetun.provider.name }}"
+Environment="SERVER_COUNTRIES={% for country in qbittorrent.gluetun.provider.countries %}{{ country }}{{ "," if not loop.last else "" }}{% endfor %}"
+Environment="WIREGUARD_PUBLIC_KEY={{ qbittorrent.gluetun.wireguard.endpoint.public_key }}"
+Environment="WIREGUARD_ADDRESSES={{ qbittorrent.gluetun.wireguard.addresses }}"
+{% if qbittorrent_port_forwarding | bool %}
+Environment="VPN_PORT_FORWARDING=on"
+{% if ((qbittorrent.gluetun.port_forwarding | default({})).provider | default('')) | length > 0 %}
+Environment="VPN_PORT_FORWARDING_PROVIDER={{ qbittorrent.gluetun.port_forwarding.provider }}"
+{% endif %}
+Environment="VPN_PORT_FORWARDING_UP_COMMAND=/bin/sh /scripts/gluetun-port-up.sh {% raw %}{{PORTS}} {{VPN_INTERFACE}}{% endraw %}"
+Environment="VPN_PORT_FORWARDING_DOWN_COMMAND=/bin/sh /scripts/gluetun-port-down.sh"
+{% else %}
+Environment="FIREWALL_VPN_INPUT_PORTS={{ qbittorrent.gluetun.firewall.vpn_input_ports }}"
+{% endif %}
+AutoUpdate=local
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+TimeoutStopSec=70
+
+[Install]
+WantedBy=default.target
