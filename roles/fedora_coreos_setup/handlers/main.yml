@@ -11,6 +11,12 @@
   ansible.builtin.systemd_service:
     daemon_reload: true
 
+- name: 'Restart systemd-resolved service'
+  ansible.builtin.systemd_service:
+    name: 'systemd-resolved.service'
+    daemon_reload: true
+    state: 'restarted'
+
 - name: 'Reload firewalld service'
   ansible.builtin.systemd_service:
     name: 'firewalld.service'
