@@ -1,0 +1,8 @@
+[Unit]
+Description=Weekly resticprofile repository check
+
+[Timer]
+OnCalendar=Sun *-*-* 6:00:00
+
+[Install]
+WantedBy=timers.target

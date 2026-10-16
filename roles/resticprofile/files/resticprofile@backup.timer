@@ -1,0 +1,8 @@
+[Unit]
+Description=Daily resticprofile backup
+
+[Timer]
+OnCalendar=*-*-* 3:30:00
+
+[Install]
+WantedBy=timers.target

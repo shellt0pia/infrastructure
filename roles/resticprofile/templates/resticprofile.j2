@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+if [[ ${EUID} -ne 0 ]]; then
+  echo "Must be executed as root." 1>&2
+  exit 1
+fi
+
+podman run \
+--rm \
+--interactive \
+--hostname {{ ansible_facts["hostname"] }} \
+--network web-egress \
+--security-opt label=disable \
+--tz {{ timezone }} \
+--env TZ={{ timezone }} \
+--volume {{ containers_storage_path }}/config/resticprofile:/resticprofile:Z,ro \
+--volume {{ containers_storage_path }}/runtime/resticprofile/cache:/cache:Z \
+--volume {{ containers_storage_path }}/runtime/resticprofile/restore:/restore:Z \
+{% for source in resticprofile.sources %}
+--volume {{ source }}:{{ source }}:rslave,ro \
+{% endfor %}
+--secret resticprofile_repository_password \
+{% for key in resticprofile.environment | default({}) %}
+--secret resticprofile_{{ key | lower }},type=env,target={{ key }} \
+{% endfor %}
+{{ containers_images.resticprofile }}:{{ containers_images_tags.resticprofile }} "$@"

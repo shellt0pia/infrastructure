@@ -81,6 +81,18 @@ all:
       it_tools:
         user: ''
         password_hash: '' # podman run -it --rm quay.io/coreos/mkpasswd --method=bcrypt
+      resticprofile:
+        repository: '' # e.g. s3:s3.region.backblazeb2.com/bucket-name
+        password: '' # cat /dev/urandom | tr -dc '[:graph:]' | fold -w 64 | head -n 1
+        environment:
+          AWS_ACCESS_KEY_ID: ''
+          AWS_SECRET_ACCESS_KEY: ''
+        sources:
+          - '{{ containers_storage_path }}/.snapshot/data'
+        excludes:
+          - '*.log'
+          - '*.log.[0123456789]'
+        healthchecks_ping_key: '' # https://healthchecks.io/projects/PROJECT_UUID/settings/ > API Access > Ping key
     home:
       ansible_host: 'home.domain.tld'
       ansible_user: 'core'

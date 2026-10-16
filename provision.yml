@@ -19,6 +19,7 @@
 - name: 'Cloud containers'
   hosts: 'cloud'
   roles:
+    - 'resticprofile'
     - 'nextcloud'
     - 'collabora_online'
     - 'stirling_pdf'

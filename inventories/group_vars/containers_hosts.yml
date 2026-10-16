@@ -8,6 +8,7 @@ containers_images_tags:
   vdirsyncer: 'latest'
   borgmatic: '2.1'
   autorestic: '1.8'
+  resticprofile: '0.33.1'
   cetusguard: 'v1'
   traefik: '3'
   uptime_kuma: '2'

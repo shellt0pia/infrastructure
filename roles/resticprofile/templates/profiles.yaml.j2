@@ -1,0 +1,72 @@
+{% if "cloud_hosts" in group_names %}
+{% set healthchecks_ping_url = 'https://hc-ping.com/' ~ resticprofile.healthchecks_ping_key %}
+{% else %}
+{% set healthchecks_ping_url = 'https://healthchecks.' ~ domain_name ~ '/ping/' ~ resticprofile.healthchecks_ping_key %}
+{% endif %}
+{% set healthchecks_slug_prefix = 'restic-' ~ ansible_facts['hostname'] %}
+version: '1'
+
+global:
+  priority: 'low'
+  restic-lock-retry-after: '1m'
+  restic-stale-lock-age: '2h'
+  send-timeout: '10s'
+
+default:
+  repository: '{{ resticprofile.repository }}'
+  password-file: '/run/secrets/resticprofile_repository_password'
+  cache-dir: '/cache'
+  initialize: false
+  force-inactive-lock: true
+  verbose: true
+
+  backup:
+    source:
+{% for source in resticprofile.sources %}
+      - '{{ source }}'
+{% endfor %}
+    exclude-if-present:
+      - '.nobackup'
+{% if resticprofile.excludes | default([]) | length > 0 %}
+    exclude:
+{% for exclude in resticprofile.excludes %}
+      - '{{ exclude }}'
+{% endfor %}
+{% endif %}
+    send-before:
+      method: 'HEAD'
+      url: '{{ healthchecks_ping_url }}/{{ healthchecks_slug_prefix }}-backup/start'
+    send-after:
+      method: 'HEAD'
+      url: '{{ healthchecks_ping_url }}/{{ healthchecks_slug_prefix }}-backup'
+    send-after-fail:
+      method: 'POST'
+      url: '{{ healthchecks_ping_url }}/{{ healthchecks_slug_prefix }}-backup/fail'
+      body: "${ERROR}\n\n${ERROR_STDERR}"
+      headers:
+        - name: 'Content-Type'
+          value: 'text/plain; charset=UTF-8'
+
+  retention:
+    after-backup: true
+    keep-daily: 28
+    keep-weekly: 8
+    keep-monthly: 6
+    keep-yearly: 1
+    prune: true
+
+  check:
+    read-data-subset: '5%'
+    send-before:
+      method: 'HEAD'
+      url: '{{ healthchecks_ping_url }}/{{ healthchecks_slug_prefix }}-check/start'
+    send-after:
+      method: 'HEAD'
+      url: '{{ healthchecks_ping_url }}/{{ healthchecks_slug_prefix }}-check'
+    send-after-fail:
+      method: 'POST'
+      url: '{{ healthchecks_ping_url }}/{{ healthchecks_slug_prefix }}-check/fail'
+      body: "${ERROR}\n\n${ERROR_STDERR}"
+      headers:
+        - name: 'Content-Type'
+          value: 'text/plain; charset=UTF-8'

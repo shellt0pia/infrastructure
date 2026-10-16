@@ -1,0 +1,52 @@
+---
+- name: 'Ensure the user really wants to remove the resticprofile container'
+  ansible.builtin.pause:
+    prompt: "WARNING! DO YOU REALLY WANT TO REMOVE THE RESTICPROFILE CONTAINER?\nAnswer yes in capital letters to confirm"
+    echo: true
+  register: remove_prompt
+
+- name: "Stop execution if user didn't answer 'YES'"
+  ansible.builtin.fail:
+    msg: "Stopping playbook execution because the playbook was called with the tag 'containers-remove' but the user didn't want to remove the containers."
+  when: (remove_prompt.user_input != "YES")
+
+- name: 'Disable and stop resticprofile timers'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    daemon_reload: true
+    enabled: false
+    state: 'stopped'
+  loop:
+    - 'resticprofile@backup.timer'
+    - 'resticprofile@check.timer'
+  register: systemd_unit
+  failed_when: (systemd_unit.failed and not "Could not find the requested service" in systemd_unit.msg)
+
+- name: 'Remove resticprofile container systemd units'
+  ansible.builtin.file:
+    path: '/etc/systemd/system/{{ item }}'
+    state: 'absent'
+  loop:
+    - 'resticprofile@backup.timer'
+    - 'resticprofile@check.timer'
+    - 'resticprofile@.service'
+  notify: 'Reload systemd daemon'
+
+- name: 'Remove resticprofile command script from /usr/local/bin'
+  ansible.builtin.file:
+    path: '/usr/local/bin/resticprofile'
+    state: 'absent'
+
+- name: 'Remove resticprofile secrets'
+  containers.podman.podman_secret:
+    name: '{{ item }}'
+    state: 'absent'
+  loop: "{{ ['resticprofile_repository_password'] + (resticprofile.environment | default({}) | dict2items | map(attribute='key') | map('lower') | map('regex_replace', '^', 'resticprofile_') | list) }}"
+
+- name: 'Remove resticprofile bind mounts paths'
+  ansible.builtin.file:
+    path: '{{ containers_storage_path }}/{{ item }}'
+    state: 'absent'
+  loop:
+    - 'config/resticprofile'
+    - 'runtime/resticprofile'
