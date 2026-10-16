@@ -330,6 +330,7 @@ vars:
   domain_name: 'domain.tld'
   cloudflare_zone_token: '' # https://go-acme.github.io/lego/dns/cloudflare/index.html#api-tokens
   cloudflare_dns_token: '' # https://go-acme.github.io/lego/dns/cloudflare/index.html#api-tokens
+  cloudflare_hosts_zone_id: '' # Zone ID of the domain used for the hosts records (Cloudflare dashboard > Domain overview > API > Zone ID)
   root_user:
     email: ''
   admin_user:
@@ -353,7 +354,7 @@ vars:
     server: ''
     user: ''
     password: ''
-  cloudflare_ddns:
+  ddns_updater:
     pushover:
       user_key: ''
       api_token: ''

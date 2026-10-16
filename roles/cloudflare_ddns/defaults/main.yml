@@ -1,5 +1,0 @@
----
-containers_images:
-  cloudflare_ddns: 'docker.io/timothyjmiller/cloudflare-ddns'
-containers_images_tags:
-  cloudflare_ddns: 'latest'

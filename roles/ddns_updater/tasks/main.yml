@@ -1,6 +1,6 @@
 ---
-- name: 'Configure and manage Cloudflare DDNS container'
-  when: (containers_list is not defined or (containers_list is defined and 'cloudflare-ddns' in containers_list))
+- name: 'Configure and manage DDNS Updater container'
+  when: (containers_list is not defined or (containers_list is defined and 'ddns-updater' in containers_list))
   block:
     - name: 'Create'
       ansible.builtin.import_tasks: 'create.yml'

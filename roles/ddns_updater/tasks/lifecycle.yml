@@ -1,17 +1,17 @@
 ---
-- name: 'Pull Cloudflare DDNS image'
+- name: 'Pull DDNS Updater image'
   containers.podman.podman_image:
-    name: '{{ containers_images.cloudflare_ddns }}:{{ containers_images_tags.cloudflare_ddns }}'
+    name: '{{ containers_images.ddns_updater }}:{{ containers_images_tags.ddns_updater }}'
     pull: true
     force: true
     state: 'present'
   register: 'container_image_pull'
   tags: ['never', 'containers-pull', 'containers-update']
 
-- name: 'Update Cloudflare DDNS tag in quadlet unit' # noqa: no-handler
+- name: 'Update DDNS Updater tag in quadlet unit' # noqa: no-handler
   ansible.builtin.template:
-    src: 'cloudflare-ddns.container.j2'
-    dest: '/etc/containers/systemd/cloudflare-ddns.container'
+    src: 'ddns-updater.container.j2'
+    dest: '/etc/containers/systemd/ddns-updater.container'
     owner: 'root'
     group: 'root'
     mode: '0644'
@@ -19,35 +19,35 @@
   register: 'quadlet_unit'
   tags: ['never', 'containers-update']
 
-- name: 'Restart Cloudflare DDNS container'
+- name: 'Restart DDNS Updater container'
   ansible.builtin.systemd_service:
-    name: 'cloudflare-ddns.service'
+    name: 'ddns-updater.service'
     daemon_reload: '{{ ("true" | bool) if quadlet_unit.changed else ("false" | bool) }}'
     state: 'restarted'
   when: ("containers-restart" in ansible_run_tags or
         ("containers-update" in ansible_run_tags and container_image_pull.changed))
   tags: ['never', 'containers-restart', 'containers-update']
 
-- name: 'Disable Cloudflare DDNS container'
+- name: 'Disable DDNS Updater container'
   ansible.builtin.systemd_service:
-    name: 'cloudflare-ddns.service'
+    name: 'ddns-updater.service'
     enabled: false
   tags: ['never', 'containers-disable']
 
-- name: 'Stop Cloudflare DDNS container'
+- name: 'Stop DDNS Updater container'
   ansible.builtin.systemd_service:
-    name: 'cloudflare-ddns.service'
+    name: 'ddns-updater.service'
     state: 'stopped'
   tags: ['never', 'containers-stop']
 
-- name: 'Enable Cloudflare DDNS container'
+- name: 'Enable DDNS Updater container'
   ansible.builtin.systemd_service:
-    name: 'cloudflare-ddns.service'
+    name: 'ddns-updater.service'
     enabled: true
   tags: ['never', 'containers-enable']
 
-- name: 'Start Cloudflare DDNS container'
+- name: 'Start DDNS Updater container'
   ansible.builtin.systemd_service:
-    name: 'cloudflare-ddns.service'
+    name: 'ddns-updater.service'
     state: 'started'
   tags: ['never', 'containers-start']
