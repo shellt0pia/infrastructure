@@ -1,0 +1,65 @@
+{
+  "name": "07 - Tag goal-met (rule 09 deletes it once idle)",
+  "trackerPattern": "*",
+  "notify": false,
+  "conditions": {
+    "schemaVersion": "1",
+    "tags": [
+      {
+        "enabled": true,
+        "mode": "full",
+        "tags": ["goal-met"],
+        "condition": {
+          "operator": "AND",
+          "conditions": [
+            {
+              "field": "CATEGORY",
+              "operator": "MATCHES",
+              "value": "^(tv|movies|audio|comics|seedonly)(\\.cross)?$"
+            },
+            {
+              "field": "TAGS",
+              "operator": "NOT_EQUAL",
+              "value": "keep"
+            },
+            {
+              "field": "HARDLINK_SCOPE",
+              "operator": "EQUAL",
+              "value": "none"
+            },
+            {
+              "field": "SEEDING_TIME",
+              "operator": "LESS_THAN",
+              "value": "15552000"
+            },
+            {
+              "operator": "OR",
+              "conditions": [
+                {
+                  "operator": "AND",
+                  "conditions": [
+                    {
+                      "field": "SEEDING_TIME",
+                      "operator": "GREATER_THAN_OR_EQUAL",
+                      "value": "2592000"
+                    },
+                    {
+                      "field": "UPLOADED_OVER_SIZE",
+                      "operator": "GREATER_THAN_OR_EQUAL",
+                      "value": "2"
+                    }
+                  ]
+                },
+                {
+                  "field": "SEEDING_TIME",
+                  "operator": "GREATER_THAN_OR_EQUAL",
+                  "value": "7776000"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

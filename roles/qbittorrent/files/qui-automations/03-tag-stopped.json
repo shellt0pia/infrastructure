@@ -1,0 +1,49 @@
+{
+  "name": "03 - Tag stopped torrents (notify only)",
+  "trackerPattern": "*",
+  "conditions": {
+    "schemaVersion": "1",
+    "tags": [
+      {
+        "enabled": true,
+        "mode": "full",
+        "tags": ["stopped"],
+        "condition": {
+          "operator": "AND",
+          "conditions": [
+            {
+              "field": "STATE",
+              "operator": "EQUAL",
+              "value": "stopped"
+            },
+            {
+              "field": "ADDED_ON",
+              "operator": "GREATER_THAN_OR_EQUAL",
+              "value": "604800"
+            },
+            {
+              "field": "TAGS",
+              "operator": "NOT_EQUAL",
+              "value": "keep"
+            },
+            {
+              "operator": "OR",
+              "conditions": [
+                {
+                  "field": "PROGRESS",
+                  "operator": "GREATER_THAN_OR_EQUAL",
+                  "value": "1"
+                },
+                {
+                  "field": "CATEGORY",
+                  "operator": "NOT_CONTAINS",
+                  "value": ".cross"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

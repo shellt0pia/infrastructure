@@ -1,0 +1,63 @@
+{
+  "name": "09 - Delete when seeding goals are met, idle and not sharing files",
+  "trackerPattern": "*",
+  "intervalSeconds": 3600,
+  "dryRun": true,
+  "conditions": {
+    "schemaVersion": "1",
+    "delete": {
+      "enabled": true,
+      "mode": "deleteWithFilesPreserveCrossSeeds",
+      "condition": {
+        "operator": "AND",
+        "conditions": [
+          {
+            "field": "CATEGORY",
+            "operator": "MATCHES",
+            "value": "^(tv|movies|audio|comics|seedonly)(\\.cross)?$"
+          },
+          {
+            "field": "TAGS",
+            "operator": "NOT_EQUAL",
+            "value": "keep"
+          },
+          {
+            "field": "HARDLINK_SCOPE",
+            "operator": "EQUAL",
+            "value": "none"
+          },
+          {
+            "field": "LAST_ACTIVITY",
+            "operator": "GREATER_THAN_OR_EQUAL",
+            "value": "604800"
+          },
+          {
+            "operator": "OR",
+            "conditions": [
+              {
+                "operator": "AND",
+                "conditions": [
+                  {
+                    "field": "SEEDING_TIME",
+                    "operator": "GREATER_THAN_OR_EQUAL",
+                    "value": "2592000"
+                  },
+                  {
+                    "field": "UPLOADED_OVER_SIZE",
+                    "operator": "GREATER_THAN_OR_EQUAL",
+                    "value": "2"
+                  }
+                ]
+              },
+              {
+                "field": "SEEDING_TIME",
+                "operator": "GREATER_THAN_OR_EQUAL",
+                "value": "7776000"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

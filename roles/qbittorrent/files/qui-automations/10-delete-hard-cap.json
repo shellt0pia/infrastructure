@@ -1,0 +1,33 @@
+{
+  "name": "10 - Delete after 180 days of seeding",
+  "trackerPattern": "*",
+  "intervalSeconds": 3600,
+  "dryRun": true,
+  "conditions": {
+    "schemaVersion": "1",
+    "delete": {
+      "enabled": true,
+      "mode": "deleteWithFilesPreserveCrossSeeds",
+      "condition": {
+        "operator": "AND",
+        "conditions": [
+          {
+            "field": "CATEGORY",
+            "operator": "MATCHES",
+            "value": "^(tv|movies|audio|comics|seedonly)(\\.cross)?$"
+          },
+          {
+            "field": "TAGS",
+            "operator": "NOT_EQUAL",
+            "value": "keep"
+          },
+          {
+            "field": "SEEDING_TIME",
+            "operator": "GREATER_THAN_OR_EQUAL",
+            "value": "15552000"
+          }
+        ]
+      }
+    }
+  }
+}

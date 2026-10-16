@@ -1,0 +1,34 @@
+{
+  "name": "04 - Tag errored torrents and missing files (notify only)",
+  "trackerPattern": "*",
+  "conditions": {
+    "schemaVersion": "1",
+    "tags": [
+      {
+        "enabled": true,
+        "mode": "full",
+        "tags": ["error"],
+        "condition": {
+          "operator": "OR",
+          "conditions": [
+            {
+              "field": "HAS_MISSING_FILES",
+              "operator": "EQUAL",
+              "value": "true"
+            },
+            {
+              "field": "STATE",
+              "operator": "EQUAL",
+              "value": "errored"
+            },
+            {
+              "field": "STATE",
+              "operator": "EQUAL",
+              "value": "missingFiles"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

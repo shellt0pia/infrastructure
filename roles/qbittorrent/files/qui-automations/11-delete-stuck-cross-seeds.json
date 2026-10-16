@@ -1,0 +1,43 @@
+{
+  "name": "11 - Delete stuck partial cross-seeds",
+  "trackerPattern": "*",
+  "intervalSeconds": 3600,
+  "dryRun": true,
+  "conditions": {
+    "schemaVersion": "1",
+    "delete": {
+      "enabled": true,
+      "mode": "deleteWithFilesPreserveCrossSeeds",
+      "condition": {
+        "operator": "AND",
+        "conditions": [
+          {
+            "field": "CATEGORY",
+            "operator": "ENDS_WITH",
+            "value": ".cross"
+          },
+          {
+            "field": "STATE",
+            "operator": "EQUAL",
+            "value": "stopped"
+          },
+          {
+            "field": "PROGRESS",
+            "operator": "LESS_THAN",
+            "value": "1"
+          },
+          {
+            "field": "ADDED_ON",
+            "operator": "GREATER_THAN_OR_EQUAL",
+            "value": "604800"
+          },
+          {
+            "field": "TAGS",
+            "operator": "NOT_EQUAL",
+            "value": "keep"
+          }
+        ]
+      }
+    }
+  }
+}
