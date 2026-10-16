@@ -52,6 +52,7 @@ The services roles follow the following structure:
 - `tasks/create.yml`: Create all the necessary resources (DNS records, bind mounts, networks, containers etc.)
 - `tasks/lifecycle.yml`: Start/Stop/Restart/Enable/Disable the services containers
 - `tasks/db-upgrade.yml`: Upgrade the database schema if doing a major version upgrade
+- `tasks/restore.yml`: Restore the host containers data from its backup repository (`resticprofile` role only)
 - `tasks/remove.yml`: Remove all the services resources (created by `create.yml`)
 - `templates/*.container.j2`: Podman container quadlet templates
 
@@ -67,6 +68,14 @@ All the hosts are configured to auto-update:
 Run `make update` to update services when a tag has changed.
 
 Run `make db-upgrade` when updating to a new PostgreSQL major version.
+
+### Restoring
+
+The hosts running the `resticprofile` role back up their containers data (`data` folder of the containers storage, through its daily Btrfs snapshot) to their own restic repository.
+
+To rebuild a host from scratch, provision it with `make provision limit=<host>` then run `make restore limit=<host>` to stop all its services, restore its containers data from the latest snapshot (or a specific one with `snapshot=<restic snapshot ID>`) and start its services again. The previous containers data is kept in a `data.pre-restore-<timestamp>` folder next to the restored one, delete it once the restore is validated.
+
+Run `sudo resticprofile snapshots` on the host to list the available snapshots.
 
 ## License
 

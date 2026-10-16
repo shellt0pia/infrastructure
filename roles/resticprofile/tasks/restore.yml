@@ -1,0 +1,78 @@
+---
+# The services using the containers data must be stopped before running these tasks (see "make restore"),
+# otherwise they would keep using the previous data directory through their bind mounts.
+- name: 'Ensure the containers storage snapshot is part of the backup sources'
+  ansible.builtin.assert:
+    that: (containers_storage_path ~ '/.snapshot/data') in resticprofile.sources
+    fail_msg: "{{ containers_storage_path }}/.snapshot/data isn't part of resticprofile.sources, there is no containers data to restore."
+    quiet: true
+
+- name: 'Remove previous resticprofile restore directory'
+  ansible.builtin.file:
+    path: '{{ containers_storage_path }}/runtime/resticprofile/restore'
+    state: 'absent'
+
+- name: 'Create empty resticprofile restore directory'
+  ansible.builtin.file:
+    path: '{{ containers_storage_path }}/runtime/resticprofile/restore'
+    owner: 'root'
+    group: 'root'
+    mode: '0700'
+    state: 'directory'
+
+- name: 'Restore containers data from resticprofile repository'
+  ansible.builtin.command:
+    argv:
+      - '/usr/local/bin/resticprofile'
+      - 'restore'
+      - '{{ resticprofile_restore_snapshot | default("latest") }}:{{ containers_storage_path }}/.snapshot/data'
+      - '--target'
+      - '/restore'
+  async: 86400
+  poll: 30
+  changed_when: true
+
+- name: 'Move current containers data aside'
+  ansible.builtin.command:
+    argv:
+      - 'mv'
+      - '--no-target-directory'
+      - '{{ containers_storage_path }}/data'
+      - '{{ containers_storage_path }}/data.pre-restore-{{ ansible_facts["date_time"]["iso8601_basic_short"] }}'
+  changed_when: true
+
+- name: 'Move restored containers data in place'
+  ansible.builtin.command:
+    argv:
+      - 'mv'
+      - '--no-target-directory'
+      - '{{ containers_storage_path }}/runtime/resticprofile/restore'
+      - '{{ containers_storage_path }}/data'
+  changed_when: true
+
+- name: 'Reset containers data directory permissions'
+  ansible.builtin.file:
+    path: '{{ containers_storage_path }}/data'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+    state: 'directory'
+
+- name: 'Recreate empty resticprofile restore directory'
+  ansible.builtin.file:
+    path: '{{ containers_storage_path }}/runtime/resticprofile/restore'
+    owner: 'root'
+    group: 'root'
+    mode: '0700'
+    state: 'directory'
+
+# The restored files carry the SELinux labels of the backed up host containers, resetting them to the default
+# context forces podman to relabel them for the new containers when using the "Z" or "z" mount options.
+- name: 'Reset restored containers data SELinux contexts'
+  ansible.builtin.command:
+    argv:
+      - 'restorecon'
+      - '-R'
+      - '-F'
+      - '{{ containers_storage_path }}/data'
+  changed_when: true

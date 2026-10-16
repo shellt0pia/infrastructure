@@ -5,6 +5,17 @@ if [[ ${EUID} -ne 0 ]]; then
   exit 1
 fi
 
+# Skip the missing backup sources (e.g. the containers storage snapshot on a freshly provisioned host) so the
+# repository can still be used, for example to restore data.
+sources_volumes=()
+{% for source in resticprofile.sources %}
+if [[ -e '{{ source }}' ]]; then
+  sources_volumes+=(--volume '{{ source }}:{{ source }}:rslave,ro')
+else
+  echo "Backup source {{ source }} doesn't exist, skipping its mount." 1>&2
+fi
+{% endfor %}
+
 podman run \
 --rm \
 --interactive \
@@ -16,9 +27,7 @@ podman run \
 --volume {{ containers_storage_path }}/config/resticprofile:/resticprofile:Z,ro \
 --volume {{ containers_storage_path }}/runtime/resticprofile/cache:/cache:Z \
 --volume {{ containers_storage_path }}/runtime/resticprofile/restore:/restore:Z \
-{% for source in resticprofile.sources %}
---volume {{ source }}:{{ source }}:rslave,ro \
-{% endfor %}
+"${sources_volumes[@]}" \
 --secret resticprofile_repository_password \
 {% for key in resticprofile.environment | default({}) %}
 --secret resticprofile_{{ key | lower }},type=env,target={{ key }} \
