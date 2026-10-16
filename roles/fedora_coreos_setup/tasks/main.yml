@@ -15,8 +15,8 @@
     - name: 'Configure environment'
       ansible.builtin.import_tasks: 'environment.yml'
 
-    - name: 'Configure PAM'
-      ansible.builtin.import_tasks: 'pam.yml'
+    - name: 'Configure sshd'
+      ansible.builtin.import_tasks: 'sshd.yml'
 
     - name: 'Configure zincati'
       ansible.builtin.import_tasks: 'zincati.yml'

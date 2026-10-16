@@ -1,0 +1,12 @@
+---
+# The Cockpit container runs cockpit-ws in --local-ssh mode: it logs in to the host through SSH on localhost with the user password.
+# Password authentication is therefore only allowed from localhost, all other SSH connections must use public keys.
+- name: 'Allow password authentication for SSH connections from localhost only'
+  ansible.builtin.copy:
+    src: '02-enable-passwords.conf'
+    dest: '/etc/ssh/sshd_config.d/02-enable-passwords.conf'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+    validate: '/usr/sbin/sshd -t -f %s'
+  notify: 'Restart sshd service'

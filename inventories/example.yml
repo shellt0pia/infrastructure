@@ -7,14 +7,6 @@ all:
       ansible_become: true
       ansible_python_interpreter: '/usr/bin/python3'
       linux_password_hash: '' # podman run -it --rm quay.io/coreos/mkpasswd --method=yescrypt
-      totp:
-        key: '' # cat /dev/urandom | tr -dc 'A-Z0-9' | fold -w 26 | head -n 1
-        recovery_codes: | # for i in {1..5}; do cat /dev/urandom | tr -dc '0-9' | fold -w 6 | head -n 1; done
-          020932
-          803780
-          742117
-          859969
-          595151
       network_config:
         ipv6:
           address: ''
@@ -95,14 +87,6 @@ all:
       ansible_become: true
       ansible_python_interpreter: '/usr/bin/python3'
       linux_password_hash: '' # podman run -it --rm quay.io/coreos/mkpasswd --method=yescrypt
-      totp:
-        key: '' # cat /dev/urandom | tr -dc 'A-Z0-9' | fold -w 26 | head -n 1
-        recovery_codes: | # for i in {1..5}; do cat /dev/urandom | tr -dc '0-9' | fold -w 6 | head -n 1; done
-          020932
-          803780
-          742117
-          859969
-          595151
       storage_server:
         name: 'nas'
         fqdn: 'nas.domain.tld'

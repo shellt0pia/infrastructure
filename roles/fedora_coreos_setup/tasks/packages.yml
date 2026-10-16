@@ -7,7 +7,6 @@
       - 'rsync'
       - 'msmtp'
       - 'mailx'
-      - 'google-authenticator'
       - 'cockpit-system'
       - 'cockpit-storaged'
       - 'cockpit-networkmanager'
