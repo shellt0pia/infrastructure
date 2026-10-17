@@ -14,7 +14,7 @@ containers_images_tags:
   uptime_kuma: '2'
   healthchecks:
     postgres: '16'
-    server: 'v4.2'
+    server: 'v4.4'
   prometheus: 'latest'
   loki: 'latest'
   syslog_ng: 'latest'
