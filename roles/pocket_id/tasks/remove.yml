@@ -1,0 +1,46 @@
+---
+- name: 'Ensure the user really wants to remove the Pocket ID container'
+  ansible.builtin.pause:
+    prompt: "WARNING! DO YOU REALLY WANT TO REMOVE THE POCKET ID CONTAINER?\nTHIS ACTION WILL DELETE ALL POCKET ID APP DATA AND IS IRREVERSIBLE!\nAnswer yes in capital letters to confirm"
+    echo: true
+  register: remove_prompt
+
+- name: "Stop execution if user didn't answer 'YES'"
+  ansible.builtin.fail:
+    msg: "Stopping playbook execution because the playbook was called with the tag 'containers-remove' but the user didn't want to remove the containers."
+  when: (remove_prompt.user_input != "YES")
+
+- name: 'Disable and stop Pocket ID container'
+  ansible.builtin.systemd_service:
+    name: 'pocket-id.service'
+    daemon_reload: true
+    enabled: false
+    state: 'stopped'
+  register: systemd_unit
+  failed_when: (systemd_unit.failed and not "Could not find the requested service" in systemd_unit.msg)
+
+- name: 'Remove Pocket ID quadlet unit'
+  ansible.builtin.file:
+    path: '/etc/containers/systemd/pocket-id.container'
+    state: 'absent'
+  notify: 'Reload systemd daemon'
+
+- name: 'Remove Pocket ID secret'
+  containers.podman.podman_secret:
+    name: 'pocket_id_encryption_key'
+    state: 'absent'
+
+- name: 'Remove Pocket ID data bind mount path'
+  ansible.builtin.file:
+    path: '{{ containers_storage_path }}/data/pocket-id'
+    state: 'absent'
+
+- name: 'Remove Pocket ID CNAME record'
+  community.general.cloudflare_dns:
+    api_token: '{{ cloudflare_dns_token }}'
+    zone: '{{ domain_name }}'
+    record: 'id'
+    type: 'CNAME'
+    value: '{{ ansible_facts["fqdn"] }}'
+    state: 'absent'
+  delegate_to: 'localhost'

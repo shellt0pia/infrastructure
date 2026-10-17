@@ -41,6 +41,7 @@ containers_images_tags:
     nginx: 'latest'
   freshrss: 'latest'
   it_tools: 'latest'
+  pocket_id: 'v2-distroless'
   plex: 'latest'
   tautulli: 'latest'
   navidrome: 'latest'

@@ -58,6 +58,8 @@ all:
         api:
           user: ''
           password_hash: '' # podman run -it --rm quay.io/coreos/mkpasswd --method=bcrypt
+      pocket_id:
+        encryption_key: '' # openssl rand -base64 32
       nextcloud:
         postgres:
           database: 'nextcloud'
