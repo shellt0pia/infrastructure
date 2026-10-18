@@ -9,9 +9,12 @@ Network=web-egress
 Network=common-internal
 ExposeHostPort=8181
 Volume={{ containers_storage_path }}/data/tautulli:/config:Z
+Volume={{ containers_storage_path }}/config/tautulli/scripts:/config/scripts:Z
+Secret=tautulli_tmdb_api_key
 Timezone={{ timezone }}
 Environment="TZ={{ timezone }}"
 Environment="PLEX_CLAIM={{ plex.claim_token }}"
+Environment="TMDB_API_KEY_FILE=/run/secrets/tautulli_tmdb_api_key"
 Label="traefik.enable=true"
 Label="traefik.docker.network=common-internal"
 Label="traefik.http.routers.tautulli.rule=Host(`tautulli.{{ domain_name }}`)"

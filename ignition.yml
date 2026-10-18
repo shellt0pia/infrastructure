@@ -14,7 +14,7 @@
         cmd: 'butane --pretty --strict files/coreos/{{ item }}.bu --output files/coreos/{{ item }}.ign'
       loop: '{{ groups["containers_hosts"] }}'
 
-    - name: 'Serve the file on http://{{ ansible_fqdn }}:8000' # noqa: name[template] no-changed-when
+    - name: 'Serve the file on http://{{ ansible_facts["fqdn"] }}:8000' # noqa: name[template] no-changed-when
       ansible.builtin.command:
         cmd: 'python3 -m http.server'
         chdir: 'files/coreos'

@@ -1,0 +1,26 @@
+[Unit]
+Description=Profilarr Parser
+Documentation=man:podman-systemd.unit(5)
+
+[Container]
+ContainerName=profilarr-parser
+Image={{ containers_images.profilarr.parser }}:{{ containers_images_tags.profilarr }}
+Network=profilarr-internal
+ExposeHostPort=5000
+Timezone={{ timezone }}
+Environment="TZ={{ timezone }}"
+HealthCmd="wget -qO- http://localhost:5000/health || exit 1"
+HealthStartPeriod=5s
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+Notify=healthy
+AutoUpdate=local
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+TimeoutStopSec=70
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,106 @@
+---
+- name: 'Ensure the user really wants to remove the qBittorrent stack'
+  ansible.builtin.pause:
+    prompt: "WARNING! DO YOU REALLY WANT TO REMOVE THE QBITTORRENT STACK?\nTHIS ACTION WILL DELETE ALL QBITTORRENT AND QUI APP DATA AND IS IRREVERSIBLE!\nAnswer yes in capital letters to confirm"
+    echo: true
+  register: remove_prompt
+
+- name: "Stop execution if user didn't answer 'YES'"
+  ansible.builtin.fail:
+    msg: "Stopping playbook execution because the playbook was called with the tag 'containers-remove' but the user didn't want to remove the containers."
+  when: (remove_prompt.user_input != "YES")
+
+- name: 'Disable and stop qBittorrent stack'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    daemon_reload: true
+    enabled: false
+    state: 'stopped'
+  loop:
+    - 'qui.service'
+    - 'qbittorrent-pod.service'
+  register: systemd_units
+  failed_when: (systemd_units.failed and not "Could not find the requested service" in systemd_units.msg)
+
+- name: 'Remove qBittorrent stack quadlet units'
+  ansible.builtin.file:
+    path: '/etc/containers/systemd/{{ item }}'
+    state: 'absent'
+  loop:
+    - 'qui.container'
+    - 'qbittorrent-server.container'
+    - 'qbittorrent-gluetun.container'
+    - 'qbittorrent.pod'
+  notify: 'Reload systemd daemon'
+
+- name: 'Remove qBittorrent Gluetun network from firewalld trusted zone'
+  block:
+    - name: 'Get podman networks info'
+      containers.podman.podman_network_info:
+        name: 'qbittorrent-gluetun-external'
+      register: 'podman_network'
+      failed_when: (podman_network.failed and not "network not found" in podman_network.msg)
+
+    - name: 'Remove podman networks subnets from firewalld trusted zone'
+      ansible.posix.firewalld:
+        source: '{{ item }}'
+        zone: 'trusted'
+        permanent: true
+        immediate: true
+        state: 'disabled'
+      loop: '{{ podman_network | community.general.json_query("networks[*].subnets[*].subnet") | ansible.builtin.flatten }}'
+
+- name: 'Remove qBittorrent Gluetun network'
+  containers.podman.podman_network:
+    name: 'qbittorrent-gluetun-external'
+    state: 'absent'
+
+- name: 'Remove TUN and WireGuard host configuration'
+  block:
+    - name: 'Check if SELinux is configured to allow the use of TUN in containers'
+      ansible.builtin.shell:
+        cmd: 'set -o pipefail && semodule -l | grep container-tun'
+      register: container_tun_semodule
+      changed_when: false
+      # grep returns 1 if the string isn't found and 2 for exceptions so we need to change the task fail condition.
+      failed_when: (container_tun_semodule.rc == 2)
+      check_mode: false
+
+    - name: 'Remove the SELinux custom policy module' # noqa: no-changed-when
+      ansible.builtin.command:
+        cmd: 'semodule -r container-tun'
+      when: (container_tun_semodule.rc == 0)
+
+    - name: 'Unload kernel modules'
+      community.general.modprobe:
+        name: '{{ item }}'
+        state: 'absent'
+      loop:
+        - 'tun'
+        - 'wireguard'
+
+    - name: 'Disable kernel modules at boot'
+      ansible.builtin.file:
+        path: '/etc/modules-load.d/{{ item }}.conf'
+        state: 'absent'
+      loop:
+        - 'tun'
+        - 'wireguard'
+
+- name: 'Remove qBittorrent stack secrets'
+  containers.podman.podman_secret:
+    name: '{{ item }}'
+    state: 'absent'
+  loop:
+    - 'qui_oidc_client_secret'
+
+- name: 'Remove qBittorrent stack bind mounts paths'
+  ansible.builtin.file:
+    path: '{{ containers_storage_path }}/{{ item }}'
+    state: 'absent'
+  loop:
+    - 'env/qbittorrent-gluetun'
+    - 'data/qbittorrent-gluetun'
+    - 'config/qbittorrent-gluetun'
+    - 'data/qbittorrent-server'
+    - 'data/qui'

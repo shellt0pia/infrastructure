@@ -1,5 +1,0 @@
----
-containers_images:
-  recyclarr: 'ghcr.io/recyclarr/recyclarr'
-containers_images_tags:
-  recyclarr: 'latest'

@@ -11,10 +11,11 @@ Network=web-egress
 Network=common-internal
 ExposeHostPort=4533
 Volume={{ containers_storage_path }}/data/navidrome:/data:Z
-Volume={{ storage_server_shares_mounts_path }}/medias/music:/music:slave,ro
+Volume={{ storage_server_shares_mounts_path }}/media/library/music:/mnt/media/library/music:slave,ro
 Timezone={{ timezone }}
 Environment="TZ={{ timezone }}"
 Environment="ND_BASEURL=https://navidrome.{{ domain_name }}"
+Environment="ND_MUSICFOLDER=/mnt/media/library/music"
 Label="traefik.enable=true"
 Label="traefik.docker.network=common-internal"
 Label="traefik.http.routers.navidrome.rule=Host(`navidrome.{{ domain_name }}`)"

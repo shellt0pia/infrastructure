@@ -1,0 +1,5 @@
+---
+containers_images:
+  ddns_updater: 'ghcr.io/qdm12/ddns-updater'
+containers_images_tags:
+  ddns_updater: 'latest'

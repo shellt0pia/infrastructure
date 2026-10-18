@@ -91,10 +91,11 @@
     - 'data/nextcloud-server'
 
 - name: 'Remove Nextcloud CNAME record'
-  ansible.builtin.uri:
-    url: 'https://desec.io/api/v1/domains/{{ domain_name }}/rrsets/cloud/CNAME/'
-    method: 'DELETE'
-    status_code: [200, 204]
-    headers:
-      Authorization: 'Token {{ desec_token }}'
+  community.general.cloudflare_dns:
+    api_token: '{{ cloudflare_dns_token }}'
+    zone: '{{ domain_name }}'
+    record: 'cloud'
+    type: 'CNAME'
+    value: '{{ ansible_facts["fqdn"] }}'
+    state: 'absent'
   delegate_to: 'localhost'

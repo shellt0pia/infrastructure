@@ -9,7 +9,7 @@ options {
 source s_internal {
 	# Using host-override() otherwise it will grab the container hostname which is the container ID, which changes
 	# everytime the container is restarted.
-	internal(host-override("{{ ansible_fqdn }}"));
+	internal(host-override("{{ ansible_facts["fqdn"] }}"));
 };
 
 source s_network {

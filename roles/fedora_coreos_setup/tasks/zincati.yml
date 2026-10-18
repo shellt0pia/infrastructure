@@ -6,6 +6,7 @@
     owner: 'root'
     group: 'root'
     mode: '0644'
+  notify: 'Restart zincati service'
 
 - name: 'Enable and start zincati'
   ansible.builtin.systemd_service:

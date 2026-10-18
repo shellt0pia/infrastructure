@@ -1,0 +1,53 @@
+---
+- name: 'Pull ULDAS image'
+  containers.podman.podman_image:
+    name: '{{ containers_images.uldas }}:{{ containers_images_tags.uldas }}'
+    pull: true
+    force: true
+    state: 'present'
+  register: 'container_image_pull'
+  tags: ['never', 'containers-pull', 'containers-update']
+
+- name: 'Update ULDAS tag in quadlet unit' # noqa: no-handler
+  ansible.builtin.template:
+    src: 'uldas.container.j2'
+    dest: '/etc/containers/systemd/uldas.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  when: (container_image_pull.changed)
+  register: 'quadlet_unit'
+  tags: ['never', 'containers-update']
+
+- name: 'Restart ULDAS container'
+  ansible.builtin.systemd_service:
+    name: 'uldas.service'
+    daemon_reload: '{{ ("true" | bool) if quadlet_unit.changed else ("false" | bool) }}'
+    state: 'restarted'
+  when: ("containers-restart" in ansible_run_tags or
+        ("containers-update" in ansible_run_tags and container_image_pull.changed))
+  tags: ['never', 'containers-restart', 'containers-update']
+
+- name: 'Disable ULDAS container'
+  ansible.builtin.systemd_service:
+    name: 'uldas.service'
+    enabled: false
+  tags: ['never', 'containers-disable']
+
+- name: 'Stop ULDAS container'
+  ansible.builtin.systemd_service:
+    name: 'uldas.service'
+    state: 'stopped'
+  tags: ['never', 'containers-stop']
+
+- name: 'Enable ULDAS container'
+  ansible.builtin.systemd_service:
+    name: 'uldas.service'
+    enabled: true
+  tags: ['never', 'containers-enable']
+
+- name: 'Start ULDAS container'
+  ansible.builtin.systemd_service:
+    name: 'uldas.service'
+    state: 'started'
+  tags: ['never', 'containers-start']

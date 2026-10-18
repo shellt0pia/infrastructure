@@ -1,0 +1,40 @@
+[Unit]
+Description=autobrr
+Documentation=man:podman-systemd.unit(5)
+
+[Container]
+ContainerName=autobrr
+Image={{ containers_images.autobrr }}:{{ containers_images_tags.autobrr }}
+User=1000
+Group=1000
+Network=web-egress
+Network=common-internal
+ExposeHostPort=7474
+Volume={{ containers_storage_path }}/data/autobrr:/config:Z
+Secret=autobrr_oidc_client_secret
+Timezone={{ timezone }}
+Environment="TZ={{ timezone }}"
+Environment="AUTOBRR__HOST=0.0.0.0"
+Environment="AUTOBRR__PORT=7474"
+Environment="AUTOBRR__DATABASE_TYPE=sqlite"
+Environment="AUTOBRR__OIDC_ENABLED=true"
+Environment="AUTOBRR__OIDC_ISSUER={{ autobrr.oidc.issuer }}"
+Environment="AUTOBRR__OIDC_CLIENT_ID={{ autobrr.oidc.client_id }}"
+Environment="AUTOBRR__OIDC_CLIENT_SECRET_FILE=/run/secrets/autobrr_oidc_client_secret"
+Environment="AUTOBRR__OIDC_REDIRECT_URL=https://autobrr.{{ domain_name }}/api/auth/oidc/callback"
+Environment="AUTOBRR__OIDC_DISABLE_BUILT_IN_LOGIN=true"
+Label="traefik.enable=true"
+Label="traefik.docker.network=common-internal"
+Label="traefik.http.routers.autobrr.rule=Host(`autobrr.{{ domain_name }}`)"
+Label="traefik.http.routers.autobrr.entrypoints=websecure"
+Label="traefik.http.routers.autobrr.middlewares=restrict-external-access@file"
+Label="traefik.http.services.autobrr.loadbalancer.server.port=7474"
+AutoUpdate=local
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+TimeoutStopSec=70
+
+[Install]
+WantedBy=default.target

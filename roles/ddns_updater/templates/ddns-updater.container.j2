@@ -1,0 +1,24 @@
+[Unit]
+Description=DDNS Updater
+Documentation=man:podman-systemd.unit(5)
+
+[Container]
+ContainerName=ddns-updater
+Image={{ containers_images.ddns_updater }}:{{ containers_images_tags.ddns_updater }}
+Network=web-egress
+Volume={{ containers_storage_path }}/data/ddns-updater:/updater/data:Z
+Timezone={{ timezone }}
+EnvironmentFile={{ containers_storage_path }}/env/ddns-updater/ddns-updater.env
+Environment="TZ={{ timezone }}"
+Environment="SERVER_ENABLED=no"
+{# Bypass the split-horizon DNS (Unbound returns private/ULA addresses for the hosts records) #}
+Environment="RESOLVER_ADDRESS=[2606:4700:4700::1111]:53"
+AutoUpdate=local
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+TimeoutStopSec=70
+
+[Install]
+WantedBy=default.target

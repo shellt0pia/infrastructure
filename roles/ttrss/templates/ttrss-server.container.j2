@@ -15,7 +15,6 @@ Volume={{ containers_storage_path }}/data/ttrss-server:/var/www/html:z
 Timezone={{ timezone }}
 EnvironmentFile={{ containers_storage_path }}/env/ttrss-server/ttrss-server.env
 Environment="TZ={{ timezone }}"
-Environment="TTRSS_DB_TYPE=pgsql"
 Environment="TTRSS_DB_HOST=ttrss-postgres"
 Environment="TTRSS_DB_NAME={{ ttrss.postgres.database }}"
 Environment="TTRSS_SELF_URL_PATH=https://ttrss.{{ domain_name }}"

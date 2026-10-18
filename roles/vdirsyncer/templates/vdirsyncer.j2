@@ -9,7 +9,7 @@ podman run \
 --rm \
 --interactive \
 --entrypoint vdirsyncer \
---hostname {{ ansible_hostname }} \
+--hostname {{ ansible_facts["hostname"] }} \
 --network web-egress \
 --tz {{ timezone }} \
 --env TZ={{ timezone }} \

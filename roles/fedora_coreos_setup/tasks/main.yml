@@ -15,11 +15,8 @@
     - name: 'Configure environment'
       ansible.builtin.import_tasks: 'environment.yml'
 
-    - name: 'Configure PAM'
-      ansible.builtin.import_tasks: 'pam.yml'
-
-    - name: 'Configure bootupd'
-      ansible.builtin.import_tasks: 'bootupd.yml'
+    - name: 'Configure sshd'
+      ansible.builtin.import_tasks: 'sshd.yml'
 
     - name: 'Configure zincati'
       ansible.builtin.import_tasks: 'zincati.yml'
@@ -47,8 +44,8 @@
 
     - name: 'Configure SMART'
       ansible.builtin.import_tasks: 'smart.yml'
-      when: (ansible_virtualization_role == "host")
+      when: (ansible_facts["virtualization_role"] == "host")
 
     - name: 'Configure NUT'
       ansible.builtin.import_tasks: 'nut.yml'
-      when: (ansible_virtualization_role == "host")
+      when: (ansible_facts["virtualization_role"] == "host")

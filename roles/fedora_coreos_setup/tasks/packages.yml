@@ -7,7 +7,6 @@
       - 'rsync'
       - 'msmtp'
       - 'mailx'
-      - 'google-authenticator'
       - 'cockpit-system'
       - 'cockpit-storaged'
       - 'cockpit-networkmanager'
@@ -25,7 +24,7 @@
       - 'smartmontools'
       - 'nut-client'
     state: 'present'
-  when: (ansible_virtualization_role == "host")
+  when: (ansible_facts["virtualization_role"] == "host")
   notify: 'Reboot host'
 
 - name: 'Install nfs clients hosts specific packages'

@@ -1,7 +1,0 @@
----
-containers_images:
-  gluetun: 'ghcr.io/qdm12/gluetun'
-  transmission: 'lscr.io/linuxserver/transmission'
-containers_images_tags:
-  gluetun: 'latest'
-  transmission: 'latest'

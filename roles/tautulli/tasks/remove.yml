@@ -25,7 +25,15 @@
     state: 'absent'
   notify: 'Reload systemd daemon'
 
-- name: 'Remove Tautulli data bind mount path'
-  ansible.builtin.file:
-    path: '{{ containers_storage_path }}/data/tautulli'
+- name: 'Remove Tautulli TMDB API key secret'
+  containers.podman.podman_secret:
+    name: 'tautulli_tmdb_api_key'
     state: 'absent'
+
+- name: 'Remove Tautulli bind mounts paths'
+  ansible.builtin.file:
+    path: '{{ containers_storage_path }}/{{ item }}'
+    state: 'absent'
+  loop:
+    - 'config/tautulli'
+    - 'data/tautulli'

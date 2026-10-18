@@ -1,0 +1,42 @@
+[Unit]
+Description=Profilarr
+Documentation=man:podman-systemd.unit(5)
+After=profilarr-parser.service
+Requires=profilarr-parser.service
+
+[Container]
+ContainerName=profilarr
+Image={{ containers_images.profilarr.server }}:{{ containers_images_tags.profilarr }}
+Network=web-egress
+Network=common-internal
+Network=profilarr-internal
+ExposeHostPort=6868
+Volume={{ containers_storage_path }}/data/profilarr:/config:Z
+Secret=profilarr_oidc_client_secret
+Timezone={{ timezone }}
+Environment="TZ={{ timezone }}"
+Environment="PUID=1000"
+Environment="PGID=1000"
+Environment="UMASK=022"
+Environment="ORIGIN=https://profilarr.{{ domain_name }}"
+Environment="PARSER_HOST=profilarr-parser"
+Environment="PARSER_PORT=5000"
+Environment="AUTH=oidc"
+Environment="OIDC_DISCOVERY_URL={{ profilarr.oidc.discovery_url }}"
+Environment="OIDC_CLIENT_ID={{ profilarr.oidc.client_id }}"
+Environment="OIDC_CLIENT_SECRET_FILE=/run/secrets/profilarr_oidc_client_secret"
+Label="traefik.enable=true"
+Label="traefik.docker.network=common-internal"
+Label="traefik.http.routers.profilarr.rule=Host(`profilarr.{{ domain_name }}`)"
+Label="traefik.http.routers.profilarr.entrypoints=websecure"
+Label="traefik.http.routers.profilarr.middlewares=restrict-external-access@file"
+Label="traefik.http.services.profilarr.loadbalancer.server.port=6868"
+AutoUpdate=local
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+TimeoutStopSec=70
+
+[Install]
+WantedBy=default.target

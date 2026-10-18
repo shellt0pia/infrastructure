@@ -27,11 +27,11 @@
 - name: 'Create btrfs snapshot of {{ containers_storage_path }}'
   community.general.btrfs_subvolume:
     name: '.snapshot'
-    filesystem_device: '{{ ansible_mounts | community.general.json_query(query) | first }}'
+    filesystem_device: '{{ ansible_facts["mounts"] | community.general.json_query(device_query) | first }}'
     snapshot_source: '/'
     snapshot_conflict: 'clobber'
   vars:
-    query: "[?mount=='{{ containers_storage_path }}'].device"
+    device_query: "[?mount=='{{ containers_storage_path }}'].device"
 
 - name: 'Remove PostgreSQL runtime directory'
   ansible.builtin.file:

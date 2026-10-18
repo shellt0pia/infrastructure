@@ -2,9 +2,9 @@
   [http.routers]
     [http.routers.cockpit]
       entryPoints = ["websecure"]
-      rule = "Host(`{{ ansible_fqdn }}`)"
+      rule = "Host(`{{ ansible_facts["fqdn"] }}`)"
       service = "cockpit"
       middlewares = ["set-security-headers", "restrict-external-access"]
   [http.services]
     [[http.services.cockpit.loadBalancer.servers]]
-      url = "https://{{ ansible_fqdn }}:9090"
+      url = "https://{{ ansible_facts["fqdn"] }}:9090"

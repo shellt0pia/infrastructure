@@ -1,0 +1,7 @@
+---
+containers_images:
+  profilarr:
+    server: 'ghcr.io/dictionarry-hub/profilarr'
+    parser: 'ghcr.io/dictionarry-hub/profilarr-parser'
+containers_images_tags:
+  profilarr: 'latest'

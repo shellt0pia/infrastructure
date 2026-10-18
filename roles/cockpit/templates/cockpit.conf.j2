@@ -1,5 +1,5 @@
 [WebService]
-Origins = https://{{ ansible_fqdn }} wss://{{ ansible_fqdn }}
+Origins = https://{{ ansible_facts["fqdn"] }} wss://{{ ansible_facts["fqdn"] }}
 ProtocolHeader = X-Forwarded-Proto
 ForwardedForHeader = X-Forwarded-For
 LoginTo = false

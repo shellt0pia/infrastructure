@@ -14,14 +14,16 @@ ExposeHostPort=9980
 Timezone={{ timezone }}
 EnvironmentFile={{ containers_storage_path }}/env/collabora-online/collabora-online.env
 Environment="TZ={{ timezone }}"
+Environment="server_name=office.{{ domain_name }}"
 Environment="aliasgroup1=https://cloud.{{ domain_name }}:443"
+Environment="DONT_GEN_SSL_CERT=true"
+Environment="extra_params=--o:ssl.enable=false --o:ssl.termination=true"
 Environment="dictionaries={{ collabora_online.dictionnaries }}"
 Label="traefik.enable=true"
 Label="traefik.docker.network=common-internal"
 Label="traefik.http.routers.office.rule=Host(`office.{{ domain_name }}`)"
 Label="traefik.http.routers.office.entrypoints=websecure"
 Label="traefik.http.services.office.loadbalancer.server.port=9980"
-Label="traefik.http.services.office.loadbalancer.server.scheme=https"
 AutoUpdate=local
 
 [Service]

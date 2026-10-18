@@ -1,0 +1,55 @@
+{
+  "name": "02 - Tag stalled downloads (notify only)",
+  "trackerPattern": "*",
+  "notify": true,
+  "conditions": {
+    "schemaVersion": "1",
+    "tags": [
+      {
+        "enabled": true,
+        "mode": "full",
+        "tags": ["stalled"],
+        "condition": {
+          "operator": "AND",
+          "conditions": [
+            {
+              "field": "PROGRESS",
+              "operator": "LESS_THAN",
+              "value": "1"
+            },
+            {
+              "field": "STATE",
+              "operator": "NOT_EQUAL",
+              "value": "stopped"
+            },
+            {
+              "operator": "OR",
+              "conditions": [
+                {
+                  "operator": "AND",
+                  "conditions": [
+                    {
+                      "field": "STATE",
+                      "operator": "EQUAL",
+                      "value": "stalled_downloading"
+                    },
+                    {
+                      "field": "ADDED_ON",
+                      "operator": "GREATER_THAN_OR_EQUAL",
+                      "value": "259200"
+                    }
+                  ]
+                },
+                {
+                  "field": "ADDED_ON",
+                  "operator": "GREATER_THAN_OR_EQUAL",
+                  "value": "604800"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

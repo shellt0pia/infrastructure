@@ -7,4 +7,4 @@
       middlewares = ["set-security-headers"]
   [http.services]
     [[http.services.home-assistant.loadBalancer.servers]]
-      url = "http://{{ ansible_fqdn }}:8123"
+      url = "http://{{ ansible_facts["fqdn"] }}:8123"

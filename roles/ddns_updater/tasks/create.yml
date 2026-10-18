@@ -1,0 +1,59 @@
+---
+- name: 'Create DDNS Updater bind mounts paths'
+  ansible.builtin.file:
+    path: '{{ containers_storage_path }}/{{ item.path }}'
+    owner: '{{ item.owner }}'
+    group: '{{ item.group }}'
+    mode: '0700'
+    state: 'directory'
+  loop:
+    - path: 'env/ddns-updater'
+      owner: 'root'
+      group: 'root'
+    - path: 'data/ddns-updater'
+      owner: 1000
+      group: 1000
+
+- name: 'Create DDNS Updater environment file'
+  ansible.builtin.copy:
+    content: |
+      SHOUTRRR_ADDRESSES=pushover://shoutrrr:{{ ddns_updater.pushover.api_token }}@{{ ddns_updater.pushover.user_key }}/
+    dest: '{{ containers_storage_path }}/env/ddns-updater/ddns-updater.env'
+    owner: 'root'
+    group: 'root'
+    mode: '0400'
+  register: 'environment_file'
+
+- name: 'Create DDNS Updater configuration file from template'
+  ansible.builtin.template:
+    src: 'config.json.j2'
+    dest: '{{ containers_storage_path }}/data/ddns-updater/config.json'
+    owner: 1000
+    group: 1000
+    mode: '0400'
+  register: 'configuration_file'
+
+- name: 'Create DDNS Updater quadlet unit from template'
+  ansible.builtin.template:
+    src: 'ddns-updater.container.j2'
+    dest: '/etc/containers/systemd/ddns-updater.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'quadlet_unit'
+  notify: 'Reload systemd daemon'
+
+- name: 'Enable and start DDNS Updater container'
+  ansible.builtin.systemd_service:
+    name: 'ddns-updater.service'
+    daemon_reload: true
+    enabled: true
+    state: 'started'
+  register: 'systemd_start'
+
+- name: 'Restart DDNS Updater service if environment file, configuration file or quadlet unit has changed while service was already started'
+  ansible.builtin.systemd_service:
+    name: 'ddns-updater.service'
+    daemon_reload: true
+    state: 'restarted'
+  when: ((environment_file.changed or configuration_file.changed or quadlet_unit.changed) and not systemd_start.changed)

@@ -13,7 +13,7 @@ clients:
       password_file: '/run/secrets/promtail_loki_password'
 
 scrape_configs:
-{% if inventory_hostname == "monitoring" %}
+{% if inventory_hostname == "home" %}
   - job_name: 'syslog'
     syslog:
       listen_address: '0.0.0.0:1601'

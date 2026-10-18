@@ -2,8 +2,8 @@
 containers_images:
   ttrss:
     postgres: 'public.ecr.aws/docker/library/postgres'
-    server: 'docker.io/cthulhoo/ttrss-fpm-pgsql-static'
-    nginx: 'docker.io/cthulhoo/ttrss-web-nginx'
+    server: 'ghcr.io/tt-rss/tt-rss'
+    nginx: 'ghcr.io/tt-rss/tt-rss-web-nginx'
 containers_images_tags:
   ttrss:
     postgres: 'latest'

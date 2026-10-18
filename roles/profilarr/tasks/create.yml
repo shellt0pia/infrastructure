@@ -1,0 +1,84 @@
+---
+- name: 'Create Profilarr stack network'
+  containers.podman.podman_network:
+    name: 'profilarr-internal'
+    internal: true
+    ipv6: '{{ containers_ipv6.enable }}'
+    opt:
+      isolate: true
+
+- name: 'Add Profilarr stack network to firewalld trusted zone'
+  block:
+    - name: 'Get podman network info'
+      containers.podman.podman_network_info:
+        name: 'profilarr-internal'
+      register: 'podman_networks'
+
+    - name: 'Add podman network subnet to firewalld trusted zone'
+      ansible.posix.firewalld:
+        source: '{{ item }}'
+        zone: 'trusted'
+        permanent: true
+        immediate: true
+        state: 'enabled'
+      loop: '{{ podman_networks.networks | community.general.json_query("[*].subnets[*].subnet") | ansible.builtin.flatten }}'
+
+- name: 'Create Profilarr bind mounts paths'
+  ansible.builtin.file:
+    path: '{{ containers_storage_path }}/{{ item }}'
+    owner: 1000
+    group: 1000
+    mode: '0700'
+    state: 'directory'
+  loop:
+    - 'data/profilarr'
+
+- name: 'Create Profilarr stack secrets'
+  containers.podman.podman_secret:
+    name: '{{ item.name }}'
+    data: '{{ item.data }}'
+    skip_existing: true
+    state: 'present'
+  loop:
+    - name: 'profilarr_oidc_client_secret'
+      data: '{{ profilarr.oidc.client_secret }}'
+      services:
+        - 'profilarr.service'
+  loop_control:
+    label: '{{ item.name }}'
+  register: 'podman_secrets'
+
+- name: 'Create Profilarr stack quadlet units from templates'
+  ansible.builtin.template:
+    src: '{{ item }}.container.j2'
+    dest: '/etc/containers/systemd/{{ item }}.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  loop:
+    - 'profilarr-parser'
+    - 'profilarr'
+  register: 'quadlet_units'
+  notify: 'Reload systemd daemon'
+
+- name: 'Enable and start Profilarr stack'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    daemon_reload: true
+    enabled: true
+    state: 'started'
+  register: 'systemd_start'
+  loop:
+    - 'profilarr-parser.service'
+    - 'profilarr.service'
+
+- name: 'Restart Profilarr services if podman secret or quadlet unit has changed while service was already started'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    daemon_reload: true
+    state: 'restarted'
+  vars:
+    podman_secrets_map: '{{ podman_secrets.results | selectattr("changed", "true") | map(attribute="item.services") | select("defined") | ansible.builtin.flatten }}'
+    quadlet_units_map: '{{ quadlet_units.results | selectattr("changed", "true") | map(attribute="item") | ansible.builtin.product([".service"]) | map("join") }}'
+    systemd_start_map: '{{ systemd_start.results | selectattr("changed", "true") | map(attribute="name") }}'
+  loop: '{{ (podman_secrets_map + quadlet_units_map) | unique | difference(systemd_start_map) }}'

@@ -89,8 +89,11 @@
 
 - name: 'Remove Traefik stack secret'
   containers.podman.podman_secret:
-    name: 'traefik_desec_token'
+    name: '{{ item }}'
     state: 'absent'
+  loop:
+    - 'traefik_cloudflare_zone_token'
+    - 'traefik_cloudflare_dns_token'
 
 - name: 'Remove Traefik bind mounts paths'
   ansible.builtin.file:

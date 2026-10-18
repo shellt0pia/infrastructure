@@ -32,7 +32,7 @@
 {% if "cloud_hosts" in group_names %}
     [entryPoints.websecure.http3]
 {% endif %}
-{% if inventory_hostname == "documents" %}{# Required for Immich, see https://immich.app/docs/administration/reverse-proxy/#traefik-proxy-example-config #}
+{% if inventory_hostname == "cloud" %}{# Required for Immich, see https://immich.app/docs/administration/reverse-proxy/#traefik-proxy-example-config #}
     [entryPoints.websecure.transport.respondingTimeouts]
       readTimeout = "600s"
       idleTimeout = "600s"
@@ -57,6 +57,6 @@
   email = "{{ admin_user.email }}"
   storage = "acme.json"
   [certificatesResolvers.le.acme.dnsChallenge]
-    provider = "desec"
-    delayBeforeCheck = 60
+    provider = "cloudflare"
+    delayBeforeCheck = 30
     resolvers = ["1.1.1.1:53", "1.0.0.1:53"]

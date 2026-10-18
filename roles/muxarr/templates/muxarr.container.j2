@@ -1,0 +1,30 @@
+[Unit]
+Description=Muxarr
+Documentation=man:podman-systemd.unit(5)
+
+[Container]
+ContainerName=muxarr
+Image={{ containers_images.muxarr }}:{{ containers_images_tags.muxarr }}
+Network=web-egress
+Network=common-internal
+ExposeHostPort=8183
+Volume={{ containers_storage_path }}/data/muxarr:/config:Z
+Volume={{ storage_server_shares_mounts_path }}/media/library/movies:/mnt/media/library/movies:slave
+Volume={{ storage_server_shares_mounts_path }}/media/library/tv:/mnt/media/library/tv:slave
+Timezone={{ timezone }}
+Environment="TZ={{ timezone }}"
+Label="traefik.enable=true"
+Label="traefik.docker.network=common-internal"
+Label="traefik.http.routers.muxarr.rule=Host(`muxarr.{{ domain_name }}`)"
+Label="traefik.http.routers.muxarr.entrypoints=websecure"
+Label="traefik.http.routers.muxarr.middlewares=restrict-external-access@file"
+Label="traefik.http.services.muxarr.loadbalancer.server.port=8183"
+AutoUpdate=local
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+TimeoutStopSec=70
+
+[Install]
+WantedBy=default.target

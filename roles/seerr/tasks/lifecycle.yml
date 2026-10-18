@@ -1,0 +1,53 @@
+---
+- name: 'Pull Seerr image'
+  containers.podman.podman_image:
+    name: '{{ containers_images.seerr }}:{{ containers_images_tags.seerr }}'
+    pull: true
+    force: true
+    state: 'present'
+  register: 'container_image_pull'
+  tags: ['never', 'containers-pull', 'containers-update']
+
+- name: 'Update Seerr tag in quadlet unit' # noqa: no-handler
+  ansible.builtin.template:
+    src: 'seerr.container.j2'
+    dest: '/etc/containers/systemd/seerr.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  when: (container_image_pull.changed)
+  register: 'quadlet_unit'
+  tags: ['never', 'containers-update']
+
+- name: 'Restart Seerr container'
+  ansible.builtin.systemd_service:
+    name: 'seerr.service'
+    daemon_reload: '{{ ("true" | bool) if quadlet_unit.changed else ("false" | bool) }}'
+    state: 'restarted'
+  when: ("containers-restart" in ansible_run_tags or
+        ("containers-update" in ansible_run_tags and container_image_pull.changed))
+  tags: ['never', 'containers-restart', 'containers-update']
+
+- name: 'Disable Seerr container'
+  ansible.builtin.systemd_service:
+    name: 'seerr.service'
+    enabled: false
+  tags: ['never', 'containers-disable']
+
+- name: 'Stop Seerr container'
+  ansible.builtin.systemd_service:
+    name: 'seerr.service'
+    state: 'stopped'
+  tags: ['never', 'containers-stop']
+
+- name: 'Enable Seerr container'
+  ansible.builtin.systemd_service:
+    name: 'seerr.service'
+    enabled: true
+  tags: ['never', 'containers-enable']
+
+- name: 'Start Seerr container'
+  ansible.builtin.systemd_service:
+    name: 'seerr.service'
+    state: 'started'
+  tags: ['never', 'containers-start']

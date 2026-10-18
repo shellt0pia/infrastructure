@@ -19,7 +19,7 @@
     name: 'smart-test@dev-{{ item }}.timer'
     enabled: true
     state: 'started'
-  loop: '{{ ansible_devices.keys() | select("match", "(sd|nvme)") | list }}'
+  loop: '{{ ansible_facts["devices"].keys() | select("match", "(sd|nvme)") | list }}'
 
 - name: 'Enable and start smartd'
   ansible.builtin.systemd_service:

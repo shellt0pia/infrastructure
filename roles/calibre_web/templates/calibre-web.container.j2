@@ -9,7 +9,7 @@ Network=web-egress
 Network=common-internal
 ExposeHostPort=8083
 Volume={{ containers_storage_path }}/data/calibre-web:/config:Z
-Volume={{ storage_server_shares_mounts_path }}/medias/books:/books:slave
+Volume={{ storage_server_shares_mounts_path }}/media/library/books:/mnt/media/library/books:slave
 Timezone={{ timezone }}
 Environment="TZ={{ timezone }}"
 Label="traefik.enable=true"

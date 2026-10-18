@@ -22,7 +22,7 @@ ExecStart=/usr/bin/podman container run \
 	--name mbsync \
 	--cidfile=%t/%N.cid \
 	--entrypoint /app/mbsync.sh \
-	--hostname {{ ansible_hostname }} \
+	--hostname {{ ansible_facts["hostname"] }} \
 	--network web-egress \
 	--volume {{ containers_storage_path }}/config/mbsync/mbsync.sh:/app/mbsync.sh:Z \
 	--volume {{ containers_storage_path }}/config/mbsync/mbsyncrc:/mbsyncrc:Z \

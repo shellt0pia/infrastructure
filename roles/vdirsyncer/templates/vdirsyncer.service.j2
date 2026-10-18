@@ -24,7 +24,7 @@ ExecStart=/usr/bin/podman container run \
 	--name vdirsyncer \
 	--cidfile=%t/%N.cid \
 	--entrypoint /app/vdirsyncer.sh \
-	--hostname {{ ansible_hostname }} \
+	--hostname {{ ansible_facts["hostname"] }} \
 	--network web-egress \
 	--volume {{ containers_storage_path }}/config/vdirsyncer/vdirsyncer.sh:/app/vdirsyncer.sh:Z \
 	--volume {{ containers_storage_path }}/config/vdirsyncer/config:/vdirsyncer/config:Z \

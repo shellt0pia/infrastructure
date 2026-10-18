@@ -1,0 +1,21 @@
+{
+  "name": "05 - Tag torrents without a cleanup policy",
+  "trackerPattern": "*",
+  "notify": false,
+  "conditions": {
+    "schemaVersion": "1",
+    "tags": [
+      {
+        "enabled": true,
+        "mode": "full",
+        "tags": ["no-policy"],
+        "condition": {
+          "field": "CATEGORY",
+          "operator": "MATCHES",
+          "value": "^(tv|movies|audio|comics|seedonly)(\\.cross)?$",
+          "negate": true
+        }
+      }
+    ]
+  }
+}

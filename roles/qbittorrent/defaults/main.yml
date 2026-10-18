@@ -1,0 +1,16 @@
+---
+containers_images:
+  qbittorrent:
+    gluetun: 'ghcr.io/qdm12/gluetun'
+    server: 'lscr.io/linuxserver/qbittorrent'
+    qui: 'ghcr.io/autobrr/qui'
+containers_images_tags:
+  qbittorrent:
+    gluetun: 'latest'
+    server: 'latest'
+    qui: 'latest'
+
+# Static port mode when qbittorrent.gluetun.firewall.vpn_input_ports is set (e.g. AirVPN).
+# Dynamic port forwarding through gluetun otherwise (e.g. ProtonVPN, PIA).
+qbittorrent_static_port: "{{ ((qbittorrent.gluetun.firewall | default({})).vpn_input_ports | default('') | string).split(',') | first | trim }}"
+qbittorrent_port_forwarding: "{{ qbittorrent_static_port | length == 0 }}"

@@ -1,0 +1,5 @@
+---
+containers_images:
+  autobrr: 'ghcr.io/autobrr/autobrr'
+containers_images_tags:
+  autobrr: 'latest'

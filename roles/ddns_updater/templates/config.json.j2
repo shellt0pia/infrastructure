@@ -1,0 +1,16 @@
+{% set ddns_updater_domains = [ansible_facts["fqdn"]] + (["wg-" ~ ansible_facts["fqdn"]] if "cloud_hosts" in group_names else []) %}
+{
+  "settings": [
+{% for ip_version in ["ipv4", "ipv6"] %}
+    {
+      "provider": "cloudflare",
+      "zone_identifier": {{ cloudflare_hosts_zone_id | to_json }},
+      "domain": {{ ddns_updater_domains | join(",") | to_json }},
+      "ttl": 1,
+      "token": {{ cloudflare_dns_token | to_json }},
+      "proxied": false,
+      "ip_version": "{{ ip_version }}"
+    }{{ "," if not loop.last else "" }}
+{% endfor %}
+  ]
+}

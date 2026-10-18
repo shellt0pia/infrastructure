@@ -1,9 +1,0 @@
-[Unit]
-Description=Bootupd automatic update
-
-[Service]
-ExecStart=/usr/bin/bootupctl update
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target

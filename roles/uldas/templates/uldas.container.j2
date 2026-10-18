@@ -1,0 +1,34 @@
+[Unit]
+Description=ULDAS
+Documentation=man:podman-systemd.unit(5)
+
+[Container]
+ContainerName=uldas
+Image={{ containers_images.uldas }}:{{ containers_images_tags.uldas }}
+Network=web-egress
+Network=common-internal
+ExposeHostPort=2119
+Volume={{ containers_storage_path }}/config/uldas:/app/config:Z
+Volume={{ storage_server_shares_mounts_path }}/media/library/movies:/mnt/media/library/movies:slave
+Volume={{ storage_server_shares_mounts_path }}/media/library/tv:/mnt/media/library/tv:slave
+Timezone={{ timezone }}
+Environment="TZ={{ timezone }}"
+Environment="PUID=1000"
+Environment="PGID=1000"
+Environment="CRON_SCHEDULE=0 5 * * 5"
+Label="traefik.enable=true"
+Label="traefik.docker.network=common-internal"
+Label="traefik.http.routers.uldas.rule=Host(`uldas.{{ domain_name }}`)"
+Label="traefik.http.routers.uldas.entrypoints=websecure"
+Label="traefik.http.routers.uldas.middlewares=restrict-external-access@file, uldas-auth"
+Label="traefik.http.middlewares.uldas-auth.basicauth.users={{ uldas.user }}:{{ uldas.password_hash }}"
+Label="traefik.http.services.uldas.loadbalancer.server.port=2119"
+AutoUpdate=local
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+TimeoutStopSec=70
+
+[Install]
+WantedBy=default.target

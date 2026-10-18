@@ -1,0 +1,5 @@
+---
+containers_images:
+  uldas: 'docker.io/netplexflix/uldas'
+containers_images_tags:
+  uldas: 'latest'

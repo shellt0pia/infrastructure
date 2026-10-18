@@ -1,49 +1,15 @@
 ---
-- name: 'Manage Plex CNAME record'
+- name: 'Create/Update Plex CNAME record'
+  community.general.cloudflare_dns:
+    api_token: '{{ cloudflare_dns_token }}'
+    zone: '{{ domain_name }}'
+    record: 'plex'
+    ttl: 3600
+    type: 'CNAME'
+    value: '{{ ansible_facts["fqdn"] }}'
+    proxied: false
+    state: 'present'
   delegate_to: 'localhost'
-  check_mode: false
-  block:
-    - name: 'Get Plex CNAME record'
-      ansible.builtin.uri:
-        url: 'https://desec.io/api/v1/domains/{{ domain_name }}/rrsets/plex/CNAME/'
-        method: 'GET'
-        status_code: [200, 404]
-        headers:
-          Authorization: 'Token {{ desec_token }}'
-      register: desec_rrsets_get
-
-    - name: 'Create Plex CNAME record'
-      ansible.builtin.uri:
-        url: 'https://desec.io/api/v1/domains/{{ domain_name }}/rrsets/'
-        method: 'POST'
-        status_code: [201]
-        headers:
-          Authorization: 'Token {{ desec_token }}'
-        body_format: 'json'
-        body:
-          subname: 'plex'
-          type: 'CNAME'
-          ttl: 3600
-          records:
-            - '{{ ansible_fqdn }}.'
-      register: desec_rrsets_post
-      when: (desec_rrsets_get.status == 404)
-      changed_when: (desec_rrsets_post.status == 201)
-
-    - name: 'Update Plex CNAME record'
-      ansible.builtin.uri:
-        url: 'https://desec.io/api/v1/domains/{{ domain_name }}/rrsets/plex/CNAME/'
-        method: 'PATCH'
-        status_code: [200]
-        headers:
-          Authorization: 'Token {{ desec_token }}'
-        body_format: 'json'
-        body:
-          records:
-            - '{{ ansible_fqdn }}.'
-      register: desec_rrsets_patch
-      when: (desec_rrsets_get.status == 200 and desec_rrsets_get.json.records != [ansible_fqdn + "."])
-      changed_when: (desec_rrsets_patch.status == 200)
 
 - name: 'Create Plex network'
   containers.podman.podman_network:
@@ -80,8 +46,8 @@
 - name: 'Create Plex bind mounts paths'
   ansible.builtin.file:
     path: '{{ containers_storage_path }}/{{ item }}'
-    owner: 1001
-    group: 1001
+    owner: 1000
+    group: 1000
     mode: '0700'
     state: 'directory'
   loop:

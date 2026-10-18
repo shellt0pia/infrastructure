@@ -1,14 +1,4 @@
 ---
-- name: 'Remote gateways base configuration'
-  hosts: 'remote_gateways'
-  roles:
-    - 'raspberry_pi_os_setup'
-
-- name: 'Hypervisors base configuration'
-  hosts: 'hypervisors'
-  roles:
-    - 'proxmox_ve_setup'
-
 - name: 'Containers hosts base configuration'
   hosts: 'containers_hosts'
   roles:
@@ -18,39 +8,16 @@
 - name: 'Common containers'
   hosts: 'containers_hosts'
   roles:
+    - 'ddns_updater'
     - 'traefik'
     - 'cockpit'
     - 'sshd_rsync'
-    - 'promtail'
-    - 'node_exporter'
+    # - 'promtail'
+    # - 'node_exporter'
     # - 'systemd_exporter'
 
-- name: 'Backups containers'
-  hosts: 'backups'
-  roles:
-    - 'rsync_servers'
-    - 'mbsync'
-    - 'vdirsyncer'
-    - 'borgmatic'
-    - 'autorestic'
-
-- name: 'Monitoring containers'
-  hosts: 'monitoring'
-  roles:
-    - 'uptime_kuma'
-    - 'healthchecks'
-    - 'grafana'
-    - 'prometheus'
-    - 'loki'
-    - 'syslog_ng'
-
-- name: 'Home containers'
-  hosts: 'home'
-  roles:
-    - 'home_assistant'
-
-- name: 'Documents containers'
-  hosts: 'documents'
+- name: 'Cloud containers'
+  hosts: 'cloud'
   roles:
     - 'nextcloud'
     - 'collabora_online'
@@ -60,26 +27,44 @@
     - 'freshrss'
     - 'it_tools'
 
-- name: 'Medias containers'
-  hosts: 'medias'
+- name: 'Home containers'
+  hosts: 'home'
   roles:
+    # Backups
+    - 'rsync_servers'
+    - 'mbsync'
+    - 'vdirsyncer'
+    - 'borgmatic'
+    - 'autorestic'
+    # Monitoring
+    - 'uptime_kuma'
+    - 'healthchecks'
+    # - 'grafana'
+    # - 'prometheus'
+    # - 'loki'
+    # - 'syslog_ng'
+    # Home automation
+    # - 'home_assistant'
+    # Media
     - 'plex'
     - 'tautulli'
     - 'navidrome'
     - 'calibre'
     - 'calibre_web'
     - 'komga'
-    - 'transmission'
+    - 'qbittorrent'
     - 'sabnzbd'
+    - 'autobrr'
     - 'flaresolverr'
     - 'unpackerr'
-    - 'recyclarr'
+    - 'profilarr'
     - 'prowlarr'
     - 'radarr'
     - 'sonarr'
     - 'bazarr'
     - 'lidarr'
-    # - 'readarr'
     - 'mylar'
-    - 'overseerr'
+    - 'seerr'
     - 'maintainerr'
+    - 'muxarr'
+    - 'uldas'

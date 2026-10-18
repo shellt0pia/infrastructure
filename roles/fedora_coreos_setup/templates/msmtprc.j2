@@ -5,8 +5,8 @@ host {{ smtp_relay.host }}
 port 587
 tls on
 tls_starttls on
-from {{ ansible_hostname | lower }}@{{ smtp_relay.from_domain }}
-from_full_name {{ ansible_hostname }}
+from {{ ansible_facts["hostname"] | lower }}@{{ smtp_relay.from_domain }}
+from_full_name {{ ansible_facts["hostname"] }}
 allow_from_override off
 set_from_header on
 auth on

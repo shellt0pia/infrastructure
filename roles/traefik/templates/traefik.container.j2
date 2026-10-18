@@ -20,18 +20,20 @@ PublishPort=443:443
 Volume={{ containers_storage_path }}/config/traefik/traefik.toml:/etc/traefik/traefik.toml:Z,ro
 Volume={{ containers_storage_path }}/config/traefik/providers:/etc/traefik/providers:Z,ro
 Volume={{ containers_storage_path }}/data/traefik/acme.json:/acme.json:Z
-Secret=traefik_desec_token
+Secret=traefik_cloudflare_zone_token
+Secret=traefik_cloudflare_dns_token
 Timezone={{ timezone }}
 Environment="TZ={{ timezone }}"
-Environment="DESEC_TOKEN_FILE=/run/secrets/traefik_desec_token"
+Environment="CF_ZONE_API_TOKEN_FILE=/run/secrets/traefik_cloudflare_zone_token"
+Environment="CF_DNS_API_TOKEN_FILE=/run/secrets/traefik_cloudflare_dns_token"
 Label="traefik.enable=true"
 Label="traefik.docker.network=common-internal"
-Label="traefik.http.routers.traefik.rule=Host(`traefik.{{ ansible_fqdn }}`)"
+Label="traefik.http.routers.traefik.rule=Host(`traefik.{{ ansible_facts["fqdn"] }}`)"
 Label="traefik.http.routers.traefik.entrypoints=websecure"
 Label="traefik.http.routers.traefik.service=api@internal"
 Label="traefik.http.routers.traefik.middlewares=restrict-external-access@file, traefik-auth"
 Label="traefik.http.middlewares.traefik-auth.basicauth.users={{ traefik.api.user }}:{{ traefik.api.password_hash }}"
-Label="traefik.http.routers.traefik-ping.rule=Host(`traefik.{{ ansible_fqdn }}`) && Path(`/ping`)"
+Label="traefik.http.routers.traefik-ping.rule=Host(`traefik.{{ ansible_facts["fqdn"] }}`) && Path(`/ping`)"
 Label="traefik.http.routers.traefik-ping.entrypoints=websecure"
 Label="traefik.http.routers.traefik-ping.service=ping@internal"
 Label="traefik.http.routers.traefik-ping.middlewares=restrict-external-access@file"

@@ -1,0 +1,51 @@
+---
+- name: 'Ensure the user really wants to remove the Profilarr stack'
+  ansible.builtin.pause:
+    prompt: "WARNING! DO YOU REALLY WANT TO REMOVE THE PROFILARR STACK?\nAnswer yes in capital letters to confirm"
+    echo: true
+  register: remove_prompt
+
+- name: "Stop execution if user didn't answer 'YES'"
+  ansible.builtin.fail:
+    msg: "Stopping playbook execution because the playbook was called with the tag 'containers-remove' but the user didn't want to remove the containers."
+  when: (remove_prompt.user_input != "YES")
+
+- name: 'Disable and stop Profilarr stack'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    daemon_reload: true
+    enabled: false
+    state: 'stopped'
+  loop:
+    - 'profilarr.service'
+    - 'profilarr-parser.service'
+  register: systemd_unit
+  failed_when: (systemd_unit.failed and not "Could not find the requested service" in systemd_unit.msg)
+
+- name: 'Remove Profilarr stack quadlet units'
+  ansible.builtin.file:
+    path: '/etc/containers/systemd/{{ item }}.container'
+    state: 'absent'
+  loop:
+    - 'profilarr'
+    - 'profilarr-parser'
+  notify: 'Reload systemd daemon'
+
+- name: 'Remove Profilarr stack secrets'
+  containers.podman.podman_secret:
+    name: '{{ item }}'
+    state: 'absent'
+  loop:
+    - 'profilarr_oidc_client_secret'
+
+- name: 'Remove Profilarr stack network'
+  containers.podman.podman_network:
+    name: 'profilarr-internal'
+    state: 'absent'
+
+- name: 'Remove Profilarr bind mounts paths'
+  ansible.builtin.file:
+    path: '{{ containers_storage_path }}/{{ item }}'
+    state: 'absent'
+  loop:
+    - 'data/profilarr'

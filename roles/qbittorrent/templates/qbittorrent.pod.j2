@@ -1,0 +1,16 @@
+[Unit]
+Description=qBittorrent Pod
+Documentation=man:podman-systemd.unit(5)
+
+[Pod]
+PodName=qbittorrent
+Network=qbittorrent-gluetun-external
+Network=common-internal
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+TimeoutStopSec=70
+
+[Install]
+WantedBy=default.target

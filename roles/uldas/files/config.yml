@@ -1,0 +1,14 @@
+path:
+  - /movies
+  - /tv
+ignore_tags:
+  - -trailer
+  - sample
+remux_to_mkv: false
+show_details: false
+dry_run: true
+run_on_startup: false
+process_subtitles: true
+process_external_subtitles: false
+analyze_forced_subtitles: true
+detect_sdh_subtitles: true

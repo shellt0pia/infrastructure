@@ -1,0 +1,41 @@
+---
+- name: 'Ensure the user really wants to remove the Seerr container'
+  ansible.builtin.pause:
+    prompt: "WARNING! DO YOU REALLY WANT TO REMOVE THE SEERR CONTAINER?\nTHIS ACTION WILL DELETE ALL SEERR APP DATA AND IS IRREVERSIBLE!\nAnswer yes in capital letters to confirm"
+    echo: true
+  register: remove_prompt
+
+- name: "Stop execution if user didn't answer 'YES'"
+  ansible.builtin.fail:
+    msg: "Stopping playbook execution because the playbook was called with the tag 'containers-remove' but the user didn't want to remove the containers."
+  when: (remove_prompt.user_input != "YES")
+
+- name: 'Disable and stop Seerr container'
+  ansible.builtin.systemd_service:
+    name: 'seerr.service'
+    daemon_reload: true
+    enabled: false
+    state: 'stopped'
+  register: systemd_unit
+  failed_when: (systemd_unit.failed and not "Could not find the requested service" in systemd_unit.msg)
+
+- name: 'Remove Seerr container quadlet unit'
+  ansible.builtin.file:
+    path: '/etc/containers/systemd/seerr.container'
+    state: 'absent'
+  notify: 'Reload systemd daemon'
+
+- name: 'Remove Seerr data bind mount path'
+  ansible.builtin.file:
+    path: '{{ containers_storage_path }}/data/seerr'
+    state: 'absent'
+
+- name: 'Remove Seerr CNAME record'
+  community.general.cloudflare_dns:
+    api_token: '{{ cloudflare_dns_token }}'
+    zone: '{{ domain_name }}'
+    record: 'seerr'
+    type: 'CNAME'
+    value: '{{ ansible_facts["fqdn"] }}'
+    state: 'absent'
+  delegate_to: 'localhost'

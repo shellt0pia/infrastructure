@@ -1,0 +1,20 @@
+{
+  "name": "01 - Tag unregistered",
+  "trackerPattern": "*",
+  "notify": true,
+  "conditions": {
+    "schemaVersion": "1",
+    "tags": [
+      {
+        "enabled": true,
+        "mode": "full",
+        "tags": ["unregistered"],
+        "condition": {
+          "field": "IS_UNREGISTERED",
+          "operator": "EQUAL",
+          "value": "true"
+        }
+      }
+    ]
+  }
+}

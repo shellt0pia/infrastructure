@@ -12,7 +12,7 @@ ExposeHostPort=8181
 AddDevice=/dev/dri/card1:/dev/dri/card1
 AddDevice=/dev/dri/renderD128:/dev/dri/renderD128
 Volume={{ containers_storage_path }}/data/calibre:/config:Z
-Volume={{ storage_server_shares_mounts_path }}/medias/books:/books:slave
+Volume={{ storage_server_shares_mounts_path }}/media/library/books:/mnt/media/library/books:slave
 Secret=calibre_password
 Timezone={{ timezone }}
 Environment="TZ={{ timezone }}"

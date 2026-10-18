@@ -71,15 +71,18 @@
     - 'config/traefik/providers'
     - 'data/traefik'
 
-- name: 'Create Traefik stack secret'
+- name: 'Create Traefik stack secrets'
   containers.podman.podman_secret:
     name: '{{ item.name }}'
     data: '{{ item.data }}'
     skip_existing: true
     state: 'present'
   loop:
-    - name: 'traefik_desec_token'
-      data: '{{ desec_token }}'
+    - name: 'traefik_cloudflare_zone_token'
+      data: '{{ cloudflare_zone_token }}'
+      services: 'traefik.service'
+    - name: 'traefik_cloudflare_dns_token'
+      data: '{{ cloudflare_dns_token }}'
       services: 'traefik.service'
   loop_control:
     label: '{{ item.name }}'

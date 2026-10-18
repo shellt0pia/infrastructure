@@ -2,7 +2,7 @@
 Description=Weekly pulling of container images
 
 [Timer]
-OnCalendar=Mon *-*-* 02:00:00
+OnCalendar=*-*-* 02:00:00
 RandomizedDelaySec=1800
 Persistent=true
 

@@ -1,11 +1,30 @@
 ---
-- name: 'Create Tautulli data bind mount path'
+- name: 'Create Tautulli bind mounts paths'
   ansible.builtin.file:
-    path: '{{ containers_storage_path }}/data/tautulli'
+    path: '{{ containers_storage_path }}/{{ item }}'
     owner: 1000
     group: 1000
     mode: '0700'
     state: 'directory'
+  loop:
+    - 'config/tautulli/scripts'
+    - 'data/tautulli'
+
+- name: 'Copy Tautulli scripts'
+  ansible.builtin.copy:
+    src: 'update_metadata.py'
+    dest: '{{ containers_storage_path }}/config/tautulli/scripts/update_metadata.py'
+    owner: 1000
+    group: 1000
+    mode: '0755'
+
+- name: 'Create Tautulli TMDB API key secret'
+  containers.podman.podman_secret:
+    name: 'tautulli_tmdb_api_key'
+    data: '{{ tmdb_api_key }}'
+    skip_existing: true
+    state: 'present'
+  register: 'podman_secret'
 
 - name: 'Create Tautulli quadlet unit from template'
   ansible.builtin.template:
@@ -25,9 +44,9 @@
     state: 'started'
   register: 'systemd_start'
 
-- name: 'Restart Tautulli service if quadlet unit has changed while service was already started'
+- name: 'Restart Tautulli service if podman secret or quadlet unit has changed while service was already started'
   ansible.builtin.systemd_service:
     name: 'tautulli.service'
     daemon_reload: true
     state: 'restarted'
-  when: (quadlet_unit.changed and not systemd_start.changed)
+  when: ((podman_secret.changed or quadlet_unit.changed) and not systemd_start.changed)

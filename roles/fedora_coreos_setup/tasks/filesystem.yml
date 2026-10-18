@@ -33,7 +33,7 @@
     name: 'btrfs-scrub@{{ item.mount | systemd_escape(path=True) }}.timer'
     enabled: true
     state: 'started'
-  loop: '{{ ansible_mounts }}'
+  loop: '{{ ansible_facts["mounts"] }}'
   loop_control:
     label: '{{ item.mount }}'
   when: (item.fstype == "btrfs" and "rw" in item.options and not "bind" in item.options)
@@ -43,7 +43,7 @@
     name: 'btrfs-scrub-ro@{{ item.mount | systemd_escape(path=True) }}.timer'
     enabled: true
     state: 'started'
-  loop: '{{ ansible_mounts }}'
+  loop: '{{ ansible_facts["mounts"] }}'
   loop_control:
     label: '{{ item.mount }}'
   when: (item.fstype == "btrfs" and "ro" in item.options and not "bind" in item.options)

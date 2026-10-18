@@ -1,0 +1,31 @@
+---
+- name: 'Ensure the user really wants to remove the ULDAS container'
+  ansible.builtin.pause:
+    prompt: "WARNING! DO YOU REALLY WANT TO REMOVE THE ULDAS CONTAINER?\nTHIS ACTION WILL DELETE ALL ULDAS APP DATA AND IS IRREVERSIBLE!\nAnswer yes in capital letters to confirm"
+    echo: true
+  register: remove_prompt
+
+- name: "Stop execution if user didn't answer 'YES'"
+  ansible.builtin.fail:
+    msg: "Stopping playbook execution because the playbook was called with the tag 'containers-remove' but the user didn't want to remove the containers."
+  when: (remove_prompt.user_input != "YES")
+
+- name: 'Disable and stop ULDAS container'
+  ansible.builtin.systemd_service:
+    name: 'uldas.service'
+    daemon_reload: true
+    enabled: false
+    state: 'stopped'
+  register: systemd_unit
+  failed_when: (systemd_unit.failed and not "Could not find the requested service" in systemd_unit.msg)
+
+- name: 'Remove ULDAS container quadlet unit'
+  ansible.builtin.file:
+    path: '/etc/containers/systemd/uldas.container'
+    state: 'absent'
+  notify: 'Reload systemd daemon'
+
+- name: 'Remove ULDAS config bind mount path'
+  ansible.builtin.file:
+    path: '{{ containers_storage_path }}/config/uldas'
+    state: 'absent'

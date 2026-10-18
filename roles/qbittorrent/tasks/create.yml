@@ -1,0 +1,208 @@
+---
+- name: 'Load kernel modules'
+  community.general.modprobe:
+    name: '{{ item }}'
+    state: 'present'
+  loop:
+    - 'tun'
+    - 'wireguard'
+
+- name: 'Enable kernel modules at boot'
+  ansible.builtin.copy:
+    content: '{{ item }}'
+    dest: '/etc/modules-load.d/{{ item }}.conf'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  loop:
+    - 'tun'
+    - 'wireguard'
+
+- name: 'Check if SELinux is configured to allow the use of TUN in containers'
+  ansible.builtin.shell:
+    cmd: 'set -o pipefail && semodule -l | grep container-tun'
+  register: container_tun_semodule
+  changed_when: false
+  # grep returns 1 if the string isn't found and 2 for exceptions so we need to change the task fail condition.
+  failed_when: (container_tun_semodule.rc > 1)
+  check_mode: false
+
+- name: 'Configure SELinux to allow the use of TUN in containers'
+  when: (container_tun_semodule.rc == 1)
+  block:
+    - name: 'Compile the SELinux custom policy module'
+      ansible.builtin.command:
+        cmd: 'checkmodule -M -m -o {{ role_path }}/files/container-tun.mod {{ role_path }}/files/container-tun.te'
+      args:
+        creates: '{{ role_path }}/files/container-tun.mod'
+      delegate_to: 'localhost'
+
+    - name: 'Package the SELinux custom policy module'
+      ansible.builtin.command:
+        cmd: 'semodule_package -o {{ role_path }}/files/container-tun.pp -m {{ role_path }}/files/container-tun.mod'
+      args:
+        creates: '{{ role_path }}/files/container-tun.pp'
+      delegate_to: 'localhost'
+
+    - name: 'Copy the SELinux custom policy module to the host'
+      ansible.builtin.copy:
+        src: 'container-tun.pp'
+        dest: '/tmp/container-tun.pp'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
+
+    - name: 'Install the SELinux custom policy module' # noqa: no-changed-when
+      ansible.builtin.command:
+        cmd: 'semodule -i /tmp/container-tun.pp'
+
+    - name: 'Cleanup remote temporary file'
+      ansible.builtin.file:
+        path: '/tmp/container-tun.pp'
+        state: 'absent'
+
+    - name: 'Cleanup local temporary files'
+      ansible.builtin.file:
+        path: '{{ role_path }}/files/{{ item }}'
+        state: 'absent'
+      loop:
+        - 'container-tun.mod'
+        - 'container-tun.pp'
+      delegate_to: 'localhost'
+
+- name: 'Create qBittorrent Gluetun network'
+  containers.podman.podman_network:
+    name: 'qbittorrent-gluetun-external'
+    internal: false
+    ipv6: '{{ containers_ipv6.enable }}'
+    opt:
+      isolate: true
+
+- name: 'Add qBittorrent Gluetun network to firewalld trusted zone'
+  block:
+    - name: 'Get podman networks info'
+      containers.podman.podman_network_info:
+        name: 'qbittorrent-gluetun-external'
+      register: 'podman_network'
+
+    - name: 'Add podman networks subnets to firewalld trusted zone'
+      ansible.posix.firewalld:
+        source: '{{ item }}'
+        zone: 'trusted'
+        permanent: true
+        immediate: true
+        state: 'enabled'
+      loop: '{{ podman_network | community.general.json_query("networks[*].subnets[*].subnet") | ansible.builtin.flatten }}'
+
+- name: 'Create qBittorrent stack bind mounts paths'
+  ansible.builtin.file:
+    path: '{{ containers_storage_path }}/{{ item.path }}'
+    owner: '{{ item.owner }}'
+    group: '{{ item.group }}'
+    mode: '0700'
+    state: 'directory'
+  loop:
+    - path: 'env/qbittorrent-gluetun'
+      owner: 'root'
+      group: 'root'
+    - path: 'data/qbittorrent-gluetun'
+      owner: 'root'
+      group: 'root'
+    - path: 'config/qbittorrent-gluetun'
+      owner: 'root'
+      group: 'root'
+    - path: 'data/qbittorrent-server'
+      owner: 911
+      group: 911
+    - path: 'data/qui'
+      owner: 1000
+      group: 1000
+
+- name: 'Create qBittorrent stack secrets'
+  containers.podman.podman_secret:
+    name: '{{ item.name }}'
+    data: '{{ item.data }}'
+    skip_existing: true
+    state: 'present'
+  loop:
+    - name: 'qui_oidc_client_secret'
+      data: '{{ qbittorrent.qui.oidc.client_secret }}'
+      services:
+        - 'qui.service'
+  loop_control:
+    label: '{{ item.name }}'
+  register: 'podman_secrets'
+
+- name: 'Create qBittorrent stack configuration files'
+  ansible.builtin.copy:
+    content: '{{ item.content | default(omit) }}'
+    src: '{{ item.src | default(omit) }}'
+    dest: '{{ containers_storage_path }}/{{ item.dest }}'
+    owner: 'root'
+    group: 'root'
+    mode: '{{ item.mode }}'
+  loop:
+    - content: |
+        WIREGUARD_PRIVATE_KEY={{ qbittorrent.gluetun.wireguard.private_key }}
+        WIREGUARD_PRESHARED_KEY={{ qbittorrent.gluetun.wireguard.endpoint.preshared_key }}
+      dest: 'env/qbittorrent-gluetun/gluetun.env'
+      mode: '0400'
+      services:
+        - 'qbittorrent-pod.service'
+    - src: 'gluetun-port-up.sh'
+      dest: 'config/qbittorrent-gluetun/gluetun-port-up.sh'
+      mode: '0755'
+      services:
+        - 'qbittorrent-pod.service'
+    - src: 'gluetun-port-down.sh'
+      dest: 'config/qbittorrent-gluetun/gluetun-port-down.sh'
+      mode: '0755'
+      services:
+        - 'qbittorrent-pod.service'
+  loop_control:
+    label: '{{ item.dest }}'
+  register: 'configuration_files'
+
+- name: 'Create qBittorrent stack quadlet units from templates'
+  ansible.builtin.template:
+    src: '{{ item.name }}.j2'
+    dest: '/etc/containers/systemd/{{ item.name }}'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  loop:
+    - name: 'qbittorrent.pod'
+      services: ['qbittorrent-pod.service']
+    - name: 'qbittorrent-gluetun.container'
+      services: ['qbittorrent-pod.service']
+    - name: 'qbittorrent-server.container'
+      services: ['qbittorrent-pod.service']
+    - name: 'qui.container'
+      services: ['qui.service']
+  loop_control:
+    label: '{{ item.name }}'
+  register: 'quadlet_units'
+  notify: 'Reload systemd daemon'
+
+- name: 'Enable and start qBittorrent stack'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    daemon_reload: true
+    enabled: true
+    state: 'started'
+  register: 'systemd_start'
+  loop:
+    - 'qbittorrent-pod.service'
+    - 'qui.service'
+
+- name: 'Restart qBittorrent stack services if podman secret, configuration file or quadlet unit has changed while service was already started'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    daemon_reload: true
+    state: 'restarted'
+  vars:
+    podman_secrets_map: '{{ podman_secrets.results | selectattr("changed", "true") | map(attribute="item.services") | select("defined") | ansible.builtin.flatten }}'
+    configuration_files_map: '{{ configuration_files.results | selectattr("changed", "true") | map(attribute="item.services") | select("defined") | ansible.builtin.flatten }}'
+    quadlet_units_map: '{{ quadlet_units.results | selectattr("changed", "true") | map(attribute="item.services") | select("defined") | ansible.builtin.flatten }}'
+    systemd_start_map: '{{ systemd_start.results | selectattr("changed", "true") | map(attribute="name") }}'
+  loop: '{{ (podman_secrets_map + configuration_files_map + quadlet_units_map) | unique | difference(systemd_start_map) }}'

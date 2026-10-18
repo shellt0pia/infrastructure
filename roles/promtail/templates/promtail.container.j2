@@ -8,7 +8,7 @@ Image={{ containers_images.promtail }}:{{ containers_images_tags.promtail }}
 Exec=-config.file=/etc/promtail/promtail.yaml
 SecurityLabelDisable=true
 Network=web-egress
-{% if inventory_hostname == "monitoring" %}
+{% if inventory_hostname == "home" %}
 Network=common-internal
 ExposeHostPort=1601
 {% endif %}

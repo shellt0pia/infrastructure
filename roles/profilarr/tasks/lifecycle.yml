@@ -1,0 +1,74 @@
+---
+- name: 'Pull Profilarr stack images'
+  containers.podman.podman_image:
+    name: '{{ item }}'
+    pull: true
+    force: true
+    state: 'present'
+  loop:
+    - '{{ containers_images.profilarr.parser }}:{{ containers_images_tags.profilarr }}'
+    - '{{ containers_images.profilarr.server }}:{{ containers_images_tags.profilarr }}'
+  register: 'container_image_pull'
+  tags: ['never', 'containers-pull', 'containers-update']
+
+- name: 'Update Profilarr tags in quadlet units' # noqa: no-handler
+  ansible.builtin.template:
+    src: '{{ item }}.container.j2'
+    dest: '/etc/containers/systemd/{{ item }}.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  loop:
+    - 'profilarr-parser'
+    - 'profilarr'
+  when: (container_image_pull.changed)
+  register: 'quadlet_units'
+  tags: ['never', 'containers-update']
+
+- name: 'Restart Profilarr stack'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    daemon_reload: '{{ ("true" | bool) if quadlet_units.changed else ("false" | bool) }}'
+    state: 'restarted'
+  loop:
+    - 'profilarr-parser.service'
+    - 'profilarr.service'
+  when: ("containers-restart" in ansible_run_tags or
+        ("containers-update" in ansible_run_tags and container_image_pull.changed))
+  tags: ['never', 'containers-restart', 'containers-update']
+
+- name: 'Disable Profilarr stack'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    enabled: false
+  loop:
+    - 'profilarr.service'
+    - 'profilarr-parser.service'
+  tags: ['never', 'containers-disable']
+
+- name: 'Stop Profilarr stack'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    state: 'stopped'
+  loop:
+    - 'profilarr.service'
+    - 'profilarr-parser.service'
+  tags: ['never', 'containers-stop']
+
+- name: 'Enable Profilarr stack'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    enabled: true
+  loop:
+    - 'profilarr-parser.service'
+    - 'profilarr.service'
+  tags: ['never', 'containers-enable']
+
+- name: 'Start Profilarr stack'
+  ansible.builtin.systemd_service:
+    name: '{{ item }}'
+    state: 'started'
+  loop:
+    - 'profilarr-parser.service'
+    - 'profilarr.service'
+  tags: ['never', 'containers-start']

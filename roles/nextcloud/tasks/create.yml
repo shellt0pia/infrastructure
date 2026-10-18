@@ -1,49 +1,15 @@
 ---
-- name: 'Manage Nextcloud CNAME record'
+- name: 'Create/Update Nextcloud CNAME record'
+  community.general.cloudflare_dns:
+    api_token: '{{ cloudflare_dns_token }}'
+    zone: '{{ domain_name }}'
+    record: 'cloud'
+    ttl: 3600
+    type: 'CNAME'
+    value: '{{ ansible_facts["fqdn"] }}'
+    proxied: false
+    state: 'present'
   delegate_to: 'localhost'
-  check_mode: false
-  block:
-    - name: 'Get Nextcloud CNAME record'
-      ansible.builtin.uri:
-        url: 'https://desec.io/api/v1/domains/{{ domain_name }}/rrsets/cloud/CNAME/'
-        method: 'GET'
-        status_code: [200, 404]
-        headers:
-          Authorization: 'Token {{ desec_token }}'
-      register: desec_rrsets_get
-
-    - name: 'Create Nextcloud CNAME record'
-      ansible.builtin.uri:
-        url: 'https://desec.io/api/v1/domains/{{ domain_name }}/rrsets/'
-        method: 'POST'
-        status_code: [201]
-        headers:
-          Authorization: 'Token {{ desec_token }}'
-        body_format: 'json'
-        body:
-          subname: 'cloud'
-          type: 'CNAME'
-          ttl: 3600
-          records:
-            - '{{ ansible_fqdn }}.'
-      register: desec_rrsets_post
-      when: (desec_rrsets_get.status == 404)
-      changed_when: (desec_rrsets_post.status == 201)
-
-    - name: 'Update Nextcloud CNAME record'
-      ansible.builtin.uri:
-        url: 'https://desec.io/api/v1/domains/{{ domain_name }}/rrsets/cloud/CNAME/'
-        method: 'PATCH'
-        status_code: [200]
-        headers:
-          Authorization: 'Token {{ desec_token }}'
-        body_format: 'json'
-        body:
-          records:
-            - '{{ ansible_fqdn }}.'
-      register: desec_rrsets_patch
-      when: (desec_rrsets_get.status == 200 and desec_rrsets_get.json.records != [ansible_fqdn + "."])
-      changed_when: (desec_rrsets_patch.status == 200)
 
 - name: 'Create Nextcloud stack networks'
   containers.podman.podman_network:
@@ -236,3 +202,28 @@
     quadlet_units_map: '{{ quadlet_units.results | selectattr("changed", "true") | map(attribute="item") | ansible.builtin.product([".service"]) | map("join") }}'
     systemd_start_map: '{{ systemd_start.results | selectattr("changed", "true") | map(attribute="name") }}'
   loop: '{{ (podman_secrets_map + configuration_files_map + quadlet_units_map) | unique | difference(systemd_start_map) }}'
+
+# Must run after the first start: the image only populates the config directory when it's empty.
+# No restart needed, Nextcloud reloads config files on each request when their mtime changes.
+- name: 'Create Nextcloud additional system configuration file from template'
+  ansible.builtin.template:
+    src: 'user-custom.config.php.j2'
+    dest: '{{ containers_storage_path }}/data/nextcloud-server/config/user-custom.config.php'
+    owner: 33
+    group: 33
+    mode: '0640'
+    setype: 'container_file_t'
+
+# App config (stored in database), it can't be set from a config.php file like system config
+- name: 'Get Nextcloud OIDC multiple user backends app config'
+  ansible.builtin.command:
+    cmd: 'podman container exec -u www-data nextcloud-server php /var/www/html/occ config:app:get user_oidc allow_multiple_user_backends'
+  register: 'user_oidc_allow_multiple_user_backends'
+  changed_when: false
+  failed_when: (user_oidc_allow_multiple_user_backends.rc not in [0, 1])
+
+- name: 'Disable Nextcloud OIDC multiple user backends to redirect to Pocket ID on login'
+  ansible.builtin.command:
+    cmd: 'podman container exec -u www-data nextcloud-server php /var/www/html/occ config:app:set --no-interaction --type=string --lazy --value=0 user_oidc allow_multiple_user_backends'
+  changed_when: true
+  when: (user_oidc_allow_multiple_user_backends.stdout != '0')

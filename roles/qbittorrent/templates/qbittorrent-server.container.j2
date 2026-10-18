@@ -1,0 +1,36 @@
+[Unit]
+Description=qBittorrent Server
+Documentation=man:podman-systemd.unit(5)
+After=qbittorrent-gluetun.service
+Requires=qbittorrent-gluetun.service
+
+[Container]
+ContainerName=qbittorrent-server
+Pod=qbittorrent.pod
+Image={{ containers_images.qbittorrent.server }}:{{ containers_images_tags.qbittorrent.server }}
+ExposeHostPort=8080
+Volume={{ containers_storage_path }}/data/qbittorrent-server:/config:Z
+Volume={{ storage_server_shares_mounts_path }}/media/download/bittorrent:/mnt/media/download/bittorrent:slave
+Timezone={{ timezone }}
+Environment="TZ={{ timezone }}"
+Environment="PUID=911"
+Environment="PGID=911"
+Environment="WEBUI_PORT=8080"
+{% if not (qbittorrent_port_forwarding | bool) %}
+Environment="TORRENTING_PORT={{ qbittorrent_static_port }}"
+{% endif %}
+Label="traefik.enable=true"
+Label="traefik.docker.network=common-internal"
+Label="traefik.http.routers.qbittorrent.rule=Host(`qbittorrent.{{ domain_name }}`)"
+Label="traefik.http.routers.qbittorrent.entrypoints=websecure"
+Label="traefik.http.routers.qbittorrent.middlewares=restrict-external-access@file"
+Label="traefik.http.services.qbittorrent.loadbalancer.server.port=8080"
+AutoUpdate=local
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=300
+TimeoutStopSec=70
+
+[Install]
+WantedBy=default.target

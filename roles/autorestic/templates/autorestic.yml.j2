@@ -53,10 +53,10 @@ locations:
         - 'curl -m 10 --retry 5 https://healthchecks.{{ domain_name }}/ping/{{ autorestic.groupware.healthchecks_uuid }}'
   medias:
     from:
-      - '{{ storage_server_shares_mounts_path }}/medias/audiodrama'
-      - '{{ storage_server_shares_mounts_path }}/medias/audiobooks'
-      - '{{ storage_server_shares_mounts_path }}/medias/books'
-      - '{{ storage_server_shares_mounts_path }}/medias/comics'
+      - '{{ storage_server_shares_mounts_path }}/media/library/audiodrama'
+      - '{{ storage_server_shares_mounts_path }}/media/library/audiobooks'
+      - '{{ storage_server_shares_mounts_path }}/media/library/books'
+      - '{{ storage_server_shares_mounts_path }}/media/library/comics'
     to: 'b2_medias'
     forget: 'prune'
     hooks:

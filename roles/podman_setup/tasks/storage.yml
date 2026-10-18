@@ -11,3 +11,17 @@
     - 'data'
     - 'env'
     - 'runtime'
+
+- name: 'Authorize containers to access bind mounted nfs shares'
+  ansible.posix.seboolean:
+    name: 'virt_use_nfs'
+    state: true
+    persistent: true
+  when: (storage_server.type == "nfs")
+
+- name: 'Authorize containers to access bind mounted cifs shares'
+  ansible.posix.seboolean:
+    name: 'virt_use_samba'
+    state: true
+    persistent: true
+  when: (storage_server.type == "cifs")

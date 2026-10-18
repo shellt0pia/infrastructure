@@ -1,5 +1,0 @@
----
-containers_images:
-  readarr: 'lscr.io/linuxserver/readarr'
-containers_images_tags:
-  readarr: 'latest'

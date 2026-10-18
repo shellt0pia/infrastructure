@@ -1,0 +1,5 @@
+---
+containers_images:
+  muxarr: 'ghcr.io/kirovair/muxarr'
+containers_images_tags:
+  muxarr: 'latest'

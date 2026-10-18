@@ -1,0 +1,5 @@
+---
+containers_images:
+  seerr: 'ghcr.io/seerr-team/seerr'
+containers_images_tags:
+  seerr: 'latest'

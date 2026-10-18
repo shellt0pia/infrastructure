@@ -1,49 +1,15 @@
 ---
-- name: 'Manage FreshRSS CNAME record'
+- name: 'Create/Update FreshRSS CNAME record'
+  community.general.cloudflare_dns:
+    api_token: '{{ cloudflare_dns_token }}'
+    zone: '{{ domain_name }}'
+    record: 'freshrss'
+    ttl: 3600
+    type: 'CNAME'
+    value: '{{ ansible_facts["fqdn"] }}'
+    proxied: false
+    state: 'present'
   delegate_to: 'localhost'
-  check_mode: false
-  block:
-    - name: 'Get FreshRSS CNAME record'
-      ansible.builtin.uri:
-        url: 'https://desec.io/api/v1/domains/{{ domain_name }}/rrsets/freshrss/CNAME/'
-        method: 'GET'
-        status_code: [200, 404]
-        headers:
-          Authorization: 'Token {{ desec_token }}'
-      register: desec_rrsets_get
-
-    - name: 'Create FreshRSS CNAME record'
-      ansible.builtin.uri:
-        url: 'https://desec.io/api/v1/domains/{{ domain_name }}/rrsets/'
-        method: 'POST'
-        status_code: [201]
-        headers:
-          Authorization: 'Token {{ desec_token }}'
-        body_format: 'json'
-        body:
-          subname: 'freshrss'
-          type: 'CNAME'
-          ttl: 3600
-          records:
-            - '{{ ansible_fqdn }}.'
-      register: desec_rrsets_post
-      when: (desec_rrsets_get.status == 404)
-      changed_when: (desec_rrsets_post.status == 201)
-
-    - name: 'Update FreshRSS CNAME record'
-      ansible.builtin.uri:
-        url: 'https://desec.io/api/v1/domains/{{ domain_name }}/rrsets/freshrss/CNAME/'
-        method: 'PATCH'
-        status_code: [200]
-        headers:
-          Authorization: 'Token {{ desec_token }}'
-        body_format: 'json'
-        body:
-          records:
-            - '{{ ansible_fqdn }}.'
-      register: desec_rrsets_patch
-      when: (desec_rrsets_get.status == 200 and desec_rrsets_get.json.records != [ansible_fqdn + "."])
-      changed_when: (desec_rrsets_patch.status == 200)
 
 - name: 'Create FreshRSS container bind mounts paths'
   ansible.builtin.file:
@@ -55,6 +21,11 @@
   loop:
     - 'data/freshrss/data'
     - 'data/freshrss/extensions'
+
+- name: 'Get traefik container network info'
+  containers.podman.podman_network_info:
+    name: 'common-internal'
+  register: 'traefik_podman_network'
 
 - name: 'Create FreshRSS quadlet unit from template'
   ansible.builtin.template:

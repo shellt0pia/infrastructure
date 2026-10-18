@@ -1,5 +1,0 @@
----
-containers_images:
-  overseerr: 'ghcr.io/sct/overseerr'
-containers_images_tags:
-  overseerr: 'latest'

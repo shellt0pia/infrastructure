@@ -1,0 +1,42 @@
+---
+- name: 'Create ULDAS config bind mount path'
+  ansible.builtin.file:
+    path: '{{ containers_storage_path }}/config/uldas'
+    owner: 1000
+    group: 1000
+    mode: '0700'
+    state: 'directory'
+
+- name: 'Copy ULDAS configuration'
+  ansible.builtin.copy:
+    src: 'config.yml'
+    dest: '{{ containers_storage_path }}/config/uldas/config.yml'
+    owner: 1000
+    group: 1000
+    mode: '0644'
+  register: 'config_file'
+
+- name: 'Create ULDAS quadlet unit from template'
+  ansible.builtin.template:
+    src: 'uldas.container.j2'
+    dest: '/etc/containers/systemd/uldas.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'quadlet_unit'
+  notify: 'Reload systemd daemon'
+
+- name: 'Enable and start ULDAS container'
+  ansible.builtin.systemd_service:
+    name: 'uldas.service'
+    daemon_reload: true
+    enabled: true
+    state: 'started'
+  register: 'systemd_start'
+
+- name: 'Restart ULDAS service if config file or quadlet unit has changed while service was already started'
+  ansible.builtin.systemd_service:
+    name: 'uldas.service'
+    daemon_reload: true
+    state: 'restarted'
+  when: ((config_file.changed or quadlet_unit.changed) and not systemd_start.changed)
