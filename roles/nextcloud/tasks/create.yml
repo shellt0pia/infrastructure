@@ -202,3 +202,28 @@
     quadlet_units_map: '{{ quadlet_units.results | selectattr("changed", "true") | map(attribute="item") | ansible.builtin.product([".service"]) | map("join") }}'
     systemd_start_map: '{{ systemd_start.results | selectattr("changed", "true") | map(attribute="name") }}'
   loop: '{{ (podman_secrets_map + configuration_files_map + quadlet_units_map) | unique | difference(systemd_start_map) }}'
+
+# Must run after the first start: the image only populates the config directory when it's empty.
+# No restart needed, Nextcloud reloads config files on each request when their mtime changes.
+- name: 'Create Nextcloud additional system configuration file from template'
+  ansible.builtin.template:
+    src: 'user-custom.config.php.j2'
+    dest: '{{ containers_storage_path }}/data/nextcloud-server/config/user-custom.config.php'
+    owner: 33
+    group: 33
+    mode: '0640'
+    setype: 'container_file_t'
+
+# App config (stored in database), it can't be set from a config.php file like system config
+- name: 'Get Nextcloud OIDC multiple user backends app config'
+  ansible.builtin.command:
+    cmd: 'podman container exec -u www-data nextcloud-server php /var/www/html/occ config:app:get user_oidc allow_multiple_user_backends'
+  register: 'user_oidc_allow_multiple_user_backends'
+  changed_when: false
+  failed_when: (user_oidc_allow_multiple_user_backends.rc not in [0, 1])
+
+- name: 'Disable Nextcloud OIDC multiple user backends to redirect to Pocket ID on login'
+  ansible.builtin.command:
+    cmd: 'podman container exec -u www-data nextcloud-server php /var/www/html/occ config:app:set --no-interaction --type=string --lazy --value=0 user_oidc allow_multiple_user_backends'
+  changed_when: true
+  when: (user_oidc_allow_multiple_user_backends.stdout != '0')

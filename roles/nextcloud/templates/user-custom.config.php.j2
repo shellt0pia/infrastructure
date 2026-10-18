@@ -1,0 +1,22 @@
+{%- set nextcloud_config = {
+  'trusted_proxies': traefik_podman_network | community.general.json_query("networks[*].subnets[*].subnet") | ansible.builtin.flatten,
+  'allow_local_remote_servers': true,
+  'mail_smtpmode': 'smtp',
+  'mail_sendmailmode': 'smtp',
+  'mail_from_address': 'cloud',
+  'mail_domain': smtp_relay.from_domain,
+  'mail_smtphost': smtp_relay.host,
+  'mail_smtpport': 587,
+  'mail_smtpauth': true,
+  'mail_smtpname': smtp_relay.user,
+  'mail_smtppassword': smtp_relay.password,
+  'loglevel': 2,
+  'hide_login_form': true,
+} -%}
+<?php
+// Managed by Ansible (nextcloud role), manual changes will be overwritten.
+// Nextcloud merges this file after config.php, so these values take precedence over config.php, the admin UI and
+// "occ config:system:set". Values are embedded as JSON in a nowdoc so that they never need PHP escaping.
+$CONFIG = json_decode(<<<'JSON'
+{{ nextcloud_config | ansible.builtin.to_nice_json(indent=2) }}
+JSON, true);
