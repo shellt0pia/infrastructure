@@ -22,6 +22,11 @@
     - 'data/freshrss/data'
     - 'data/freshrss/extensions'
 
+- name: 'Get traefik container network info'
+  containers.podman.podman_network_info:
+    name: 'common-internal'
+  register: 'traefik_podman_network'
+
 - name: 'Create FreshRSS quadlet unit from template'
   ansible.builtin.template:
     src: 'freshrss.container.j2'

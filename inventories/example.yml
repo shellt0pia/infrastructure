@@ -92,6 +92,12 @@ all:
           password: ''
           dump:
             healthchecks_uuid: ''
+      freshrss:
+        oidc:
+          client_id: ''
+          client_secret: ''
+          client_crypto_key: '' # openssl rand -base64 32
+          discovery_url: '' # e.g. https://idp.domain.tld/.well-known/openid-configuration
       it_tools:
         user: ''
         password_hash: '' # podman run -it --rm quay.io/coreos/mkpasswd --method=bcrypt
