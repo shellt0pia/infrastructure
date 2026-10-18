@@ -1,5 +1,0 @@
----
-containers_images:
-  resticprofile: 'ghcr.io/creativeprojects/resticprofile'
-containers_images_tags:
-  resticprofile: 'latest'

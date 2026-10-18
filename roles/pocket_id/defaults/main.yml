@@ -1,5 +1,0 @@
----
-containers_images:
-  pocket_id: 'ghcr.io/pocket-id/pocket-id'
-containers_images_tags:
-  pocket_id: 'latest-distroless'
