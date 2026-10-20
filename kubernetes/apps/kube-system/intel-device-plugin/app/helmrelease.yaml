@@ -1,0 +1,26 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: intel-device-plugin-operator
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: intel-device-plugin-operator
+  install:
+    # The CRDs live in the crds/ directory of the chart: let Helm upgrade them too.
+    crds: CreateReplace
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  values:
+    manager:
+      # Only reconcile GpuDevicePlugin resources. This also drops the SGX mutating webhook,
+      # which would otherwise intercept the creation of every pod in the cluster.
+      devices:
+        gpu: true

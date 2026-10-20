@@ -7,3 +7,4 @@ namespace: kube-system
 resources:
   - ./cilium/ks.yaml
   - ./coredns/ks.yaml
+  - ./intel-device-plugin/ks.yaml

@@ -1,0 +1,34 @@
+---
+# Intel GPU device plugin: exposes the iGPU as the gpu.intel.com/i915 extended resource.
+#
+# Dynamic Resource Allocation (intel-gpu-resource-driver) was considered and rejected for now:
+# its 0.12.x releases publish each GPU as an exclusive device (no DRAConsumableCapacity support)
+# and are flagged beta. Plex and Immich must share the same iGPU, which the device plugin
+# supports through sharedDevNum. Revisit once the Intel DRA driver supports shared GPUs.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: intel-device-plugin-gpu
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: intel-device-plugin-gpu
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    name: intel-gpu
+    # Number of containers that can use the same iGPU at the same time (Plex, Immich + 1 spare).
+    sharedDevNum: 3
+    # Node Feature Discovery is not deployed: select the nodes with the label set by the Talos config.
+    # Only kube-01 and kube-02 carry it, the older iGPU of kube-03 is deliberately not exposed.
+    nodeFeatureRule: false
+    nodeSelector:
+      # Helm merges maps: null removes the default NFD label, which no node carries.
+      intel.feature.node.kubernetes.io/gpu: null
+      shelltopia.net/intel-gpu: "true"
