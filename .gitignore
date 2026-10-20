@@ -14,5 +14,5 @@
 __pycache__
 
 # Specific
-files/coreos/*.bu
-files/coreos/*.ign
+ansible/files/coreos/*.bu
+ansible/files/coreos/*.ign
