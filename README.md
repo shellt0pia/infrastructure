@@ -22,6 +22,12 @@ I chose the following software stack for my container hosts:
 
 ## Codebase Overview
 
+### Tooling
+
+The CLI tools (Ansible, talosctl, kubectl, helmfile, OpenTofu...) are pinned in `mise.toml`, run `mise install` to install them. kubectl and talosctl follow the versions deployed on the cluster (`talos/vars.yaml`). `mise` also points `KUBECONFIG` and `TALOSCONFIG` to the files generated at the repository root.
+
+`just` and the 1Password CLI (`op`) are expected to be installed on the system.
+
 ### Make
 
 The `Makefile` contains all the useful commands to manage the infrastructure, run `make help` to see the list of available commands.
@@ -76,6 +82,31 @@ The hosts running the `resticprofile` role back up their containers data (`data`
 To rebuild a host from scratch, provision it with `make provision limit=<host>` then run `make restore limit=<host>` to stop all its services, restore its containers data from the latest snapshot (or a specific one with `snapshot=<restic snapshot ID>`) and start its services again. The previous containers data is kept in a `data.pre-restore-<timestamp>` folder next to the restored one, delete it once the restore is validated.
 
 Run `sudo resticprofile snapshots` on the host to list the available snapshots.
+
+## Kubernetes (WIP)
+
+The services of the Hetzner VM are being migrated to a 3-node Talos Linux cluster. All the commands are [just](https://just.systems) recipes, run `just` to list them.
+
+| Path | Content |
+| --- | --- |
+| `talos/` | Talos machine configs: `talosctl gen config` + minijinja patches rendered with `talos/vars.yaml`, Image Factory schematic. |
+| `bootstrap/` | One-shot cluster bootstrap: secrets from 1Password and helmfile installing External Secrets and Flux. |
+| `kubernetes/apps/` | Flux root path, one directory per namespace, one Flux `Kustomization` (`ks.yaml`) per app. |
+| `tofu/` | OpenTofu stacks (Cloudflare), the state is encrypted and committed. |
+
+Secrets are stored in 1Password:
+
+- `infrastructure` vault: Talos secrets bundle, bootstrap and OpenTofu secrets, read locally with `op`.
+- `kubernetes` vault: application secrets, read by External Secrets through a service account.
+
+Bootstrap from nodes booted on the Talos ISO (`just talos download-image`), in maintenance mode, once the prerequisites of [docs/first-bootstrap.md](docs/first-bootstrap.md) are done:
+
+```sh
+just talos gen-secrets   # one-time
+just bootstrap cluster   # talosconfig, machine configs, etcd, kubeconfig, secrets, External Secrets and Flux
+```
+
+The charts installed by `bootstrap/helmfile` read their source, version and values from `kubernetes/apps`, Flux adopts the releases afterwards. Versions are updated by Renovate (`.renovaterc.json5`).
 
 ## License
 
