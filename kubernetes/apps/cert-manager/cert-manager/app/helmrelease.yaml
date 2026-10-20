@@ -1,0 +1,27 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cert-manager
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: cert-manager
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    crds:
+      enabled: true
+      # Keep the CRDs (and therefore every Certificate) if the release is ever uninstalled.
+      keep: true
+    prometheus:
+      enabled: true
+      servicemonitor:
+        # Enable once the Prometheus Operator CRDs are installed.
+        enabled: false
