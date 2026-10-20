@@ -1,0 +1,35 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: ['config:recommended'],
+  flux: {
+    managerFilePatterns: ['/(^|/)kubernetes/.+\\.ya?ml$/'],
+  },
+  customManagers: [
+    {
+      customType: 'regex',
+      description: 'Versions annotated with a `# renovate:` comment on the previous line',
+      managerFilePatterns: ['/(^|/)talos/.+\\.ya?ml$/'],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( versioning=(?<versioning>\\S+))?\\n[^:\\n]+:\\s*["\']?(?<currentValue>[^"\'\\s]+)',
+      ],
+    },
+  ],
+  packageRules: [
+    {
+      description: 'Deployed Talos version and talosctl (mise.toml) in the same PR',
+      matchDepNames: ['ghcr.io/siderolabs/installer', '/siderolabs\\/talos/'],
+      groupName: 'Talos',
+    },
+    {
+      description: 'Deployed Kubernetes version and kubectl (mise.toml) in the same PR',
+      matchDepNames: ['ghcr.io/siderolabs/kubelet', '/kubernetes\\/kubernetes/'],
+      groupName: 'Kubernetes',
+    },
+    {
+      description: 'Talos and Kubernetes are upgraded manually with `just talos upgrade-node` and `just talos upgrade-k8s`',
+      matchDepNames: ['ghcr.io/siderolabs/installer', '/siderolabs\\/talos/', 'ghcr.io/siderolabs/kubelet', '/kubernetes\\/kubernetes/'],
+      matchUpdateTypes: ['major', 'minor'],
+      dependencyDashboardApproval: true,
+    },
+  ],
+}
