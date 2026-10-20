@@ -1,0 +1,22 @@
+---
+# Image Factory schematic, see https://factory.talos.dev and
+# https://github.com/siderolabs/extensions for the list of official extensions.
+# Any change here produces a new schematic ID: run `just talos upgrade-node <node>`
+# on each node to roll it out.
+customization:
+  systemExtensions:
+    officialExtensions:
+      # Intel iGPU (UHD 770 on kube-01/kube-02) firmware, for hardware transcoding.
+      - siderolabs/i915
+      - siderolabs/intel-ucode
+      # Read-ahead of the NFS mounts (NAS), configured by patches/nfs.yaml.
+      - siderolabs/nfsrahead
+      # Shuts the node down on the NUT server (NAS) signal, see patches/extensions.yaml.j2.
+      - siderolabs/nut-client
+      # Firmware of the RTL8111 NIC of kube-01/kube-02 (r8169 driver).
+      - siderolabs/realtek-firmware
+  secureboot:
+    # Enroll the Sidero Labs Secure Boot keys automatically when booting the ISO with the
+    # firmware in setup mode. The Microsoft certificates are not enrolled: the machines can
+    # only boot images signed by Sidero Labs (no Windows, no option ROMs signed by Microsoft).
+    enrollKeys: force

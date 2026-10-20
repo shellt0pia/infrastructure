@@ -17,5 +17,9 @@ __pycache__
 ansible/files/coreos/*.bu
 ansible/files/coreos/*.ign
 
+# Kubernetes
+talosconfig
+*.iso
+
 # Scratch
 .scratch/

@@ -1,0 +1,19 @@
+---
+# Verify the signatures of the images used by Talos and Kubernetes when they are pulled.
+# Rules are evaluated in order, images matching no rule are allowed.
+# Keyless verification requires access to the Sigstore TUF repository (tuf-repo-cdn.sigstore.dev).
+apiVersion: v1alpha1
+kind: ImageVerificationConfig
+rules:
+  - image: registry.k8s.io/*
+    keyless:
+      issuer: https://accounts.google.com
+      subject: krel-trust@k8s-releng-prod.iam.gserviceaccount.com
+  - image: ghcr.io/siderolabs/*
+    keyless:
+      issuer: https://accounts.google.com
+      subjectRegex: (@siderolabs\.com$|^releasemgr-svc@talos-production\.iam\.gserviceaccount\.com$)
+  - image: factory.talos.dev/*
+    keyless:
+      issuer: https://accounts.google.com
+      subject: image-factory-signing@talos-production.iam.gserviceaccount.com

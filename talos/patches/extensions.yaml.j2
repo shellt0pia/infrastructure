@@ -1,0 +1,19 @@
+---
+# NUT client: shut the node down when the NAS (NUT server) reports the UPS battery as low.
+# Talos only supports `/sbin/poweroff` as shutdown command.
+# The 1Password references use the enclosed syntax (escaped for minijinja): `op inject` does
+# not end a bare reference at a space, it would read `password secondary` as the field name.
+apiVersion: v1alpha1
+kind: ExtensionServiceConfig
+name: nut-client
+configFiles:
+  - mountPath: /usr/local/etc/nut/upsmon.conf
+    content: |
+      MONITOR {{ ups.name }}@{{ ups.server }} 1 {{ '{{ op://infrastructure/nut-server/username }}' }} {{ '{{ op://infrastructure/nut-server/password }}' }} secondary
+      MINSUPPLIES 1
+      SHUTDOWNCMD "/sbin/poweroff"
+      POLLFREQ 5
+      POLLFREQALERT 5
+      HOSTSYNC 15
+      DEADTIME 15
+      FINALDELAY 0

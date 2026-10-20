@@ -1,0 +1,25 @@
+---
+# Keep the unpacked layers so that Spegel can serve them to the other nodes.
+apiVersion: v1alpha1
+kind: CRICustomizationConfig
+name: spegel
+content: |
+  [plugins."io.containerd.cri.v1.images"]
+    discard_unpacked_layers = false
+---
+# Devices passed to a container (e.g. /dev/dri from the Intel GPU device plugin) are owned by
+# the pod runAsUser/runAsGroup instead of root: non-root pods can use the iGPU without
+# supplementalGroups tricks.
+apiVersion: v1alpha1
+kind: CRICustomizationConfig
+name: device-ownership
+content: |
+  [plugins."io.containerd.cri.v1.runtime"]
+    device_ownership_from_security_context = true
+---
+# Authenticated Docker Hub pulls (higher rate limit), used by Talos and all the workloads.
+apiVersion: v1alpha1
+kind: RegistryAuthConfig
+name: registry-1.docker.io
+username: 'op://infrastructure/docker-hub/username'
+password: 'op://infrastructure/docker-hub/credential'

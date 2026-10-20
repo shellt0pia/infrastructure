@@ -1,0 +1,61 @@
+---
+# Variables shared by the Talos templates (minijinja) and the just recipes (yq).
+# Secret values are never stored here: use `op://vault/item/field` references in the
+# templates, they are resolved by `op inject` after rendering. A bare reference must be
+# followed by a quote or the end of the line (`op inject` does not stop at a space): when
+# other text follows, enclose it, escaped for minijinja: `{{ '{{ op://vault/item/field }}' }}`.
+# Never write `op://` in a comment of a template: `op inject` would try to resolve it.
+
+# DNS domain of the nodes: `<node>.<domain>` is both their hostname (machine config) and the
+# name used by talosctl to reach them. These names only have AAAA records (ULA addresses).
+domain: shelltopia.net
+
+cluster:
+  name: main
+  # DNS round-robin: one AAAA record (ULA address) per node.
+  endpoint: https://kube-cluster01.shelltopia.net:6443
+  # Dual-stack, IPv4 first (primary family): single-stack Services get an IPv4 ClusterIP and
+  # the kubelet probes target the IPv4 pod address, so applications listening on 0.0.0.0 only
+  # keep working. Services that must be reachable over IPv6 use `ipFamilyPolicy:
+  # PreferDualStack`. The node IP order (`nodeIP.validSubnets` in patches/kubernetes.yaml.j2)
+  # must follow the same order.
+  # The IPv6 ranges come from a ULA /48 dedicated to the cluster, never routed outside of it.
+  # These ranges cannot be changed once the cluster is created. They are repeated in the
+  # Cilium (native routing CIDRs) and CoreDNS (cluster IPs) values in kubernetes/apps/kube-system.
+  pod_subnets:
+    - 10.244.0.0/16
+    - fd1b:654d:9afe:100::/56
+  service_subnets:
+    - 10.96.0.0/12
+    - fd1b:654d:9afe:200::/112
+
+# Dedicated nodes subnet. Everything is dynamic: DHCPv4 static mappings in OPNsense (IPv4
+# address, DNS, search domain) and SLAAC with EUI-64 addresses for IPv6 (stable ULA address,
+# predictable GUA address). The GUA prefix may change: it is never used.
+network:
+  ipv4_subnet: 192.168.15.0/24
+  ipv6_ula_subnet: fd38:4c4d:8f66:f::/64
+  # OPNsense, itself synced with NTS upstream.
+  ntp_servers:
+    - ntp-01.shelltopia.net
+
+# NUT server (the NAS) monitoring the UPS. Credentials: op://infrastructure/nut-server.
+ups:
+  name: eaton-ellipse
+  server: ups-01-dmz.shelltopia.net
+
+# talosctl (mise.toml) is pinned to the same version.
+# renovate: datasource=docker depName=ghcr.io/siderolabs/installer
+talos_version: v1.14.4
+# kubectl (mise.toml) is pinned to the same version.
+# renovate: datasource=docker depName=ghcr.io/siderolabs/kubelet
+kubernetes_version: v1.37.1
+
+# Cluster members, there must be a talos/nodes/<name>.yaml.j2 file for each of them.
+# The first node is used for one-shot operations (etcd bootstrap, kubeconfig, upgrade-k8s).
+nodes:
+  - kube-01
+  # kube-02 is still the `home` host managed by Ansible: the cluster is first tested with
+  # kube-01 and kube-03 only. Uncomment it once the machine has been migrated.
+  # - kube-02
+  - kube-03

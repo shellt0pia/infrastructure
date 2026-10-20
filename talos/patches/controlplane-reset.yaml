@@ -1,0 +1,16 @@
+---
+# Allow workloads on the control-plane nodes (3-node cluster, no dedicated workers).
+#
+# `talosctl gen config` adds the `node.kubernetes.io/exclude-from-external-load-balancers`
+# label and the `node-role.kubernetes.io/control-plane:NoSchedule` taint. Deleting a single
+# dotted key with `$patch: delete` fails ("lookup failed"), so both maps are deleted here
+# and the labels to keep are added back by `kubernetes.yaml.j2`.
+#
+# A patch file cannot modify the same document twice: this one is applied on its own,
+# before the other patches (see `render-config` in mod.just).
+apiVersion: v1alpha1
+kind: KubeNodeConfig
+labels:
+  $patch: delete
+taints:
+  $patch: delete
