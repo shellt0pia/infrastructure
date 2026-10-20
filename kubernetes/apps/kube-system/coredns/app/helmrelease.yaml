@@ -1,0 +1,40 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: coredns
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: coredns
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  # Default Corefile of the chart (the `servers` value): cluster.local zone, everything else
+  # forwarded to /etc/resolv.conf, i.e. the Talos host DNS (`forwardKubeDNSToHost`), which
+  # forwards to OPNsense. Metrics are exposed on :9153.
+  values:
+    # Same names and labels as the CoreDNS deployed by kubeadm/Talos.
+    fullnameOverride: coredns
+    k8sAppLabelOverride: kube-dns
+    serviceAccount:
+      create: true
+    priorityClassName: system-cluster-critical
+    replicaCount: 2
+    podDisruptionBudget:
+      minAvailable: 1
+    service:
+      name: kube-dns
+      # Cluster DNS addresses given to the kubelet by Talos: the 10th address of each service
+      # range (cluster.service_subnets in talos/vars.yaml), in the same order. Kubernetes
+      # requires clusterIP to be set to the first entry of clusterIPs.
+      clusterIP: 10.96.0.10
+      clusterIPs:
+        - 10.96.0.10
+        - fd1b:654d:9afe:200::a
+      ipFamilyPolicy: RequireDualStack

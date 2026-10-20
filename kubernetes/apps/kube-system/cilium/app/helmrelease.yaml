@@ -1,0 +1,97 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cilium
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: cilium
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    # Talos requirements, see https://docs.siderolabs.com/kubernetes-guides/cni/deploying-cilium
+    ipam:
+      # Pod CIDRs allocated by kube-controller-manager from the cluster ranges (talos/vars.yaml).
+      mode: kubernetes
+    cgroup:
+      # cgroup2 is already mounted by Talos.
+      autoMount:
+        enabled: false
+      hostRoot: /sys/fs/cgroup
+    securityContext:
+      capabilities:
+        # Chart defaults without SYS_MODULE: Talos does not let workloads load kernel modules.
+        ciliumAgent:
+          - CHOWN
+          - KILL
+          - NET_ADMIN
+          - NET_RAW
+          - IPC_LOCK
+          - SYS_ADMIN
+          - SYS_RESOURCE
+          - DAC_OVERRIDE
+          - FOWNER
+          - SETGID
+          - SETUID
+          - SYSLOG
+        cleanCiliumState:
+          - NET_ADMIN
+          - SYS_ADMIN
+          - SYS_RESOURCE
+
+    # kube-proxy replacement (kube-proxy is disabled in the Talos config). The API server is
+    # reached through KubePrism, the Talos local load balancer: it works before any Service exists.
+    kubeProxyReplacement: true
+    k8sServiceHost: 127.0.0.1
+    k8sServicePort: 7445
+
+    # Dual-stack, same ranges as talos/vars.yaml (cluster.pod_subnets).
+    ipv4:
+      enabled: true
+    ipv6:
+      enabled: true
+    # All the nodes share the same L2 segment: plain routes to the pod CIDRs of the other nodes,
+    # through their node IPs (IPv4 and ULA), no tunnel and no MTU overhead.
+    routingMode: native
+    autoDirectNodeRoutes: true
+    ipv4NativeRoutingCIDR: 10.244.0.0/16
+    ipv6NativeRoutingCIDR: fd1b:654d:9afe:100::/56
+
+    # Traffic leaving the cluster is masqueraded behind the node addresses (the pod ranges are
+    # not routed outside of the cluster), for both families.
+    # iptables masquerading (the default), not the eBPF one (`bpf.masquerade`): the eBPF one
+    # always uses the "primary" IPv6 address of the node, and Cilium prefers public addresses,
+    # so every IPv6 connection would come from the GUA address, even towards the ULA addresses
+    # of the NAS or OPNsense. With iptables (MASQUERADE target), the kernel picks the source
+    # address for each destination (RFC 6724): ULA towards ULA, GUA towards the Internet.
+    # Downside: no eBPF host routing, so no BBR for the pods (bandwidthManager), which is
+    # negligible on a 1 Gbit/s network.
+    # It also avoids the known issue between `bpf.masquerade` and the Talos host DNS
+    # (`forwardKubeDNSToHost`), which stays enabled.
+    bpf:
+      masquerade: false
+    enableIPv4Masquerade: true
+    enableIPv6Masquerade: true
+
+    # Advertises the LoadBalancer IPs to OPNsense. The sessions, the advertisements and the IP
+    # pools are in ../networking.
+    bgpControlPlane:
+      enabled: true
+
+    # Restart the pods when the Cilium configuration changes.
+    rollOutCiliumPods: true
+    operator:
+      rollOutPods: true
+      prometheus:
+        enabled: true
+
+    # Metrics endpoints, scraped later by Prometheus (ServiceMonitors once its CRDs exist).
+    prometheus:
+      enabled: true

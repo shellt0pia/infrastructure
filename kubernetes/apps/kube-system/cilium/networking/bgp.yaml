@@ -1,0 +1,102 @@
+---
+# eBGP between every node (AS 64513) and OPNsense (AS 64512, FRR), see docs/first-bootstrap.md.
+# The nodes only advertise the LoadBalancer IPs of the Services, as /32 and /128 routes. Cilium
+# does not install the routes it receives, and OPNsense advertises nothing anyway.
+#
+# One session per address family, each one between addresses of its own family: IPv6 prefixes
+# advertised over an IPv4 session would get an IPv4-mapped next hop (::ffff:a.b.c.d), unusable
+# by OPNsense. A session also checks the same path as the traffic it attracts: if IPv6 breaks
+# between a node and OPNsense, only the IPv6 routes of this node are withdrawn.
+apiVersion: cilium.io/v2
+kind: CiliumBGPClusterConfig
+metadata:
+  name: opnsense
+spec:
+  # No nodeSelector: every node peers with OPNsense.
+  bgpInstances:
+    - name: shelltopia
+      localASN: 64513
+      # No localPort: Cilium only opens the sessions (OPNsense accepts them through its listen
+      # ranges), nothing listens on TCP 179 on the nodes.
+      peers:
+        - name: opnsense-ipv4
+          peerASN: 64512
+          # The IPv4 default gateway of the node, received through DHCP.
+          autoDiscovery:
+            mode: DefaultGateway
+            defaultGateway:
+              addressFamily: ipv4
+          peerConfigRef:
+            name: opnsense-ipv4
+        - name: opnsense-ipv6
+          peerASN: 64512
+          # Cannot be auto-discovered: the IPv6 default route comes from the router
+          # advertisements, so its gateway is a link-local address, not supported by Cilium.
+          # This is the stable ULA address of OPNsense on the nodes subnet. The source address
+          # of the session is picked by the kernel (RFC 6724): the ULA address of the node.
+          peerAddress: fd38:4c4d:8f66:f::1
+          peerConfigRef:
+            name: opnsense-ipv6
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPPeerConfig
+metadata:
+  name: opnsense-ipv4
+spec:
+  # Lowest values recommended by Cilium: a dead node is withdrawn after 9 seconds, and a lost
+  # session is retried every 5 to 10 seconds. FRR adopts the lowest hold time of both peers.
+  timers:
+    connectRetryTimeSeconds: 5
+    holdTimeSeconds: 9
+    keepAliveTimeSeconds: 3
+  # When the Cilium agent restarts (upgrade, configuration change), OPNsense keeps the routes
+  # for up to 120 seconds instead of withdrawing them: the datapath keeps forwarding meanwhile.
+  # FRR acts as a graceful restart helper by default.
+  gracefulRestart:
+    enabled: true
+    restartTimeSeconds: 120
+  families:
+    - afi: ipv4
+      safi: unicast
+      advertisements:
+        matchLabels:
+          advertise: bgp
+---
+apiVersion: cilium.io/v2
+kind: CiliumBGPPeerConfig
+metadata:
+  name: opnsense-ipv6
+spec:
+  # Same values as opnsense-ipv4.
+  timers:
+    connectRetryTimeSeconds: 5
+    holdTimeSeconds: 9
+    keepAliveTimeSeconds: 3
+  gracefulRestart:
+    enabled: true
+    restartTimeSeconds: 120
+  families:
+    - afi: ipv6
+      safi: unicast
+      advertisements:
+        matchLabels:
+          advertise: bgp
+---
+# The LoadBalancer IPs of every Service. With `externalTrafficPolicy: Cluster` (default), every
+# node advertises them. With `Local`, only the nodes running an endpoint of the Service do.
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: loadbalancer-ips
+  labels:
+    advertise: bgp
+spec:
+  advertisements:
+    - advertisementType: Service
+      service:
+        addresses:
+          - LoadBalancerIP
+      # Selects every Service (documented way to match everything).
+      selector:
+        matchExpressions:
+          - { key: somekey, operator: NotIn, values: ["never-used-value"] }

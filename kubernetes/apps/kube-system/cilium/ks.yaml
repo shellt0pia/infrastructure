@@ -1,0 +1,32 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cilium
+spec:
+  interval: 1h
+  path: ./kubernetes/apps/kube-system/cilium/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: kube-system
+  wait: true
+---
+# Separate Kustomization: the BGP and LB IPAM resources need the CRDs registered by Cilium.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cilium-networking
+spec:
+  dependsOn:
+    - name: cilium
+  interval: 1h
+  path: ./kubernetes/apps/kube-system/cilium/networking
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: true

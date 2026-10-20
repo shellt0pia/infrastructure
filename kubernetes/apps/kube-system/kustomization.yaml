@@ -1,0 +1,9 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# The kube-system namespace is created by Kubernetes, it is not managed here.
+namespace: kube-system
+resources:
+  - ./cilium/ks.yaml
+  - ./coredns/ks.yaml

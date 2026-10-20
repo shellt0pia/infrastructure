@@ -1,0 +1,41 @@
+---
+# LoadBalancer IP pools (LB IPAM), advertised to OPNsense through BGP (bgp.yaml).
+#
+# Without the `lbipam.cilium.io/ips` annotation, a Service only gets one address per family, so
+# a pool cannot give it both a ULA and a GUA address: hence one pool per IPv6 prefix. Whether a
+# Service is reachable from the Internet is still decided by OPNsense (port forwarding for IPv4,
+# WAN rules for IPv6), the pools only make these rules simple.
+#
+# The pools must not overlap: the second one would be marked as conflicting and stay unused.
+# Changing a pool may reassign the addresses of the existing Services.
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: internal
+spec:
+  # Default pool: every Service which does not ask for the external one.
+  serviceSelector:
+    matchExpressions:
+      - { key: lbipam.shelltopia.net/pool, operator: NotIn, values: ["external"] }
+  # Skip the first and last addresses of each block (.0/.127, and the subnet-router anycast
+  # address of the IPv6 prefix).
+  allowFirstLastIPs: "No"
+  blocks:
+    - cidr: 192.168.19.0/25
+    - cidr: fd38:4c4d:8f66:13::/64
+---
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: external
+spec:
+  # Services labeled `lbipam.shelltopia.net/pool: external`: the IPv4 address is the target of a
+  # port forwarding of the public IPv4 address, the IPv6 address is a public one (GUA).
+  # The GUA prefix is a /64 of the prefix delegated by the ISP: update it if the ISP changes it.
+  serviceSelector:
+    matchLabels:
+      lbipam.shelltopia.net/pool: external
+  allowFirstLastIPs: "No"
+  blocks:
+    - cidr: 192.168.19.128/25
+    - cidr: 2a02:8434:f003:d113::/64
