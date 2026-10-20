@@ -9,6 +9,9 @@ mod bootstrap
 [group('kubernetes')]
 mod talos
 
+[group('infrastructure')]
+mod tofu
+
 [private]
 default:
     just --list --list-submodules
