@@ -1,0 +1,97 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/helmfile
+#
+# Installs the minimum needed for Flux to take over the cluster. The chart source
+# and version of each release come from its OCIRepository and the values from its
+# HelmRelease in kubernetes/apps/<namespace>/<release>/app, so kubernetes/apps is
+# the single source of truth (and the only place Renovate updates).
+#
+# Run from this directory: `just bootstrap apps`.
+
+{{- define "chart" }}
+{{- $oci := printf "../../kubernetes/apps/%s/%s/app/ocirepository.yaml" .namespace .name | readFile | fromYaml }}
+    chart: {{ $oci.spec.url }}
+    version: {{ $oci.spec.ref.tag | quote }}
+{{- end }}
+
+helmDefaults:
+  cleanupOnFail: true
+  wait: true
+  waitForJobs: true
+
+templates:
+  default:
+    values:
+      - ./templates/values.yaml.gotmpl
+
+releases:
+  # The nodes stay NotReady until the CNI is running: nothing else can be scheduled before.
+  - name: cilium
+    namespace: kube-system
+    {{- template "chart" (dict "name" "cilium" "namespace" "kube-system") }}
+    inherit:
+      - template: default
+    hooks:
+      - # The CRDs are registered by Cilium itself, not by the chart.
+        events: ['postsync']
+        command: kubectl
+        args:
+          - wait
+          - --for=condition=Established
+          - --timeout=5m
+          - crd/ciliumbgpadvertisements.cilium.io
+          - crd/ciliumbgpclusterconfigs.cilium.io
+          - crd/ciliumbgppeerconfigs.cilium.io
+          - crd/ciliumloadbalancerippools.cilium.io
+        showlogs: true
+      - # BGP sessions and LoadBalancer IPs as soon as possible, Flux adopts them later.
+        events: ['postsync']
+        command: kubectl
+        args:
+          - apply
+          - --server-side
+          - --field-manager=kustomize-controller
+          - --kustomize=../../kubernetes/apps/kube-system/cilium/networking
+        showlogs: true
+
+  - name: coredns
+    namespace: kube-system
+    {{- template "chart" (dict "name" "coredns" "namespace" "kube-system") }}
+    inherit:
+      - template: default
+    needs:
+      - kube-system/cilium
+
+  - name: external-secrets
+    namespace: external-secrets
+    {{- template "chart" (dict "name" "external-secrets" "namespace" "external-secrets") }}
+    inherit:
+      - template: default
+    needs:
+      - kube-system/coredns
+    hooks:
+      - # Make the 1Password store available as soon as possible, Flux adopts it later.
+        events: ['postsync']
+        command: kubectl
+        args:
+          - apply
+          - --server-side
+          - --field-manager=kustomize-controller
+          - --filename=../../kubernetes/apps/external-secrets/external-secrets/stores/clustersecretstore.yaml
+        showlogs: true
+
+  - name: flux-operator
+    namespace: flux-system
+    {{- template "chart" (dict "name" "flux-operator" "namespace" "flux-system") }}
+    inherit:
+      - template: default
+    needs:
+      - external-secrets/external-secrets
+
+  - name: flux-instance
+    namespace: flux-system
+    {{- template "chart" (dict "name" "flux-instance" "namespace" "flux-system") }}
+    inherit:
+      - template: default
+    needs:
+      - flux-system/flux-operator

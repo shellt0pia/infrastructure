@@ -4,6 +4,9 @@ set shell := ['bash', '-euo', 'pipefail', '-c']
 # Ansible (Fedora CoreOS hosts) is still managed through its Makefile, see `make -C ansible help`.
 
 [group('kubernetes')]
+mod bootstrap
+
+[group('kubernetes')]
 mod talos
 
 [private]

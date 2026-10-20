@@ -19,6 +19,7 @@ ansible/files/coreos/*.ign
 
 # Kubernetes
 talosconfig
+kubeconfig
 *.iso
 
 # Scratch
