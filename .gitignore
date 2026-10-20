@@ -16,3 +16,6 @@ __pycache__
 # Specific
 ansible/files/coreos/*.bu
 ansible/files/coreos/*.ign
+
+# Scratch
+.scratch/

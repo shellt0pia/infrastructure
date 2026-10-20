@@ -1,0 +1,28 @@
+# Tools needed to manage the infrastructure: `mise install`, then `mise activate` in the shell.
+# Versions are updated by Renovate.
+
+[env]
+KUBECONFIG = "{{ config_root }}/kubeconfig"
+TALOSCONFIG = "{{ config_root }}/talosconfig"
+
+[tools]
+# Same versions as the cluster (talos/vars.yaml), Renovate updates them together.
+"aqua:kubernetes/kubernetes/kubectl" = "1.37.1"
+"aqua:siderolabs/talos" = "1.14.4"
+
+"aqua:helm/helm" = "4.3.1"
+"aqua:helmfile/helmfile" = "1.8.2"
+"aqua:fluxcd/flux2" = "2.9.6"
+"aqua:opentofu/opentofu" = "1.13.1"
+
+"aqua:mitsuhiko/minijinja" = "latest"
+"aqua:mikefarah/yq" = "latest"
+"aqua:google/yamlfmt" = "latest"
+"aqua:coreos/butane" = "latest"
+
+# Python tools are installed in isolated environments with uv.
+"aqua:astral-sh/uv" = "latest"
+# The ansible-* executables come from the ansible-core dependency.
+"pypi:ansible" = "latest"
+"pypi:ansible-core" = "latest"
+"pypi:ansible-lint" = "latest"
