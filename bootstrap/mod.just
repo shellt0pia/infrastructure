@@ -1,4 +1,8 @@
+set default-list
+set default-script
+set lazy
 set quiet
+set script-interpreter := ['bash', '-euo', 'pipefail']
 set shell := ['bash', '-euo', 'pipefail', '-c']
 
 export TALOSCONFIG := justfile_directory() / "talosconfig"
@@ -6,10 +10,6 @@ export KUBECONFIG := justfile_directory() / "kubeconfig"
 
 just := quote(just_executable()) + " --justfile " + quote(justfile())
 vars := justfile_directory() / "talos" / "vars.yaml"
-
-[private]
-default:
-    {{ just }} --list bootstrap
 
 [doc('Bootstrap the cluster from nodes booted in maintenance mode up to Flux')]
 cluster: talosconfig nodes etcd kubeconfig wait-nodes secrets apps
@@ -20,8 +20,6 @@ talosconfig:
 
 [doc('Apply the machine config to all the nodes in maintenance mode')]
 nodes:
-    #!/usr/bin/env bash
-    set -euo pipefail
     for node in $(yq -r '.nodes[]' '{{ vars }}'); do
         echo "Applying the machine config to $node"
         if ! output="$({{ just }} --yes talos apply-node "$node" --insecure 2>&1)"; then
@@ -36,8 +34,6 @@ nodes:
 
 [doc('Bootstrap etcd on the first node')]
 etcd:
-    #!/usr/bin/env bash
-    set -euo pipefail
     mapfile -t fqdns < <({{ just }} talos node-fqdns)
     until output="$(talosctl --nodes "${fqdns[0]}" bootstrap 2>&1)" || [[ "$output" == *"AlreadyExists"* ]]; do
         echo "Waiting for the node to be ready to bootstrap etcd: ${output##*desc = }"
@@ -46,8 +42,6 @@ etcd:
 
 [doc('Fetch the admin kubeconfig at the repository root')]
 kubeconfig:
-    #!/usr/bin/env bash
-    set -euo pipefail
     mapfile -t fqdns < <({{ just }} talos node-fqdns)
     name="$(yq -r '.cluster.name' '{{ vars }}')"
     until talosctl --nodes "${fqdns[0]}" kubeconfig --force --force-context-name "$name" "$KUBECONFIG"; do
@@ -58,8 +52,6 @@ kubeconfig:
 # The nodes stay NotReady until the CNI is installed by the `apps` recipe.
 [doc('Wait for all the nodes to register')]
 wait-nodes:
-    #!/usr/bin/env bash
-    set -euo pipefail
     expected="$(yq -r '.nodes | length' '{{ vars }}')"
     until [[ "$(kubectl get nodes --no-headers 2>/dev/null | wc -l)" -eq "$expected" ]]; do
         echo "Waiting for the $expected nodes to register..."

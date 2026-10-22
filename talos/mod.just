@@ -1,4 +1,8 @@
+set default-list
+set default-script
+set lazy
 set quiet
+set script-interpreter := ['bash', '-euo', 'pipefail']
 set shell := ['bash', '-euo', 'pipefail', '-c']
 
 export TALOSCONFIG := justfile_directory() / "talosconfig"
@@ -12,14 +16,8 @@ op_vault := "infrastructure"
 op_item := "talos-secrets"
 op_secrets_ref := "op://" + op_vault + "/" + op_item + "/secrets.yaml"
 
-[private]
-default:
-    {{ just }} --list talos
-
 [doc('Generate the cluster secrets bundle and store it in 1Password (one-time operation)')]
 gen-secrets:
-    #!/usr/bin/env bash
-    set -euo pipefail
     op vault get '{{ op_vault }}' >/dev/null
     if op document get '{{ op_item }}' --vault '{{ op_vault }}' >/dev/null 2>&1; then
         echo "op://{{ op_vault }}/{{ op_item }} already exists, refusing to overwrite it." >&2
@@ -43,8 +41,6 @@ schematic-id:
 # contents are concatenated, each one after a `#@@ <file name> @@` line, then split again.
 [doc('Render the machine config of a node to stdout')]
 render-config node:
-    #!/usr/bin/env bash
-    set -euo pipefail
     {{ just }} talos node-fqdn '{{ node }}' >/dev/null
     tmp="$(mktemp -d)"
     trap 'rm -rf "$tmp"' EXIT
@@ -75,16 +71,12 @@ render-config node:
 [doc('Apply the machine config to a node, e.g. `just talos apply-node kube-01 --insecure` (maintenance mode) or `--dry-run`')]
 [confirm('Apply the machine config?')]
 apply-node node *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
     fqdn="$({{ just }} talos node-fqdn '{{ node }}')"
     config="$({{ just }} talos render-config '{{ node }}')"
     talosctl --nodes "$fqdn" apply-config --file /dev/stdin {{ args }} <<< "$config"
 
 [doc('Generate the talosconfig client file at the repository root')]
 talosconfig:
-    #!/usr/bin/env bash
-    set -euo pipefail
     secrets="$(mktemp)"
     trap 'rm -f "$secrets"' EXIT
     op document get '{{ op_item }}' --vault '{{ op_vault }}' > "$secrets"
@@ -97,16 +89,12 @@ talosconfig:
 [doc('Upgrade Talos on a node to the version and schematic of the repository')]
 [confirm('Upgrade Talos on this node?')]
 upgrade-node node *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
     fqdn="$({{ just }} talos node-fqdn '{{ node }}')"
     image="$({{ just }} talos installer-image)"
     talosctl --nodes "$fqdn" upgrade --image "$image" {{ args }}
 
 [doc('Upgrade Kubernetes to the version of the repository, e.g. `just talos upgrade-k8s --dry-run`')]
 upgrade-k8s *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
     mapfile -t fqdns < <({{ just }} talos node-fqdns)
     version="$(yq -r '.kubernetes_version' '{{ vars }}')"
     talosctl --nodes "${fqdns[0]}" upgrade-k8s --to "${version#v}" --with-docs=false --with-examples=false {{ args }}
@@ -124,8 +112,6 @@ reset-node node:
 
 [doc('Download the Secure Boot Talos ISO matching schematic.yaml and the Talos version')]
 download-image:
-    #!/usr/bin/env bash
-    set -euo pipefail
     schematic="$({{ just }} talos schematic-id)"
     version="$(yq -r '.talos_version' '{{ vars }}')"
     curl --fail --location --progress-bar \
@@ -144,8 +130,6 @@ node-fqdns:
 
 [private]
 installer-image:
-    #!/usr/bin/env bash
-    set -euo pipefail
     schematic="$({{ just }} talos schematic-id)"
     version="$(yq -r '.talos_version' '{{ vars }}')"
     echo "factory.talos.dev/metal-installer-secureboot/$schematic:$version"
@@ -154,8 +138,6 @@ installer-image:
 # 1Password by the caller) and the versions.
 [private]
 gen-config secrets *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
     name="$(yq -r '.cluster.name' '{{ vars }}')"
     endpoint="$(yq -r '.cluster.endpoint' '{{ vars }}')"
     talos_version="$(yq -r '.talos_version' '{{ vars }}')"

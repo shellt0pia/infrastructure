@@ -1,11 +1,9 @@
+set default-list
+set default-script
+set lazy
 set quiet
+set script-interpreter := ['bash', '-euo', 'pipefail']
 set shell := ['bash', '-euo', 'pipefail', '-c']
-
-just := quote(just_executable()) + " --justfile " + quote(justfile())
-
-[private]
-default:
-    {{ just }} --list tofu
 
 [doc('Run any tofu command on a stack, e.g. `just tofu run cloudflare state list`')]
 run stack *args:
