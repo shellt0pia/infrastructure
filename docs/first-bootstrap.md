@@ -43,7 +43,7 @@ The Talos ISO enrolls the Sidero Labs keys automatically (`secureboot.enrollKeys
 ## Phase 2 — Talos image
 
 - [ ] Run `just talos schematic-id` to check that the Image Factory responds.
-- [ ] Run `just talos download-image`, it downloads `talos/talos-<version>-amd64-secureboot.iso` (ignored by Git).
+- [ ] Run `just talos download-image`, it downloads `talos/talos-<version>-<schematic ID prefix>-amd64-secureboot.iso` (ignored by Git).
 - [ ] Write the ISO to a USB drive, with Fedora Media Writer or `dd`.
 
 A single USB drive should be enough: Talos runs from RAM once booted, so the nodes can be booted one after the other by removing the drive in between. If a node does not cope with the drive being removed, boot it from the drive again.

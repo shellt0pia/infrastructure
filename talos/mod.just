@@ -114,12 +114,13 @@ reset-node node:
     # r-storage (NVMe raw volume) is locked to STATE: it would be unreadable after the reset anyway.
     talosctl --nodes "$({{ just }} talos node-fqdn '{{ node }}')" reset --graceful --reboot --system-labels-to-wipe STATE --system-labels-to-wipe EPHEMERAL --system-labels-to-wipe r-storage
 
+# The schematic prefix in the file name tells ISOs of the same version apart.
 [doc('Download the Secure Boot Talos ISO matching schematic.yaml and the Talos version')]
 download-image:
     schematic="$({{ just }} talos schematic-id)"
     version="$(yq -r '.talos_version' '{{ vars }}')"
     curl --fail --location --progress-bar \
-        --output '{{ source_directory() }}/talos-'"$version"'-amd64-secureboot.iso' \
+        --output '{{ source_directory() }}/talos-'"$version-${schematic:0:8}"'-amd64-secureboot.iso' \
         "https://factory.talos.dev/image/$schematic/$version/metal-amd64-secureboot.iso"
 
 # FQDN of a node of vars.yaml (`<node>.<domain>`), the name used to reach it.
