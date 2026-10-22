@@ -264,7 +264,7 @@ These checks have no impact on the nodes.
 ## Phase 8 — Bootstrap
 
 - [ ] The nodes are booted from the ISO in maintenance mode, each reachable by its name, and the USB drive is removed.
-- [ ] Run `just bootstrap cluster`. The recipe can safely be run again after a failure: the nodes already configured are skipped and an already bootstrapped etcd is left as is.
+- [ ] Run `just bootstrap cluster` and confirm. The recipe can safely be run again after a failure: the nodes already configured are skipped and an already bootstrapped etcd is left as is.
 - [ ] Checks after the bootstrap, on each node:
   - `talosctl health`
   - `talosctl get securitystate`: Secure Boot enabled.

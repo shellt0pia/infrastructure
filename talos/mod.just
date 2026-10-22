@@ -69,7 +69,7 @@ render-config node:
         --output -
 
 [doc('Apply the machine config to a node, e.g. `just talos apply-node kube-01 --insecure` (maintenance mode) or `--dry-run`')]
-[confirm('Apply the machine config?')]
+[confirm('Apply the machine config to ' + node + '? [y/N]')]
 apply-node node *args:
     fqdn="$({{ just }} talos node-fqdn '{{ node }}')"
     config="$({{ just }} talos render-config '{{ node }}')"
@@ -87,7 +87,7 @@ talosconfig:
     echo "talosconfig written to $TALOSCONFIG"
 
 [doc('Upgrade Talos on a node to the version and schematic of the repository')]
-[confirm('Upgrade Talos on this node?')]
+[confirm('Upgrade Talos on ' + node + '? [y/N]')]
 upgrade-node node *args:
     fqdn="$({{ just }} talos node-fqdn '{{ node }}')"
     image="$({{ just }} talos installer-image)"
@@ -100,12 +100,12 @@ upgrade-k8s *args:
     talosctl --nodes "${fqdns[0]}" upgrade-k8s --to "${version#v}" --with-docs=false --with-examples=false {{ args }}
 
 [doc('Reboot a node')]
-[confirm('Reboot this node?')]
+[confirm('Reboot ' + node + '? [y/N]')]
 reboot-node node:
     talosctl --nodes "$({{ just }} talos node-fqdn '{{ node }}')" reboot
 
 [doc('Reset a node: it leaves the cluster, wipes its data and reboots in maintenance mode')]
-[confirm('Reset this node? ALL ITS DATA WILL BE LOST.')]
+[confirm('Reset ' + node + '? ALL ITS DATA WILL BE LOST. [y/N]')]
 reset-node node:
     # r-storage (NVMe raw volume) is locked to STATE: it would be unreadable after the reset anyway.
     talosctl --nodes "$({{ just }} talos node-fqdn '{{ node }}')" reset --graceful --reboot --system-labels-to-wipe STATE --system-labels-to-wipe EPHEMERAL --system-labels-to-wipe r-storage

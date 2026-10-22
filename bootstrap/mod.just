@@ -10,8 +10,10 @@ export KUBECONFIG := justfile_directory() / "kubeconfig"
 
 just := quote(just_executable()) + " --justfile " + quote(justfile())
 vars := justfile_directory() / "talos" / "vars.yaml"
+cluster_name := shell('yq -r ".cluster.name" "$1"', vars)
 
 [doc('Bootstrap the cluster from nodes booted in maintenance mode up to Flux')]
+[confirm('Bootstrap the cluster ' + cluster_name + '? [y/N]')]
 cluster: talosconfig nodes etcd kubeconfig wait-nodes secrets apps
 
 [doc('Generate the talosconfig client file')]
@@ -43,8 +45,7 @@ etcd:
 [doc('Fetch the admin kubeconfig at the repository root')]
 kubeconfig:
     mapfile -t fqdns < <({{ just }} talos node-fqdns)
-    name="$(yq -r '.cluster.name' '{{ vars }}')"
-    until talosctl --nodes "${fqdns[0]}" kubeconfig --force --force-context-name "$name" "$KUBECONFIG"; do
+    until talosctl --nodes "${fqdns[0]}" kubeconfig --force --force-context-name '{{ cluster_name }}' "$KUBECONFIG"; do
         echo "Waiting for the kubeconfig to be available..."
         sleep 10
     done
