@@ -21,6 +21,14 @@ mod tofu
 default:
     just --list --list-submodules
 
+# Structured log line on stderr, e.g. `just log info "Running stage..." stage nodes`.
+# The `fatal` level exits with an error.
+[private]
+[positional-arguments]
+[no-exit-message]
+log level message *fields:
+    gum log --time rfc3339 --structured --level "$1" "$2" "${@:3}"
+
 # Render a minijinja template with talos/vars.yaml, without resolving the `op://` references.
 # Extra variables can be passed with `-D key=value`.
 [private]
