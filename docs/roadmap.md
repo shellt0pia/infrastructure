@@ -117,6 +117,15 @@ Roughly in priority order.
 - [ ] Replace calibre (KasmVNC) with another application.
 - [ ] Rewrite `README.md` once Ansible is gone (it still describes the Fedora CoreOS setup).
 
+### 11. Kubernetes recipes
+
+- [ ] `kubernetes/mod.just` module (`just kube ...`), ideas taken from [onedr0p/home-ops](https://github.com/onedr0p/home-ops/blob/main/kubernetes/mod.just):
+  - `sync <hr|ks|gitrepo|ocirepo|es>`: force the reconciliation of every resource of a kind (`reconcile.fluxcd.io/requestedAt` annotation).
+  - `debug-node <node>`: `kubectl debug node --profile=sysadmin`, removing the debug pod on exit. The only way to get a shell on a Talos node.
+  - `prune-pods`: delete the Failed, Succeeded and Pending pods.
+  - `browse-pvc` and `view-secret`: need the `browse-pvc` and `view-secret` kubectl plugins.
+  - `apply-ks` / `delete-ks`: apply a Flux Kustomization from the working copy, with `flate` or `flux build ks`.
+
 ## Open decisions
 
 | Topic | Options | Notes |
