@@ -15,7 +15,7 @@ cluster_name := shell('yq -r ".cluster.name" "$1"', vars)
 
 [doc('Bootstrap the cluster from nodes booted in maintenance mode up to Flux')]
 [confirm('Bootstrap the cluster ' + cluster_name + '? [y/N]')]
-cluster: talosconfig nodes etcd kubeconfig wait-nodes secrets apps
+cluster: talosconfig nodes etcd kubeconfig api-ready nodes-ready secrets apps
 
 [doc('Generate the talosconfig client file')]
 talosconfig:
@@ -56,14 +56,28 @@ kubeconfig:
         sleep 10
     done
 
-# The nodes stay NotReady until the CNI is installed by the `apps` recipe.
-[doc('Wait for all the nodes to register')]
-wait-nodes:
+# Anonymous requests to /readyz are allowed by default. helmfile and kubectl are not retried
+# afterwards: every API server must answer first.
+[doc('Wait for the API server of every node to be ready')]
+api-ready:
     {{ just }} log info "Running stage..." stage "{{ recipe_name() }}"
-    expected="$(yq -r '.nodes | length' '{{ vars }}')"
-    until [[ "$(kubectl get nodes --no-headers 2>/dev/null | wc -l)" -eq "$expected" ]]; do
+    mapfile -t fqdns < <({{ just }} talos node-fqdns)
+    for fqdn in "${fqdns[@]}"; do
+        until [[ "$(curl --insecure --silent --output /dev/null --write-out '%{http_code}' --connect-timeout 2 "https://$fqdn:6443/readyz")" == 200 ]]; do
+            {{ just }} log info "Waiting for the API server..." stage "{{ recipe_name() }}" node "$fqdn"
+            sleep 5
+        done
+    done
+
+# The nodes stay NotReady until the CNI is installed by the `apps` recipe: wait for their
+# registration only. The node names are the short hostnames.
+[doc('Wait for all the nodes to register')]
+nodes-ready:
+    {{ just }} log info "Running stage..." stage "{{ recipe_name() }}"
+    mapfile -t nodes < <(yq -r '.nodes[] | "node/" + .' '{{ vars }}')
+    until kubectl wait "${nodes[@]}" --for=create --timeout=10s >/dev/null 2>&1; do
         {{ just }} log info "Waiting for the nodes to register..." stage "{{ recipe_name() }}"
-        sleep 10
+        sleep 5
     done
 
 [doc('Create the secrets needed before External Secrets and Flux are running')]
