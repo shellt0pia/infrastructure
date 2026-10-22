@@ -120,6 +120,7 @@ download-image:
     schematic="$({{ just }} talos schematic-id)"
     version="$(yq -r '.talos_version' '{{ vars }}')"
     curl --fail --location --progress-bar \
+        --retry 5 --retry-delay 5 --retry-all-errors --remove-on-error \
         --output '{{ source_directory() }}/talos-'"$version-${schematic:0:8}"'-amd64-secureboot.iso' \
         "https://factory.talos.dev/image/$schematic/$version/metal-amd64-secureboot.iso"
 
