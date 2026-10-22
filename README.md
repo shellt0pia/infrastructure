@@ -24,7 +24,7 @@ I chose the following software stack for my container hosts:
 
 ### Tooling
 
-The CLI tools (Ansible, talosctl, kubectl, helmfile, OpenTofu...) are pinned in `mise.toml`, run `mise install` to install them. kubectl and talosctl follow the versions deployed on the cluster (`talos/vars.yaml`). `mise` also points `KUBECONFIG` and `TALOSCONFIG` to the files generated at the repository root.
+The CLI tools (Ansible, talosctl, kubectl, helmfile, OpenTofu...) are pinned in `mise.toml`, run `mise install` to install them. kubectl and talosctl follow the versions deployed on the cluster (`talos/vars.yaml`). `mise` also points `KUBECONFIG` and `TALOSCONFIG` to the files generated at the repository root, and `MINIJINJA_CONFIG_FILE` to the `minijinja-cli` flags (`.minijinja.toml`).
 
 `just` and the 1Password CLI (`op`) are expected to be installed on the system.
 

@@ -4,6 +4,7 @@
 [env]
 KUBECONFIG = "{{ config_root }}/kubeconfig"
 TALOSCONFIG = "{{ config_root }}/talosconfig"
+MINIJINJA_CONFIG_FILE = "{{ config_root }}/.minijinja.toml"
 
 [tools]
 # Same versions as the cluster (talos/vars.yaml), Renovate updates them together.
