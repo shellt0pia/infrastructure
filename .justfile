@@ -13,6 +13,10 @@ mod bootstrap
 [group('kubernetes')]
 mod talos
 
+# Evaluation of topf as a replacement for the talos module, see topf/README.md.
+[group('kubernetes')]
+mod topf
+
 [group('infrastructure')]
 mod tofu
 

@@ -1,0 +1,15 @@
+---
+# Read-ahead of the NFS mounts (media served by the NAS over NFS 4.2), applied by the udev rule
+# of the nfsrahead extension (see schematic.yaml) to every kernel NFS mount: native `nfs`
+# volumes and csi-driver-nfs alike. The kernel default (128 KiB) caps sequential reads well
+# below the link speed.
+# Talos v1.14 extensions still use their embedded default (nfs4=16000) and ignore this file;
+# siderolabs/extensions#1255 moves the configuration to /etc/nfs.conf and drops that default.
+apiVersion: v1alpha1
+kind: EtcFileConfig
+name: nfs.conf
+mode: 0o644
+contents: |
+  [nfsrahead]
+  nfs4=16384
+  default=128

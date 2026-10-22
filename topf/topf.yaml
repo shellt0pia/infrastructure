@@ -1,0 +1,70 @@
+---
+# topf configuration (https://postfinance.github.io/topf): cluster, versions, template data and
+# nodes. Secret values are never stored here, see README.md for how they are resolved.
+
+clusterName: main
+# DNS round-robin: one AAAA record (ULA address) per node.
+clusterEndpoint: https://kube-cluster01.shelltopia.net:6443
+
+# talosctl (mise.toml) is pinned to the same version.
+# renovate: datasource=docker depName=ghcr.io/siderolabs/installer
+talosVersion: v1.14.4
+# kubectl (mise.toml) is pinned to the same version.
+# renovate: datasource=docker depName=ghcr.io/siderolabs/kubelet
+kubernetesVersion: v1.37.1
+
+# The schematic ID is computed locally from the file: a new schematic must be registered once
+# with the Image Factory, which `just topf schematic-id` does.
+schematicId: "@schematic.yaml"
+secureboot: true
+
+# Prints the Talos secrets bundle stored in 1Password. Resolved against the working directory:
+# topf must run from this directory, which the recipes of mod.just do.
+secretsProvider: ./secrets-provider
+
+# Variables of the `.yaml.tpl` patches (`.Data.<key>`).
+data:
+  cluster:
+    # Dual-stack, IPv4 first (primary family): single-stack Services get an IPv4 ClusterIP and
+    # the kubelet probes target the IPv4 pod address, so applications listening on 0.0.0.0 only
+    # keep working. Services that must be reachable over IPv6 use `ipFamilyPolicy:
+    # PreferDualStack`. The node IP order (`nodeIP.validSubnets` in all/kubernetes.yaml.tpl)
+    # must follow the same order.
+    # The IPv6 ranges come from a ULA /48 dedicated to the cluster, never routed outside of it.
+    # These ranges cannot be changed once the cluster is created. They are repeated in the
+    # Cilium (native routing CIDRs) and CoreDNS (cluster IPs) values in kubernetes/apps/kube-system.
+    pod_subnets:
+      - 10.244.0.0/16
+      - fd1b:654d:9afe:100::/56
+    service_subnets:
+      - 10.96.0.0/12
+      - fd1b:654d:9afe:200::/112
+
+  # Dedicated nodes subnet. Everything is dynamic: DHCPv4 static mappings in OPNsense (IPv4
+  # address, DNS, search domain) and SLAAC with EUI-64 addresses for IPv6 (stable ULA address,
+  # predictable GUA address). The GUA prefix may change: it is never used.
+  network:
+    ipv4_subnet: 192.168.15.0/24
+    ipv6_ula_subnet: fd38:4c4d:8f66:f::/64
+    # OPNsense, itself synced with NTS upstream.
+    ntp_servers:
+      - ntp-01.shelltopia.net
+
+  # NUT server (the NAS) monitoring the UPS. Credentials: 1Password item infrastructure/nut-server.
+  ups:
+    name: eaton-ellipse
+    server: ups-01-dmz.shelltopia.net
+
+# Cluster members, with a node/<host>/ directory each. `host` is the FQDN: it is both the
+# hostname (all/hostname.yaml.tpl) and the name used to reach the node (no `ip`, these names
+# only have AAAA records). The first node is used for the one-shot operations (etcd bootstrap,
+# kubeconfig, upgrade-k8s).
+nodes:
+  - host: kube-01.shelltopia.net
+    role: control-plane
+  # kube-02 is still the `home` host managed by Ansible: the cluster is first tested with
+  # kube-01 and kube-03 only. Uncomment it once the machine has been migrated.
+  # - host: kube-02.shelltopia.net
+  #   role: control-plane
+  - host: kube-03.shelltopia.net
+    role: control-plane

@@ -1,0 +1,7 @@
+---
+# Reset the node if Talos stops responding (default timeout: 1 minute).
+# The Talos kernel only ships the iTCO_wdt and wdat_wdt drivers (intel_oc_wdt is not built),
+# so watchdog0 is the PCH TCO watchdog. Check with `talosctl ls /sys/class/watchdog`.
+apiVersion: v1alpha1
+kind: WatchdogTimerConfig
+device: /dev/watchdog0

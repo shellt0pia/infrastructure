@@ -1,0 +1,32 @@
+---
+# Dell OptiPlex 3060 Micro (i5-8500T, 16 GiB, UHD 630 not used for workloads).
+apiVersion: v1alpha1
+kind: UnattendedInstallConfig
+provisioning:
+  diskSelector:
+    # SATA SSD Crucial MX100 256 GB (the NVMe SSD holds the raw storage volume).
+    # Selected by WWID: Talos leaves the serial of SATA disks behind AHCI controllers empty.
+    match: disk.wwid == "naa.500a07510df503c3"
+---
+# NVMe SSD Crucial P310 1 TB, see all/storage.yaml.
+apiVersion: v1alpha1
+kind: RawVolumeConfig
+name: storage
+provisioning:
+  diskSelector:
+    match: disk.serial == "24444BCBA81D"
+---
+# Intel I219-LM onboard NIC.
+apiVersion: v1alpha1
+kind: LinkAliasConfig
+name: lan0
+selector:
+  match: mac(link.permanent_addr) == "00:4e:01:98:9b:db"
+---
+# Wake-on-LAN: Talos v1.14 does not resolve link aliases in EthernetConfig (the name is passed
+# as is to ethtool), the kernel interface name must be used.
+apiVersion: v1alpha1
+kind: EthernetConfig
+name: eno1
+wakeOnLan:
+  - magic

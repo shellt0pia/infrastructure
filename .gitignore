@@ -21,6 +21,8 @@ ansible/files/coreos/*.ign
 talosconfig
 kubeconfig
 *.iso
+# Default output directory of `topf render` (machine configs with the cluster PKI).
+topf/output/
 
 # OpenTofu (the encrypted terraform.tfstate and .terraform.lock.hcl are committed)
 .terraform/

@@ -1,0 +1,132 @@
+---
+# Allow workloads on the control-plane nodes (3-node cluster, no dedicated workers).
+#
+# The generated config has the `node.kubernetes.io/exclude-from-external-load-balancers`
+# label and the `node-role.kubernetes.io/control-plane:NoSchedule` taint. Deleting a single
+# dotted key with `$patch: delete` fails ("lookup failed"), so both maps are deleted here
+# and the labels to keep are added back by the next document. topf applies each document as a
+# separate patch, in order: the same document can be patched twice in one file.
+apiVersion: v1alpha1
+kind: KubeNodeConfig
+labels:
+  $patch: delete
+taints:
+  $patch: delete
+---
+# Kubernetes components. The CNI (Cilium, kube-proxy replacement) and CoreDNS are installed
+# at bootstrap by helmfile, the nodes stay NotReady until then.
+apiVersion: v1alpha1
+kind: KubeNodeConfig
+labels:
+  node-role.kubernetes.io/control-plane: ""
+nodeIP:
+  # ULA and IPv4 only (the GUA prefix may change). The first matching subnet gives the
+  # primary node IP: keep the same family order as data.cluster.service_subnets in topf.yaml,
+  # the kube-apiserver advertised address must match the family of the primary service subnet.
+  validSubnets:
+    - {{ .Data.network.ipv4_subnet }}
+    - {{ .Data.network.ipv6_ula_subnet }}
+---
+apiVersion: v1alpha1
+kind: KubeNetworkConfig
+# These lists replace the default ones on merge.
+podSubnets: {{ .Data.cluster.pod_subnets | toJson }}
+serviceSubnets: {{ .Data.cluster.service_subnets | toJson }}
+---
+apiVersion: v1alpha1
+kind: KubeFlannelCNIConfig
+$patch: delete
+---
+apiVersion: v1alpha1
+kind: KubeProxyConfig
+enabled: false
+---
+# CoreDNS is installed at bootstrap by helmfile (after the CNI), then managed by Flux.
+apiVersion: v1alpha1
+kind: KubeCoreDNSConfig
+enabled: false
+---
+apiVersion: v1alpha1
+kind: KubeletConfig
+config:
+  # 16 GiB per node. etcd and the Talos services are accounted in systemReserved.
+  systemReserved:
+    cpu: 500m
+    memory: 1Gi
+    ephemeral-storage: 1Gi
+  kubeReserved:
+    cpu: 250m
+    memory: 512Mi
+  # Signals not listed here would be disabled: keep the full set.
+  evictionHard:
+    memory.available: 500Mi
+    nodefs.available: 10%
+    nodefs.inodesFree: 5%
+    imagefs.available: 15%
+  # Pull images in parallel (sequential by default), at most 3 at a time.
+  serializeImagePulls: false
+  maxParallelImagePulls: 3
+  # Garbage collect images unused for a week, even without disk pressure.
+  imageMaximumGCAge: 168h
+  # Restart crash looping containers at least every minute (5 minutes by default).
+  # KubeletCrashLoopBackOffMax feature gate: beta and enabled by default since Kubernetes 1.35.
+  crashLoopBackOff:
+    maxContainerRestartPeriod: 60s
+  # Graceful node shutdown (UPS shutdown, reboots): 90s for the pods, the last 30s of which
+  # are reserved for the system-node-critical/system-cluster-critical ones (CNI, CoreDNS...).
+  # Talos defaults: 30s/10s.
+  shutdownGracePeriod: 90s
+  shutdownGracePeriodCriticalPods: 30s
+---
+# Expose the metrics endpoints for Prometheus.
+# Go binds 0.0.0.0 as a dual-stack wildcard socket: these endpoints are reachable over IPv6 too.
+apiVersion: v1alpha1
+kind: KubeControllerManagerConfig
+extraArgs:
+  bind-address: 0.0.0.0
+---
+apiVersion: v1alpha1
+kind: KubeSchedulerConfig
+extraArgs:
+  bind-address: 0.0.0.0
+config:
+  profiles:
+    - schedulerName: default-scheduler
+      plugins:
+        score:
+          disabled:
+            # Spegel makes pulls cheap: do not pile up pods on the nodes that already have
+            # their images.
+            - name: ImageLocality
+      pluginConfig:
+        # Spread the replicas of a workload across the nodes by default (soft constraint), for
+        # the workloads that do not define their own topologySpreadConstraints.
+        - name: PodTopologySpread
+          args:
+            defaultingType: List
+            defaultConstraints:
+              - maxSkew: 1
+                topologyKey: kubernetes.io/hostname
+                whenUnsatisfiable: ScheduleAnyway
+---
+# Talos API access from pods: tuppr (Talos and Kubernetes upgrades).
+# Both lists apply to every role and every namespace, see the ServiceAccount resources
+# of each application for the actual permissions.
+apiVersion: v1alpha1
+kind: KubeTalosAPIAccessConfig
+allowedRoles:
+  - os:admin
+allowedKubernetesNamespaces:
+  - system-upgrade
+---
+version: v1alpha1
+cluster:
+  etcd:
+    # Peers talk over the IPv4 and IPv6 ULA address only (never the GUA one, its prefix may
+    # change). etcd waits for this address to show up before starting.
+    advertisedSubnets:
+      - {{ .Data.network.ipv4_subnet }}
+      - {{ .Data.network.ipv6_ula_subnet }}
+    extraArgs:
+      # Plain HTTP metrics listener (the default 2383 one requires the etcd client mTLS).
+      listen-metrics-urls: http://0.0.0.0:2381

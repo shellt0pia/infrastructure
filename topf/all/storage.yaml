@@ -1,0 +1,65 @@
+---
+# System disk (SATA SSD): default layout, EPHEMERAL takes the remaining space.
+# The NVMe SSD is a single raw volume (see below) for the storage solution (OpenEBS).
+#
+# STATE and EPHEMERAL are encrypted with a key sealed by the TPM. The key is only bound
+# to the Secure Boot signed boot chain (PCR 11, always used by Talos): `pcrs: []` drops the
+# default PCR 7 binding, so firmware updates and Secure Boot database updates (dbx) do not
+# prevent unlocking the disks.
+# The empty list is rendered as `options: {}` in the final config: Talos only falls back to
+# PCR 7 when `options` is missing altogether (EncryptionKeyTPM.PCRs() in talos/pkg/machinery).
+apiVersion: v1alpha1
+kind: VolumeConfig
+name: STATE
+encryption:
+  provider: luks2
+  keys:
+    - slot: 0
+      tpm:
+        checkSecurebootStatusOnEnroll: true
+        options:
+          pcrs: []
+---
+apiVersion: v1alpha1
+kind: VolumeConfig
+name: EPHEMERAL
+encryption:
+  provider: luks2
+  # Let the weekly fstrim (FilesystemTrimConfig) reach the SSD.
+  allowDiscards: true
+  keys:
+    - slot: 0
+      tpm:
+        checkSecurebootStatusOnEnroll: true
+        options:
+          pcrs: []
+      # The volume cannot be unlocked if STATE is replaced.
+      lockToState: true
+---
+# NVMe SSD: one unformatted partition (label `r-storage`) spanning the whole disk, handed over
+# to the CSI storage (OpenEBS). The disk selector (NVMe serial number) is set in each
+# node/<host>/hardware.yaml file, merged with this document.
+# Unlocked by Talos at boot, the CSI uses the decrypted device /dev/mapper/luks2-r-storage
+# (`talosctl get volumestatus r-storage`).
+# Talos wipes it on reset with `--system-labels-to-wipe r-storage` (see `just topf reset-node`).
+apiVersion: v1alpha1
+kind: RawVolumeConfig
+name: storage
+provisioning:
+  maxSize: 100%
+encryption:
+  provider: luks2
+  # Let the discards issued by the storage solution reach the SSD.
+  allowDiscards: true
+  keys:
+    - slot: 0
+      tpm:
+        checkSecurebootStatusOnEnroll: true
+        options:
+          pcrs: []
+      # The volume cannot be unlocked if STATE is replaced: a reset of STATE must wipe it too.
+      lockToState: true
+---
+apiVersion: v1alpha1
+kind: FilesystemScrubConfig
+interval: 168h

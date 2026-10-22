@@ -17,6 +17,9 @@ MINIJINJA_CONFIG_FILE = "{{ config_root }}/.minijinja.toml"
 "aqua:opentofu/opentofu" = "1.13.1"
 
 "aqua:mitsuhiko/minijinja" = "latest"
+# Evaluation of topf (topf/README.md), vals resolves its 1Password references.
+"aqua:postfinance/topf" = "latest"
+"aqua:helmfile/vals" = "latest"
 "aqua:mikefarah/yq" = "latest"
 "aqua:google/yamlfmt" = "latest"
 "aqua:coreos/butane" = "latest"

@@ -8,7 +8,7 @@
     {
       customType: 'regex',
       description: 'Versions annotated with a `# renovate:` comment on the previous line',
-      managerFilePatterns: ['/(^|/)talos/.+\\.ya?ml$/'],
+      managerFilePatterns: ['/(^|/)(talos|topf)/.+\\.ya?ml$/'],
       matchStrings: [
         '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( versioning=(?<versioning>\\S+))?\\n[^:\\n]+:\\s*["\']?(?<currentValue>[^"\'\\s]+)',
       ],
