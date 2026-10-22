@@ -27,9 +27,8 @@ default:
 render file *args:
     minijinja-cli "{{ file }}" "{{ justfile_directory() }}/talos/vars.yaml" {{ args }}
 
-# Same as `render`, then resolve the `op://` references.
-# Every `op` call may ask for a 1Password authorization: resolve everything a recipe needs in
-# a single call (see `talos render-config`).
+# Same as `render`, then resolve the `op://` references with the workstation service account
+# (docs/1password-local-access.md): `op` can be called any number of times, without prompts.
 [private]
 template file *args:
     minijinja-cli "{{ file }}" "{{ justfile_directory() }}/talos/vars.yaml" {{ args }} | op inject

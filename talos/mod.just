@@ -14,19 +14,23 @@ vars := source_directory() / "vars.yaml"
 # Keep it out of the vault readable by External Secrets.
 op_vault := "infrastructure"
 op_item := "talos-secrets"
-op_secrets_ref := "op://" + op_vault + "/" + op_item + "/secrets.yaml"
+
+# The personal account, through the desktop app on the host: `op` in the toolbox uses the
+# workstation service account, which is read-only (docs/1password-local-access.md).
+op_personal := "host-spawn op"
 
 [doc('Generate the cluster secrets bundle and store it in 1Password (one-time operation)')]
 gen-secrets:
-    op vault get '{{ op_vault }}' >/dev/null
-    if op document get '{{ op_item }}' --vault '{{ op_vault }}' >/dev/null 2>&1; then
+    {{ op_personal }} vault get '{{ op_vault }}' >/dev/null
+    if {{ op_personal }} document get '{{ op_item }}' --vault '{{ op_vault }}' >/dev/null 2>&1; then
         echo "op://{{ op_vault }}/{{ op_item }} already exists, refusing to overwrite it." >&2
         exit 1
     fi
     tmp="$(mktemp -d)"
     trap 'rm -rf "$tmp"' EXIT
     talosctl gen secrets --output-file "$tmp/secrets.yaml"
-    op document create "$tmp/secrets.yaml" --title '{{ op_item }}' --vault '{{ op_vault }}' --file-name secrets.yaml >/dev/null
+    # Read by the host process: /tmp is shared between the host and the toolbox.
+    {{ op_personal }} document create "$tmp/secrets.yaml" --title '{{ op_item }}' --vault '{{ op_vault }}' --file-name secrets.yaml >/dev/null
     echo "Secrets bundle stored in op://{{ op_vault }}/{{ op_item }}"
 
 [doc('Get the Image Factory schematic ID of schematic.yaml')]
@@ -36,31 +40,26 @@ schematic-id:
 # Patches: patches/controlplane-reset.yaml first (it modifies a document also patched by
 # kubernetes.yaml.j2), then the other files of patches/, then nodes/<node>.yaml.j2.
 # `*.yaml` files are used as is, `*.j2` files are rendered with minijinja.
-# The secrets bundle and the `op://` references of all the rendered templates are resolved by a
-# single `op inject` call, so 1Password asks for one authorization only: their unresolved
-# contents are concatenated, each one after a `#@@ <file name> @@` line, then split again.
 [doc('Render the machine config of a node to stdout')]
 render-config node:
     {{ just }} talos node-fqdn '{{ node }}' >/dev/null
     tmp="$(mktemp -d)"
     trap 'rm -rf "$tmp"' EXIT
-    mkdir "$tmp/resolved"
+    mkdir "$tmp/patches"
+    op document get '{{ op_item }}' --vault '{{ op_vault }}' > "$tmp/secrets.yaml"
     patches=(--config-patch '@{{ source_directory() }}/patches/controlplane-reset.yaml')
     for file in '{{ source_directory() }}'/patches/*.yaml; do
         [[ "$file" == */controlplane-reset.yaml ]] || patches+=(--config-patch "@$file")
     done
-    {
-        printf '#@@ secrets.yaml @@\n{{{{ %s }}\n' '{{ op_secrets_ref }}'
-        for file in '{{ source_directory() }}'/patches/*.yaml.j2 '{{ source_directory() }}/nodes/{{ node }}.yaml.j2'; do
-            name="$(basename "$file" .j2)"
-            printf '\n#@@ %s @@\n' "$name"
-            {{ just }} render "$file" -D 'node={{ node }}'
-            patches+=(--config-patch "@$tmp/resolved/$name")
-        done
-    } > "$tmp/unresolved"
-    op inject --in-file "$tmp/unresolved" | awk -v dir="$tmp/resolved" '/^#@@ .+ @@$/ { file = dir "/" $2; printf "" > file; next } { print > file }'
+    for file in '{{ source_directory() }}'/patches/*.yaml.j2; do
+        name="$(basename "$file" .j2)"
+        {{ just }} template "$file" -D 'node={{ node }}' > "$tmp/patches/$name"
+        patches+=(--config-patch "@$tmp/patches/$name")
+    done
+    {{ just }} render '{{ source_directory() }}/nodes/{{ node }}.yaml.j2' -D 'node={{ node }}' > "$tmp/node.yaml"
+    patches+=(--config-patch "@$tmp/node.yaml")
     image="$({{ just }} talos installer-image)"
-    {{ just }} talos gen-config "$tmp/resolved/secrets.yaml" \
+    {{ just }} talos gen-config "$tmp/secrets.yaml" \
         --output-types controlplane \
         --install-image "$image" \
         --with-docs=false \

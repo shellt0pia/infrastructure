@@ -20,7 +20,7 @@ Kept here so they are not reopened by accident. Change them only for a new reaso
 
 - Talos configs: plain machine config documents templated with minijinja, secrets resolved by `op inject`. No talhelper (unmaintained), no Omni, no Cluster API, no Terraform provider for Talos.
 - GitOps: Flux (flux-operator + flux-instance), Kustomize + `HelmRelease` with charts from `OCIRepository`. The bootstrap helmfile reads the chart, version and values from `kubernetes/apps`, which stays the single source of truth.
-- Secrets: 1Password. Locally with `op` (Talos, bootstrap, OpenTofu, `infrastructure` vault), in the cluster with External Secrets Operator (`kubernetes` vault, read-only service account). ESO keeps the provider replaceable.
+- Secrets: 1Password. Locally with a read-only service account (`infrastructure` and `kubernetes` vaults) from the toolbox, for Talos, bootstrap and OpenTofu, see [1password-local-access.md](1password-local-access.md). In the cluster with External Secrets Operator (`kubernetes` vault, read-only service account). ESO keeps the provider replaceable.
 - Updates: Renovate, run from the cluster. Talos and Kubernetes upgrades: tuppr.
 - Tools: pinned in `mise.toml` (kubectl and talosctl follow the cluster versions).
 - Cloudflare (2 DNS zones and other resources): OpenTofu, encrypted state committed.
@@ -147,5 +147,4 @@ Roughly in priority order.
 - [ ] Talos: `EthernetConfig` does not resolve link aliases (v1.14.4, the name is passed as is to ethtool), the node files use the kernel interface names (`enp2s0`, `eno1`). If fixed upstream, move it back to `patches/network.yaml.j2` with `name: lan0`.
 - [ ] ISP prefix change: follow [ipv6-prefix-change.md](ipv6-prefix-change.md).
 - [ ] Milkywan WireGuard tunnel (planned): stable public IPv4 and IPv6 prefix. The `external` pool, the OPNsense prefix list and the NAT rules will move to it.
-- [ ] 1Password: `op` runs on the host through `host-spawn` (toolbx), every call is a new terminal session for the 1Password app, so every call asks for an authorization. `just talos render-config` resolves everything with a single `op inject` call; `just bootstrap cluster` still asks once for the talosconfig, once per node and once for the bootstrap secrets.
-- [ ] OpenTofu: `just tofu run` uses `op run -- tofu`, through `host-spawn` the `tofu` child process would run on the host (where it is not installed), not in the toolbx. To check and rework (e.g. resolve `tofu/op.env` with `op inject`) before the first use.
+- [ ] Workstation 1Password service account: rotate its token every 30 days (`opsa` warns 5 days before and refuses past the limit), see [1password-local-access.md](1password-local-access.md#rotation).

@@ -26,7 +26,7 @@ I chose the following software stack for my container hosts:
 
 The CLI tools (Ansible, talosctl, kubectl, helmfile, OpenTofu...) are pinned in `mise.toml`, run `mise install` to install them. kubectl and talosctl follow the versions deployed on the cluster (`talos/vars.yaml`). `mise` also points `KUBECONFIG` and `TALOSCONFIG` to the files generated at the repository root, and `MINIJINJA_CONFIG_FILE` to the `minijinja-cli` flags (`.minijinja.toml`).
 
-`just` and the 1Password CLI (`op`) are expected to be installed on the system.
+`just` and `jq` are expected to be installed on the system. The 1Password CLI (`op`) runs in the toolbox with a read-only service account, the personal account through `host-spawn op`, see [docs/1password-local-access.md](docs/1password-local-access.md).
 
 ### Make
 
@@ -34,7 +34,7 @@ The `Makefile` contains all the useful commands to manage the infrastructure, ru
 
 ### Secrets management
 
-All the secrets are stored in the `inventories/production.yml` which is encrypted using `ansible-vault`. The `vault-pass.sh` uses the bitwarden CLI to retrieve the vault password from my 1Password vault.
+All the secrets are stored in the `inventories/production.yml` which is encrypted using `ansible-vault`. The `vault-pass.sh` script reads the vault password from the `personal` 1Password vault with the 1Password CLI (`host-spawn op`, through the desktop app).
 
 Run `make vault` to edit the `production.yml` inventory in your `$EDITOR`.
 
@@ -96,7 +96,7 @@ The services of the Hetzner VM are being migrated to a 3-node Talos Linux cluste
 
 Secrets are stored in 1Password:
 
-- `infrastructure` vault: Talos secrets bundle, bootstrap and OpenTofu secrets, read locally with `op`.
+- `infrastructure` vault: Talos secrets bundle, bootstrap and OpenTofu secrets, read locally through the workstation service account.
 - `kubernetes` vault: application secrets, read by External Secrets through a service account.
 
 Bootstrap from nodes booted on the Talos ISO (`just talos download-image`), in maintenance mode, once the prerequisites of [docs/first-bootstrap.md](docs/first-bootstrap.md) are done:
