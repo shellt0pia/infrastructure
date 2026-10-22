@@ -15,7 +15,7 @@ cluster_name := shell('yq -r ".cluster.name" "$1"', vars)
 
 [doc('Bootstrap the cluster from nodes booted in maintenance mode up to Flux')]
 [confirm('Bootstrap the cluster ' + cluster_name + '? [y/N]')]
-cluster: talosconfig nodes etcd kubeconfig api-ready nodes-ready secrets apps
+cluster: talosconfig nodes etcd kubeconfig api-ready nodes-ready secrets crds apps
 
 [doc('Generate the talosconfig client file')]
 talosconfig:
@@ -85,6 +85,22 @@ secrets:
     {{ just }} log info "Running stage..." stage "{{ recipe_name() }}"
     if ! {{ just }} template '{{ source_directory() }}/resources/secrets.yaml.j2' | kubectl apply --server-side --filename -; then
         {{ just }} log fatal "Failed to apply the secrets" stage "{{ recipe_name() }}"
+    fi
+
+# Without any release, helmfile prints an error that --allow-no-matching-release makes non-fatal.
+[doc('Apply the CRDs of the charts listed in helmfile/crds.yaml.gotmpl, before Flux needs them')]
+[working-directory('helmfile')]
+crds:
+    {{ just }} log info "Running stage..." stage "{{ recipe_name() }}"
+    if ! crds="$(helmfile --file crds.yaml.gotmpl --allow-no-matching-release --quiet template --include-crds --no-hooks 2> >(grep --invert-match 'no releases found' >&2) | yq eval-all 'select(.kind == "CustomResourceDefinition")')"; then
+        {{ just }} log fatal "Failed to render the CRDs" stage "{{ recipe_name() }}"
+    fi
+    if [[ -z "$crds" ]]; then
+        {{ just }} log info "No CRDs to apply, skipping" stage "{{ recipe_name() }}"
+        exit 0
+    fi
+    if ! kubectl apply --server-side --force-conflicts --filename - <<< "$crds"; then
+        {{ just }} log fatal "Failed to apply the CRDs" stage "{{ recipe_name() }}"
     fi
 
 [doc('Install the bootstrap apps with helmfile, Flux takes over afterwards')]

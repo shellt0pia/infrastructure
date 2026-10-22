@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://json.schemastore.org/helmfile
+#
+# Charts whose CRDs are applied with kubectl before the bootstrap apps (`just bootstrap crds`),
+# so that they exist before Flux reconciles the resources using them, without dependsOn chains.
+# These releases are never installed by helmfile: only their CRDs are rendered and applied.
+# The chart and the values come from kubernetes/apps, as in apps.yaml.gotmpl.
+#
+# Only list charts that Flux installs later and whose CRDs live in the chart `crds/` directory
+# (or CRD-only charts, e.g. prometheus-operator-crds): Helm skips these CRDs when they already
+# exist. CRDs rendered from `templates/` (cert-manager `crds.enabled`, External Secrets
+# `installCRDs`) would make the Helm install fail on their ownership metadata. Never list the
+# charts of apps.yaml.gotmpl for the same reason.
+#
+# Run from this directory: `just bootstrap crds`.
+
+{{- define "chart" }}
+{{- $oci := printf "../../kubernetes/apps/%s/%s/app/ocirepository.yaml" .namespace .name | readFile | fromYaml }}
+    chart: {{ $oci.spec.url }}
+    version: {{ $oci.spec.ref.tag | quote }}
+{{- end }}
+
+templates:
+  default:
+    values:
+      - ./templates/values.yaml.gotmpl
+
+# Same release format as apps.yaml.gotmpl (chart template + `inherit: default`), without needs
+# or hooks.
+releases: []

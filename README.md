@@ -103,7 +103,7 @@ Bootstrap from nodes booted on the Talos ISO (`just talos download-image`), in m
 
 ```sh
 just talos gen-secrets   # one-time
-just bootstrap cluster   # talosconfig, machine configs, etcd, kubeconfig, secrets, External Secrets and Flux
+just bootstrap cluster   # talosconfig, machine configs, etcd, kubeconfig, secrets, CRDs, External Secrets and Flux
 ```
 
 The charts installed by `bootstrap/helmfile` read their source, version and values from `kubernetes/apps`, Flux adopts the releases afterwards. Versions are updated by Renovate (`.renovaterc.json5`).
