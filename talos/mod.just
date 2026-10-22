@@ -37,9 +37,7 @@ gen-secrets:
 schematic-id:
     curl --fail --silent --show-error --request POST --data-binary '@{{ source_directory() }}/schematic.yaml' https://factory.talos.dev/schematics | jq --raw-output '.id'
 
-# Patches: patches/controlplane-reset.yaml first (it modifies a document also patched by
-# kubernetes.yaml.j2), then the other files of patches/, then nodes/<node>.yaml.j2.
-# `*.yaml` files are used as is, `*.j2` files are rendered with minijinja.
+# Layers and patch order: see README.md.
 [doc('Render the machine config of a node to stdout')]
 render-config node:
     {{ just }} talos node-fqdn '{{ node }}' >/dev/null

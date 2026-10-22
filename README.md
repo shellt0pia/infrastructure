@@ -89,7 +89,7 @@ The services of the Hetzner VM are being migrated to a 3-node Talos Linux cluste
 
 | Path | Content |
 | --- | --- |
-| `talos/` | Talos machine configs: `talosctl gen config` + minijinja patches rendered with `talos/vars.yaml`, Image Factory schematic. |
+| `talos/` | Talos machine configs: `talosctl gen config` + minijinja patches rendered with `talos/vars.yaml`, Image Factory schematic. See [talos/README.md](talos/README.md). |
 | `bootstrap/` | One-shot cluster bootstrap: secrets from 1Password and helmfile installing External Secrets and Flux. |
 | `kubernetes/apps/` | Flux root path, one directory per namespace, one Flux `Kustomization` (`ks.yaml`) per app. |
 | `tofu/` | OpenTofu stacks (Cloudflare), the state is encrypted and committed. |
