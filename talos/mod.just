@@ -103,6 +103,11 @@ upgrade-k8s *args:
 reboot-node node:
     talosctl --nodes "$({{ just }} talos node-fqdn '{{ node }}')" reboot
 
+[doc('Shut a node down after cordoning and draining it, `--force` skips both')]
+[confirm('Shut ' + node + ' down? [y/N]')]
+shutdown-node node *args:
+    talosctl --nodes "$({{ just }} talos node-fqdn '{{ node }}')" shutdown {{ args }}
+
 [doc('Reset a node: it leaves the cluster, wipes its data and reboots in maintenance mode')]
 [confirm('Reset ' + node + '? ALL ITS DATA WILL BE LOST. [y/N]')]
 reset-node node:
