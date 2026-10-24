@@ -99,6 +99,7 @@ Known limitation: when a node is down, `kubectl` may pick its address and wait f
   - images: `factory.talos.dev`, `ghcr.io`, `registry.k8s.io` (and its CDNs), Docker Hub (`registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com`);
   - image signature verification: `tuf-repo-cdn.sigstore.dev` (Sigstore TUF repository). Without it, the images of `registry.k8s.io`, `ghcr.io/siderolabs` and `factory.talos.dev` cannot be pulled;
   - `discovery.talos.dev` and `github.com` (for Flux).
+- [x] Nodes → public DNS resolvers of Cloudflare (`1.1.1.1`, `1.0.0.1`, `2606:4700:4700::1111`, `2606:4700:4700::1001`): TCP and UDP 53. cert-manager checks the propagation of its DNS-01 challenges against them (`dns01RecursiveNameservers`), because the internal DNS is split-horizon. The queries come from the pods, masqueraded behind the node addresses.
 - [x] Nodes → NUT server (`ups.server` in `talos/vars.yaml`): TCP 3493, if it is not on the nodes subnet. On the NAS, allow the nodes addresses in `upsd.conf`/the NFS exports if they are filtered.
 - [x] Between the nodes: everything is on the same subnet, nothing to do. The Talos ingress firewall is not used: OPNsense filters all the traffic entering the nodes subnet. The traffic between the pods and the nodes never goes through it, it will be restricted later with Cilium network policies.
 - [x] Nodes subnet (`192.168.15.0/24` and `fd38:4c4d:8f66:f::/64`) → *This Firewall*: TCP 179 (BGP, see below).
@@ -262,7 +263,7 @@ These checks have no impact on the nodes.
 - [ ] The manifests must build:
 
   ```sh
-  kubectl kustomize kubernetes/apps/flux-system && kubectl kustomize kubernetes/apps/external-secrets && kubectl kustomize kubernetes/apps/cert-manager && kubectl kustomize kubernetes/apps/kube-system && kubectl kustomize kubernetes/apps/kube-system/cilium/networking && kubectl kustomize kubernetes/apps/kube-system/intel-device-plugin/gpu
+  kubectl kustomize kubernetes/apps/flux-system && kubectl kustomize kubernetes/apps/external-secrets && kubectl kustomize kubernetes/apps/cert-manager && kubectl kustomize kubernetes/apps/cert-manager/cert-manager/issuers && kubectl kustomize kubernetes/apps/kube-system && kubectl kustomize kubernetes/apps/kube-system/cilium/networking && kubectl kustomize kubernetes/apps/kube-system/intel-device-plugin/gpu
   ```
 
 ## Phase 8 — Bootstrap
@@ -328,7 +329,8 @@ These checks have no impact on the nodes.
     Then `kubectl label svc lbtest lbipam.shelltopia.net/pool=external`: the addresses move to `192.168.19.128/25` and `2a02:8434:f003:d113::/64`. Clean up with `kubectl delete svc,deployment lbtest`.
   - `kubectl get --raw /api/v1/nodes/kube-01/proxy/configz | jq .kubeletconfig`: `shutdownGracePeriod` is `1m30s`, `serializeImagePulls` is `false` and `crashLoopBackOff.maxContainerRestartPeriod` is `1m0s`.
   - `kubectl -n flux-system get fluxinstance`, then `flux get ks -A` and `flux get hr -A`: everything is `Ready`. cert-manager and the Intel GPU device plugin are only deployed by Flux, after the bootstrap: `intel-device-plugin-operator` waits for `cert-manager`, then `intel-device-plugin-gpu` waits for the operator.
-  - `kubectl -n cert-manager get pods`: the controller, the webhook and the cainjector are running. No `ClusterIssuer` exists yet.
+  - `kubectl -n cert-manager get pods`: the controller, the webhook and the cainjector are running.
+    - `kubectl get clusterissuers`: `letsencrypt-staging` and `letsencrypt-production` are `Ready`. This needs the `cloudflare-cert-manager` item in the `Kubernetes` vault (field `credential`, a Cloudflare token with *Zone → DNS → Edit* and *Zone → Zone → Read*), synced by `kubectl -n cert-manager get externalsecret cloudflare-api-token`.
   - Intel GPU device plugin:
     - `kubectl get gpudeviceplugins`: `intel-gpu`, with as many ready nodes as desired.
     - `kubectl -n kube-system get pods -o wide | grep intel-gpu-plugin`: one pod on kube-01 only (kube-02 later), none on kube-03.

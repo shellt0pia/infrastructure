@@ -20,6 +20,10 @@ spec:
       enabled: true
       # Keep the CRDs (and therefore every Certificate) if the release is ever uninstalled.
       keep: true
+    # The internal DNS is split-horizon (Unbound overrides shelltopia.net): the DNS-01
+    # propagation check must only query public resolvers, never the cluster resolver.
+    dns01RecursiveNameserversOnly: true
+    dns01RecursiveNameservers: "1.1.1.1:53,1.0.0.1:53,[2606:4700:4700::1111]:53,[2606:4700:4700::1001]:53"
     prometheus:
       enabled: true
       servicemonitor:

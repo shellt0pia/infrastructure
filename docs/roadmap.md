@@ -8,7 +8,7 @@ What is left to build on the Kubernetes cluster, the decisions already made (and
 | --- | --- |
 | Talos machine configs (`talos/`) | Done: Secure Boot, TPM disk encryption, disks and NIC selectors, dynamic network, NTP, NUT, watchdog, i915, image verification. |
 | Bootstrap (`bootstrap/`, `just bootstrap cluster`) | Done: Cilium (+ BGP and LB pools), CoreDNS, External Secrets, Flux. |
-| GitOps (`kubernetes/apps`) | Flux, External Secrets + 1Password store, Cilium, CoreDNS, cert-manager (no issuer), Intel GPU device plugin. |
+| GitOps (`kubernetes/apps`) | Flux, External Secrets + 1Password store, Cilium, CoreDNS, cert-manager + Let's Encrypt issuers (staging and production, DNS-01 with Cloudflare), Intel GPU device plugin. |
 | OpenTofu (`tofu/cloudflare`) | Skeleton only, the existing zones are not imported yet. |
 | First bootstrap | In progress, with kube-01 and kube-03 only. |
 
@@ -52,6 +52,8 @@ Kept here so they are not reopened by accident. Change them only for a new reaso
 
 ### Applications
 
+- Certificates: Let's Encrypt only, with two permanent `ClusterIssuer`s (`letsencrypt-staging` and `letsencrypt-production`, each `Certificate` picks one) and DNS-01 through Cloudflare. All the services live in `shelltopia.org` (`shelltopia.net` stays for the infrastructure), served by a wildcard `*.shelltopia.org` so that the application names do not appear in the Certificate Transparency logs. One Cloudflare token (*Zone → DNS → Edit*, *Zone → Zone → Read*), created by hand and distinct from the OpenTofu one: 1Password item `cloudflare-cert-manager`, field `credential`. The ACME propagation check only uses the public resolvers of Cloudflare, over plain DNS.
+
 - GPU: Intel device plugin through the operator, `sharedDevNum: 3` (Plex, Immich). DRA rejected for now: the Intel DRA driver (0.12.x) only allocates whole GPUs and is beta.
 - Storage: OpenEBS rather than Longhorn (no iSCSI extension). Media stay on the NAS over NFS 4.2.
 - No registry cache: Docker Hub credentials in containerd avoid the rate limit.
@@ -62,14 +64,16 @@ Roughly in priority order.
 
 ### 1. Finish the test bootstrap
 
-- [ ] Phases 4 to 8 of [first-bootstrap.md](first-bootstrap.md) with kube-01 and kube-03.
-- [ ] `kubernetes/apps/flux-system/flux-instance/app/helmrelease.yaml`: final repository URL and branch (`TODO`), `pullSecret` if the repository is private.
+- [x] Phases 4 to 8 of [first-bootstrap.md](first-bootstrap.md) with kube-01 and kube-03.
+- [x] `kubernetes/apps/flux-system/flux-instance/app/helmrelease.yaml`: final repository URL and branch (`TODO`), `pullSecret` if the repository is private.
 
 ### 2. Certificates
 
-- [ ] `ClusterIssuer` Let's Encrypt (staging, then production), DNS-01 with Cloudflare.
-- [ ] Cloudflare API token (*Zone → DNS → Edit*, restricted to the zones) in the `kubernetes` vault, synced by an `ExternalSecret` in `cert-manager`.
-- [ ] The internal DNS is split-horizon (Unbound overrides `shelltopia.net`): set `dns01RecursiveNameservers` (public resolvers) and `dns01RecursiveNameserversOnly: true` in the cert-manager values, otherwise the propagation check may query Unbound and never succeed.
+- [x] `ClusterIssuer` Let's Encrypt (staging, then production), DNS-01 with Cloudflare.
+- [x] Cloudflare API token (*Zone → DNS → Edit* and *Zone → Zone → Read*, restricted to the zone) in the `kubernetes` vault (item `cloudflare-cert-manager`, field `credential`), synced by an `ExternalSecret` in `cert-manager`.
+- [x] The internal DNS is split-horizon (Unbound overrides `shelltopia.net`): `dns01RecursiveNameservers` (public resolvers) and `dns01RecursiveNameserversOnly: true` set in the cert-manager values, otherwise the propagation check may query Unbound and never succeed.
+- [ ] Wildcard `Certificate` `*.shelltopia.org`: created with the Gateways (step 3), in their namespace.
+- [ ] Test with staging after the first deployment, see [first-bootstrap.md](first-bootstrap.md#phase-8--bootstrap).
 
 ### 3. Ingress
 
