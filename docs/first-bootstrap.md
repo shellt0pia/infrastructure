@@ -24,7 +24,7 @@ Be aware that an etcd cluster with 2 members has **no fault tolerance**: the quo
 | `kube-02` | OptiPlex 3000 Micro | TODO | TODO | RTL8111 (`r8169`) | `6c:3c:8c:18:d9:1b` |
 | `kube-03` | OptiPlex 3060 Micro | `naa.500a07510df503c3` | `24444BCBA81D` | I219-LM (`e1000e`) | `00:4e:01:98:9b:db` |
 
-Talos is installed on the SATA SSD, selected by WWID, and the `lan0` link is the onboard NIC, selected by its permanent MAC address. Both are set in `talos/nodes/kube-0X.yaml.j2`. The NVMe SSD, selected by serial number, holds a single raw volume (`r-storage` partition spanning the whole disk, encrypted by the TPM, not formatted) for the storage solution (OpenEBS), see `talos/patches/storage.yaml`.
+Talos is installed on the SATA SSD, selected by WWID, and the `lan0` link is the onboard NIC, selected by its permanent MAC address. Both are set in `talos/nodes/kube-0X.yaml`. The NVMe SSD, selected by serial number, holds a single raw volume (`r-storage` partition spanning the whole disk, encrypted by the TPM, not formatted) for the storage solution (OpenEBS), see `talos/patches/storage.yaml`.
 
 The SATA SSDs are selected by WWID because Talos v1.14 leaves the serial of SATA disks empty: it reads the serial from sysfs, where libata does not expose it, and its fallback (udev `ata_id`/`scsi_id` helpers) only runs for the `ata` and `scsi` transports, not for `sata` (AHCI controllers). The WWID is the WWN written in the drive by the manufacturer (`naa.5…`), as unique and stable as the serial.
 
@@ -170,7 +170,7 @@ Boot each node from the USB drive, with the firmware in setup mode:
 From the workstation, using the names created in phase 3 (if a name does not answer, use the IPv4 address shown on the console and check the DHCP mapping, the router advertisements and the DNS record):
 
 - [ ] `talosctl get securitystate --insecure --nodes kube-0X.shelltopia.net`: `SECUREBOOT` must be `true`. Otherwise, check the BIOS: the TPM disk encryption refuses to enroll without Secure Boot (`checkSecurebootStatusOnEnroll`), so the installation would fail.
-- [ ] `talosctl get disks --insecure --nodes kube-0X.shelltopia.net`: check the WWID of the SATA SSD and the serial of the NVMe SSD against the table of phase 1, fill the missing ones in the table and in `talos/nodes/kube-0X.yaml.j2`. The NVMe SSD is entirely repartitioned by Talos at install: make sure it holds nothing worth keeping.
+- [ ] `talosctl get disks --insecure --nodes kube-0X.shelltopia.net`: check the WWID of the SATA SSD and the serial of the NVMe SSD against the table of phase 1, fill the missing ones in the table and in `talos/nodes/kube-0X.yaml`. The NVMe SSD is entirely repartitioned by Talos at install: make sure it holds nothing worth keeping.
 - [ ] `talosctl get links --insecure --nodes kube-0X.shelltopia.net`: the `HW ADDR` of the physical interface must match the MAC address of phase 1, used by the `LinkAliasConfig` of the node file.
 - [ ] `talosctl get addresses --insecure --nodes kube-0X.shelltopia.net`: the reserved IPv4 address, the ULA address of phase 3 and a GUA address with the same interface identifier.
 
@@ -375,7 +375,7 @@ Once `home` has been migrated to the cluster:
 - [ ] Install the SATA SSD, then follow phase 1 for this machine.
 - [ ] Remove the DHCP mapping and DNS records of `home`, then create those of kube-02 (phase 3).
 - [ ] Boot it in maintenance mode (phase 4).
-- [ ] Fill the WWID of the SATA SSD and the serial of the NVMe SSD in `talos/nodes/kube-02.yaml.j2`, uncomment kube-02 in `talos/vars.yaml`.
+- [ ] Fill the WWID of the SATA SSD and the serial of the NVMe SSD in `talos/nodes/kube-02.yaml`, uncomment kube-02 in `talos/vars.yaml`.
 - [ ] `just talos talosconfig`, then `just talos apply-node kube-02 --insecure`. The node joins etcd automatically, check with `talosctl etcd members`.
 - [ ] Nothing to do for BGP: the node opens its sessions and OPNsense accepts them through the listen ranges. Check with `vtysh -c 'show bgp summary'`.
 

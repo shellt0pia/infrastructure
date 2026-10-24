@@ -51,7 +51,7 @@ talos_version: v1.14.4
 # renovate: datasource=docker depName=ghcr.io/siderolabs/kubelet
 kubernetes_version: v1.37.1
 
-# Cluster members, there must be a talos/nodes/<name>.yaml.j2 file for each of them.
+# Cluster members, there must be a talos/nodes/<name>.yaml file for each of them.
 # The first node is used for one-shot operations (etcd bootstrap, kubeconfig, upgrade-k8s).
 nodes:
   - kube-01

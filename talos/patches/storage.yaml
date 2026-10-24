@@ -38,7 +38,7 @@ encryption:
 ---
 # NVMe SSD: one unformatted partition (label `r-storage`) spanning the whole disk, handed over
 # to the CSI storage (OpenEBS). The disk selector (NVMe serial number) is set in each
-# nodes/<node>.yaml.j2 file, merged with this document.
+# nodes/<node>.yaml file, merged with this document.
 # Unlocked by Talos at boot, the CSI uses the decrypted device /dev/mapper/luks2-r-storage
 # (`talosctl get volumestatus r-storage`).
 # Talos wipes it on reset with `--system-labels-to-wipe r-storage` (see `just talos reset-node`).

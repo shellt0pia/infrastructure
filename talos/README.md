@@ -6,8 +6,8 @@ Machine configs of the cluster nodes, rendered by `just talos render-config <nod
 | --- | --- |
 | `vars.yaml` | Variables shared by the templates (minijinja) and the recipes (yq): domain, cluster, network, versions, node list. |
 | `schematic.yaml` | Image Factory schematic (extensions, kernel arguments, Secure Boot). Its ID selects the installer image and the ISO. |
-| `patches/` | Patches common to all the nodes. |
-| `nodes/<node>.yaml.j2` | Hardware-specific patches of a node: hostname, disks, NIC, labels. |
+| `patches/` | Patches common to all the nodes, including the hostname (`hostname.yaml.j2`). |
+| `nodes/<node>.yaml` | Hardware-specific patches of a node (plain YAML): disks, NIC, labels. |
 
 ## Render layers
 
@@ -17,7 +17,7 @@ Machine configs of the cluster nodes, rendered by `just talos render-config <nod
 2. `patches/controlplane-reset.yaml`, on its own (see below).
 3. The other `patches/*.yaml`, used as is, in alphabetical order.
 4. `patches/*.yaml.j2`, in alphabetical order, rendered by `just template`: minijinja with `vars.yaml` and `-D node=<node>`, then `op inject` resolves the 1Password references.
-5. `nodes/<node>.yaml.j2`, rendered by `just render`: minijinja only, so no 1Password reference in the node files.
+5. `nodes/<node>.yaml`, used as is: no template and no 1Password reference in the node files.
 
 The rendered config contains the cluster PKI: never write it into the repository.
 
@@ -28,7 +28,7 @@ The rendered config contains the cluster PKI: never write it into the repository
 - minijinja runs in strict mode (`.minijinja.toml`): an undefined variable is an error, not an empty string.
 - `op inject` resolves every reference of the rendered output, comments included: never write a 1Password reference in a template comment.
 - `op inject` does not end a bare reference at a space: it must be followed by a quote or the end of the line. Otherwise use the enclosed syntax, escaped for minijinja (see `vars.yaml` and `patches/extensions.yaml.j2`).
-- Adding a node: add it to `nodes` in `vars.yaml` and create `nodes/<node>.yaml.j2`. The first node of the list is used for the one-shot operations (etcd bootstrap, kubeconfig, `upgrade-k8s`).
+- Adding a node: add it to `nodes` in `vars.yaml` and create `nodes/<node>.yaml`. The first node of the list is used for the one-shot operations (etcd bootstrap, kubeconfig, `upgrade-k8s`).
 
 ## Checking a change
 

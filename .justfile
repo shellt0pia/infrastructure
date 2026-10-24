@@ -29,14 +29,9 @@ default:
 log level message *fields:
     gum log --time rfc3339 --structured --level "$1" "$2" "${@:3}"
 
-# Render a minijinja template with talos/vars.yaml, without resolving the `op://` references.
-# Extra variables can be passed with `-D key=value`.
-[private]
-render file *args:
-    minijinja-cli "{{ file }}" "{{ justfile_directory() }}/talos/vars.yaml" {{ args }}
-
-# Same as `render`, then resolve the `op://` references with the workstation service account
-# (docs/1password-local-access.md): `op` can be called any number of times, without prompts.
+# Render a minijinja template with talos/vars.yaml, then resolve the `op://` references with the
+# workstation service account (docs/1password-local-access.md): `op` can be called any number of
+# times, without prompts. Extra variables can be passed with `-D key=value`.
 [private]
 template file *args:
     minijinja-cli "{{ file }}" "{{ justfile_directory() }}/talos/vars.yaml" {{ args }} | op inject

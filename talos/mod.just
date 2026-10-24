@@ -54,8 +54,7 @@ render-config node:
         {{ just }} template "$file" -D 'node={{ node }}' > "$tmp/patches/$name"
         patches+=(--config-patch "@$tmp/patches/$name")
     done
-    {{ just }} render '{{ source_directory() }}/nodes/{{ node }}.yaml.j2' -D 'node={{ node }}' > "$tmp/node.yaml"
-    patches+=(--config-patch "@$tmp/node.yaml")
+    patches+=(--config-patch '@{{ source_directory() }}/nodes/{{ node }}.yaml')
     image="$({{ just }} talos installer-image)"
     {{ just }} talos gen-config "$tmp/secrets.yaml" \
         --output-types controlplane \

@@ -1,0 +1,40 @@
+---
+# Dell OptiPlex 3000 Micro (i5-12500T, 16 GiB, UHD 770).
+apiVersion: v1alpha1
+kind: UnattendedInstallConfig
+provisioning:
+  diskSelector:
+    # SATA SSD Crucial BX500 240 GB (the NVMe SSD holds the raw storage volume).
+    # Selected by WWID: Talos leaves the serial of SATA disks behind AHCI controllers empty.
+    match: disk.wwid == "naa.500a0751e88e1e24"
+---
+# NVMe SSD Crucial P310 1 TB, see patches/storage.yaml.
+apiVersion: v1alpha1
+kind: RawVolumeConfig
+name: storage
+provisioning:
+  diskSelector:
+    match: disk.serial == "2535527309AF"
+---
+# Realtek RTL8111 onboard NIC.
+apiVersion: v1alpha1
+kind: LinkAliasConfig
+name: lan0
+selector:
+  match: mac(link.permanent_addr) == "00:be:43:ef:c8:c9"
+---
+# Wake-on-LAN: Talos v1.14 does not resolve link aliases in EthernetConfig (the name is passed
+# as is to ethtool), the kernel interface name must be used. The r8169 driver disables
+# Wake-on-LAN by default.
+apiVersion: v1alpha1
+kind: EthernetConfig
+name: enp2s0
+wakeOnLan:
+  - magic
+---
+# Only the UHD 770 iGPUs are used for workloads: the Intel GPU device plugin is scheduled
+# on the nodes with this label.
+apiVersion: v1alpha1
+kind: KubeNodeConfig
+labels:
+  shelltopia.net/intel-gpu: "true"
