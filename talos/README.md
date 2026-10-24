@@ -33,4 +33,4 @@ The rendered config contains the cluster PKI: never write it into the repository
 ## Checking a change
 
 - `talosctl validate --mode metal --strict --config <(just talos render-config <node>)` checks the rendered config without touching the node.
-- `just talos apply-node <node> --dry-run` shows the diff with the running config. After a refactor that should not change anything (moving a setting between patches, renaming a variable...), the diff must be empty on every node.
+- `just talos diff` shows the diff with the running config of every node (`just talos apply-node <node> --dry-run` for a single one). After a refactor that should not change anything (moving a setting between patches, renaming a variable...), the diff must be empty on every node.

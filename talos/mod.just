@@ -71,6 +71,15 @@ apply-node node *args:
     config="$({{ just }} talos render-config '{{ node }}')"
     talosctl --nodes "$fqdn" apply-config --file /dev/stdin {{ args }} <<< "$config"
 
+# `--yes` only skips the confirmation of apply-node: nothing is applied with `--dry-run`.
+[doc('Show the diff between the rendered and the running machine config of every node')]
+diff:
+    mapfile -t nodes < <(yq -r '.nodes[]' '{{ vars }}')
+    for node in "${nodes[@]}"; do
+        {{ just }} log info "Comparing with the running config..." node "$node"
+        {{ just }} --yes talos apply-node "$node" --dry-run
+    done
+
 [doc('Generate the talosconfig client file at the repository root')]
 talosconfig:
     secrets="$(mktemp)"
