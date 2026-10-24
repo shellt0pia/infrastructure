@@ -1,0 +1,35 @@
+---
+# Envoy fleet of the external Gateway: LoadBalancer Service in the `external` LB pool (public
+# IPv6, IPv4 reached through OPNsense).
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: external
+spec:
+  # IPv4 and IPv6 listeners, and a RequireDualStack Service: one address of each family.
+  ipFamily: DualStack
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeployment:
+        replicas: 2
+        pod:
+          # One proxy per node when possible. ScheduleAnyway: with 2 nodes, a strict constraint
+          # would leave a replica Pending while a node is down.
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: ScheduleAnyway
+              labelSelector:
+                matchLabels:
+                  gateway.envoyproxy.io/owning-gateway-name: external
+                  gateway.envoyproxy.io/owning-gateway-namespace: network
+      envoyPDB:
+        minAvailable: 1
+      envoyService:
+        # Keeps the client IP of the IPv6 connections (the IPv4 ones come from HAProxy, with the
+        # PROXY protocol). Cilium BGP then only advertises the addresses from the nodes running
+        # a proxy.
+        externalTrafficPolicy: Local
+        labels:
+          lbipam.shelltopia.net/pool: external

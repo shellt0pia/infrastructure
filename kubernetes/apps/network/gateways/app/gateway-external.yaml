@@ -1,0 +1,67 @@
+---
+# Only the namespaces labeled `shelltopia.net/gateway-external: "true"` can attach routes to the
+# HTTPS listeners: exposing an application on the internet is an explicit choice, not a typo in
+# a parentRef. The HTTP listeners only serve the HTTP to HTTPS redirect (httproute-redirect.yaml):
+# `Same` keeps the routes of the applications (without sectionName) from being served in plain
+# HTTP.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: external
+spec:
+  gatewayClassName: envoy
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: external
+  listeners:
+    # Direct connections: IPv6 from the internet (OPNsense WAN rule to the external pool), and
+    # IPv4 once HAProxy is replaced by a plain port forwarding.
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: "*.shelltopia.org"
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.shelltopia.org"
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              shelltopia.net/gateway-external: "true"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: shelltopia-org-tls
+    # IPv4 from the HAProxy of OPNsense, with the PROXY protocol (clienttrafficpolicy.yaml),
+    # during the migration from `home`. Envoy trusts any PROXY header: these ports must never be
+    # reachable from the internet. Remove them once HAProxy is gone.
+    - name: http-proxy
+      protocol: HTTP
+      port: 8080
+      hostname: "*.shelltopia.org"
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: https-proxy
+      protocol: HTTPS
+      port: 8443
+      hostname: "*.shelltopia.org"
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              shelltopia.net/gateway-external: "true"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: shelltopia-org-tls

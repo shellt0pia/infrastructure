@@ -1,0 +1,21 @@
+---
+# Shared by both Gateways. A wildcard keeps the application names out of the Certificate
+# Transparency logs. No apex: only subdomains are served.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: shelltopia-org
+spec:
+  dnsNames:
+    - "*.shelltopia.org"
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    # Tested with letsencrypt-staging first. Go back to it to test a change of the issuers or
+    # of the Cloudflare token without touching the rate limits of production.
+    name: letsencrypt-production
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  secretName: shelltopia-org-tls

@@ -103,7 +103,7 @@ Known limitation: when a node is down, `kubectl` may pick its address and wait f
 - [x] Nodes → NUT server (`ups.server` in `talos/vars.yaml`): TCP 3493, if it is not on the nodes subnet. On the NAS, allow the nodes addresses in `upsd.conf`/the NFS exports if they are filtered.
 - [x] Between the nodes: everything is on the same subnet, nothing to do. The Talos ingress firewall is not used: OPNsense filters all the traffic entering the nodes subnet. The traffic between the pods and the nodes never goes through it, it will be restricted later with Cilium network policies.
 - [x] Nodes subnet (`192.168.15.0/24` and `fd38:4c4d:8f66:f::/64`) → *This Firewall*: TCP 179 (BGP, see below).
-- [x] Administration subnets → LoadBalancer pools (internal: `192.168.19.0/25`, `fd38:4c4d:8f66:13::/64` / external: `192.168.19.128/25`, `2a02:8434:f003:d113::/64`): TCP 80 for the test of phase 8. The real rules come with the Gateways.
+- [x] Administration subnets → LoadBalancer pools (internal: `192.168.19.0/25`, `fd38:4c4d:8f66:13::/64` / external: `192.168.19.128/25`, `2a02:8434:f003:d113::/64`): TCP 80 for the test of phase 8. The rules of the Gateways are in [ingress.md](ingress.md#firewall).
 
 ### BGP (FRR)
 
@@ -263,7 +263,7 @@ These checks have no impact on the nodes.
 - [ ] The manifests must build:
 
   ```sh
-  kubectl kustomize kubernetes/apps/flux-system && kubectl kustomize kubernetes/apps/external-secrets && kubectl kustomize kubernetes/apps/cert-manager && kubectl kustomize kubernetes/apps/cert-manager/cert-manager/issuers && kubectl kustomize kubernetes/apps/kube-system && kubectl kustomize kubernetes/apps/kube-system/cilium/networking && kubectl kustomize kubernetes/apps/kube-system/intel-device-plugin/gpu
+  kubectl kustomize kubernetes/apps/flux-system && kubectl kustomize kubernetes/apps/external-secrets && kubectl kustomize kubernetes/apps/cert-manager && kubectl kustomize kubernetes/apps/cert-manager/cert-manager/issuers && kubectl kustomize kubernetes/apps/kube-system && kubectl kustomize kubernetes/apps/kube-system/cilium/networking && kubectl kustomize kubernetes/apps/kube-system/intel-device-plugin/gpu && kubectl kustomize kubernetes/apps/envoy-gateway-system && kubectl kustomize kubernetes/apps/network && kubectl kustomize kubernetes/apps/network/gateways/app
   ```
 
 ## Phase 8 — Bootstrap
@@ -331,6 +331,7 @@ These checks have no impact on the nodes.
   - `kubectl -n flux-system get fluxinstance`, then `flux get ks -A` and `flux get hr -A`: everything is `Ready`. cert-manager and the Intel GPU device plugin are only deployed by Flux, after the bootstrap: `intel-device-plugin-operator` waits for `cert-manager`, then `intel-device-plugin-gpu` waits for the operator.
   - `kubectl -n cert-manager get pods`: the controller, the webhook and the cainjector are running.
     - `kubectl get clusterissuers`: `letsencrypt-staging` and `letsencrypt-production` are `Ready`. This needs the `cloudflare-cert-manager` item in the `Kubernetes` vault (field `credential`, a Cloudflare token with *Zone → DNS → Edit* and *Zone → Zone → Read*), synced by `kubectl -n cert-manager get externalsecret cloudflare-api-token`.
+  - Envoy Gateway and the Gateways: see the checks of [ingress.md](ingress.md#checks). The wildcard certificate is issued by `letsencrypt-production`.
   - Intel GPU device plugin:
     - `kubectl get gpudeviceplugins`: `intel-gpu`, with as many ready nodes as desired.
     - `kubectl -n kube-system get pods -o wide | grep intel-gpu-plugin`: one pod on kube-01 only (kube-02 later), none on kube-03.

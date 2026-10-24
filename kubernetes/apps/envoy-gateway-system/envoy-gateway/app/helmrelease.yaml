@@ -1,0 +1,24 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: envoy-gateway
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: envoy-gateway
+  # The chart ships the Gateway API and Envoy Gateway CRDs in its `crds/` directory, which Helm
+  # only installs once: CreateReplace also updates them on every chart upgrade.
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  # The chart defaults are kept: the Envoy proxies are configured per Gateway, with the
+  # EnvoyProxy resources of the `network` namespace.
+  values: {}

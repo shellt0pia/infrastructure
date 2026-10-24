@@ -1,0 +1,139 @@
+---
+# Client side settings of the listeners. A policy targeting a listener (sectionName) replaces the
+# Gateway-wide policy for that listener, the two are not merged: external-proxy-protocol repeats
+# the settings of external. Keep the three policies in sync.
+#
+# TLS 1.3 only, so no cipher list (Envoy Gateway rejects ciphers with minVersion 1.3, and the
+# TLS 1.3 suites are all safe). X25519MLKEM768 is the hybrid post-quantum key exchange; clients
+# that do not support it fall back to X25519. If Envoy rejects a curve name, the policy may still
+# be Accepted while the listener is refused: check the logs of the Envoy pods.
+#
+# The security headers are set on every response, after the routes. The applications may still
+# set their own X-Frame-Options and Referrer-Policy.
+#
+# Long idle timeouts: streams, websockets and long downloads must not be cut (Envoy's default
+# stream idle timeout is 5 minutes). The route timeout is disabled in backendtrafficpolicy.yaml.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: internal
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal
+  tls:
+    minVersion: "1.3"
+    ecdhCurves:
+      - X25519MLKEM768
+      - X25519
+      - P-256
+      - P-384
+  headers:
+    lateResponseHeaders:
+      set:
+        - name: Strict-Transport-Security
+          value: max-age=63072000; includeSubDomains; preload
+        - name: X-Content-Type-Options
+          value: nosniff
+        - name: X-Robots-Tag
+          value: noindex, nofollow
+      addIfAbsent:
+        - name: X-Frame-Options
+          value: SAMEORIGIN
+        - name: Referrer-Policy
+          value: same-origin
+      remove:
+        - Server
+        - X-Powered-By
+  timeout:
+    http:
+      idleTimeout: 1h
+      streamIdleTimeout: 1h
+  # Only applied to the HTTPS listener: Envoy Gateway also exposes UDP 443 on the Service and
+  # sends the Alt-Svc header. Not on the external Gateway: HAProxy only forwards TCP.
+  http3: {}
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: external
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: external
+  tls:
+    minVersion: "1.3"
+    ecdhCurves:
+      - X25519MLKEM768
+      - X25519
+      - P-256
+      - P-384
+  headers:
+    lateResponseHeaders:
+      set:
+        - name: Strict-Transport-Security
+          value: max-age=63072000; includeSubDomains; preload
+        - name: X-Content-Type-Options
+          value: nosniff
+        - name: X-Robots-Tag
+          value: noindex, nofollow
+      addIfAbsent:
+        - name: X-Frame-Options
+          value: SAMEORIGIN
+        - name: Referrer-Policy
+          value: same-origin
+      remove:
+        - Server
+        - X-Powered-By
+  timeout:
+    http:
+      idleTimeout: 1h
+      streamIdleTimeout: 1h
+---
+# Listeners behind HAProxy: the client address comes from the PROXY protocol header (v1 or v2),
+# which is required.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: external-proxy-protocol
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: external
+      sectionName: http-proxy
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: external
+      sectionName: https-proxy
+  proxyProtocol: {}
+  tls:
+    minVersion: "1.3"
+    ecdhCurves:
+      - X25519MLKEM768
+      - X25519
+      - P-256
+      - P-384
+  headers:
+    lateResponseHeaders:
+      set:
+        - name: Strict-Transport-Security
+          value: max-age=63072000; includeSubDomains; preload
+        - name: X-Content-Type-Options
+          value: nosniff
+        - name: X-Robots-Tag
+          value: noindex, nofollow
+      addIfAbsent:
+        - name: X-Frame-Options
+          value: SAMEORIGIN
+        - name: Referrer-Policy
+          value: same-origin
+      remove:
+        - Server
+        - X-Powered-By
+  timeout:
+    http:
+      idleTimeout: 1h
+      streamIdleTimeout: 1h

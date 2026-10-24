@@ -1,0 +1,30 @@
+---
+# Envoy applies a 15 s timeout to every route that does not set one, which would cut long
+# downloads and streams. 0s disables it: the stream idle timeout of the listeners
+# (clienttrafficpolicy.yaml) still closes the inactive streams. An HTTPRoute can set its own
+# timeouts when needed.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: internal
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal
+  timeout:
+    http:
+      requestTimeout: 0s
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: external
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: external
+  timeout:
+    http:
+      requestTimeout: 0s

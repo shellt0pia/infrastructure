@@ -1,0 +1,24 @@
+---
+# The internal Gateway only answers the private networks (LAN, VPN): a route attached to it by
+# mistake while its name is public stays unreachable from the internet. The client address is the
+# real one thanks to `externalTrafficPolicy: Local` (envoyproxy-internal.yaml).
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: internal
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal
+  authorization:
+    defaultAction: Deny
+    rules:
+      - name: private-networks
+        action: Allow
+        principal:
+          clientCIDRs:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+            - fd00::/8

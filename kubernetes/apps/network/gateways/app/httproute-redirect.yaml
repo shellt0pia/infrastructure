@@ -1,0 +1,36 @@
+---
+# HTTP to HTTPS redirect for every name of the Gateways. Envoy keeps the port written in the Host
+# header of the request, if any, and the listener port is never used: the requests forwarded by
+# HAProxy to 8080 carry the Host of the client (port 80, so no port) and are redirected to
+# https://<name>/. No `port` here: Envoy Gateway drops 443 anyway (default HTTPS port).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: https-redirect-internal
+spec:
+  parentRefs:
+    - name: internal
+      sectionName: http
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: https-redirect-external
+spec:
+  parentRefs:
+    - name: external
+      sectionName: http
+    - name: external
+      sectionName: http-proxy
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301

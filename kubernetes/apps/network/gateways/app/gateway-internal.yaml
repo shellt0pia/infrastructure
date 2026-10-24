@@ -1,0 +1,34 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: internal
+spec:
+  gatewayClassName: envoy
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: internal
+  listeners:
+    # Only serves the HTTP to HTTPS redirect (httproute-redirect.yaml): `Same` keeps the routes
+    # of the applications (without sectionName) from being served in plain HTTP.
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: "*.shelltopia.org"
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.shelltopia.org"
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: shelltopia-org-tls
