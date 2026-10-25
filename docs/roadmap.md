@@ -9,7 +9,7 @@ What is left to build on the Kubernetes cluster, the decisions already made (and
 | Talos machine configs (`talos/`) | Done: Secure Boot, TPM disk encryption, disks and NIC selectors, dynamic network, NTP, NUT, watchdog, i915, DRBD, image verification. |
 | Bootstrap (`bootstrap/`, `just bootstrap cluster`) | Done: Cilium (+ BGP and LB pools), CoreDNS, External Secrets, Flux. |
 | GitOps (`kubernetes/apps`) | Flux, External Secrets + 1Password store, Cilium, CoreDNS, cert-manager + Let's Encrypt issuers (staging and production, DNS-01 with Cloudflare), Intel GPU device plugin, Envoy Gateway + `internal` and `external` Gateways, application DNS (k8s-gateway, external-dns, cloudflare-ddns), storage (Piraeus/LINSTOR, snapshot-controller). |
-| OpenTofu (`tofu/cloudflare`) | Skeleton only, the existing zones are not imported yet. |
+| OpenTofu (`tofu/`) | States in B2 (encrypted, no locking). `backblaze`: buckets and keys of the backups, applied, keys pushed to 1Password. `cloudflare`: records not managed from the cluster (mail, CAA, PikaPods), SSL settings and DNSSEC, applied. |
 | First bootstrap | In progress, with kube-01 and kube-03 only. |
 
 ## Decisions made
@@ -23,7 +23,7 @@ Kept here so they are not reopened by accident. Change them only for a new reaso
 - Secrets: 1Password. Locally with a read-only service account (`infrastructure` and `kubernetes` vaults) from the toolbox, for Talos, bootstrap and OpenTofu, see [1password-local-access.md](1password-local-access.md). In the cluster with External Secrets Operator (`kubernetes` vault, read-only service account). ESO keeps the provider replaceable.
 - Updates: Renovate, run from the cluster. Talos and Kubernetes upgrades: tuppr.
 - Tools: pinned in `mise.toml` (kubectl and talosctl follow the cluster versions).
-- Cloudflare (2 DNS zones and other resources): OpenTofu, encrypted state committed.
+- Cloudflare (records of the 2 DNS zones not managed from the cluster, SSL settings, DNSSEC; not the zones themselves nor the API tokens, created by hand) and Backblaze B2 (buckets and keys of the backups): OpenTofu, one stack each, states encrypted client-side in a B2 bucket created by hand ([tofu/README.md](../tofu/README.md)).
 
 ### Nodes
 
@@ -105,7 +105,7 @@ Roughly in priority order.
 - [x] Create the Cloudflare tokens and the 1Password items `cloudflare-external-dns` and `cloudflare-ddns` ([ingress.md](ingress.md#public-external-dns-and-cloudflare-ddns)).
 - [x] Deploy, then OPNsense: Unbound query forwarding of `shelltopia.org` to k8s-gateway, removal of the host overrides of the migrated names, HAProxy real servers checked after the GatewayClass split ([ingress.md](ingress.md#opnsense-unbound)).
 - [x] Checks: [ingress.md](ingress.md#checks), external-dns in `dry-run` first.
-- [ ] Import the existing Cloudflare zones in OpenTofu (`tofu/cloudflare`, appendix of first-bootstrap.md), without the records managed by external-dns and cloudflare-ddns.
+- [x] Cloudflare records not managed from the cluster, SSL settings and DNSSEC in OpenTofu ([Cloudflare setup](../tofu/README.md#cloudflare-setup)), without the records managed by external-dns and cloudflare-ddns.
 
 ### 5. Storage
 

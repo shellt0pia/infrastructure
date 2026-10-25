@@ -515,14 +515,7 @@ The disks are unlocked by the TPM as long as the machine boots a Talos image sig
 
 ## Appendix — OpenTofu / Cloudflare
 
-Independent from the cluster, can wait.
+Independent from the cluster, can wait. Needs the [setup of tofu/README.md](../tofu/README.md#setup) first: bucket of the states, `infrastructure/tofu-state-encryption` and `infrastructure/backblaze-b2-tofu-state` items.
 
-- [ ] Create a custom Cloudflare API token:
-  - *Zone → DNS → Edit* and *Zone → Zone → Read* permissions;
-  - restricted to the 2 zones;
-  - with additional permissions only for the other resources to manage.
-- [ ] Create the `infrastructure/cloudflare-tofu` item with the `credential` (the token) and `account-id` (shown in the Cloudflare dashboard) fields.
-- [ ] Create the `infrastructure/tofu-state` item with a `password` field: a generated passphrase of **at least 16 characters** (minimum required by `pbkdf2`). If it is lost, the encrypted state becomes unreadable and everything has to be imported again.
-- [ ] Run `just tofu init cloudflare` and commit `.terraform.lock.hcl`.
-- [ ] Import the existing zones with `import` blocks (example in `tofu/cloudflare/main.tf`), until `just tofu plan cloudflare` shows no change.
-- [ ] Do not import the records managed from the cluster (they would be fought over): the CNAMEs of the applications in `shelltopia.org` and their `cname-*` TXT records (external-dns), the `A` (cloudflare-ddns), `AAAA` and `aaaa-*` TXT (external-dns) records of `gateway-external.kube-cluster01.shelltopia.net`. Their comment says which tool manages them. See [ingress.md](ingress.md#dns).
+- [x] Follow the [Cloudflare setup](../tofu/README.md#cloudflare-setup): zones, token and `infrastructure/cloudflare-tofu` item, `just tofu init cloudflare`, `just tofu apply cloudflare`, DS records at the registrars, until `just tofu plan cloudflare` shows no change.
+- [x] Never add the records managed from the cluster to the stack (they would be fought over): the CNAMEs of the applications in `shelltopia.org` and their `cname-*` TXT records (external-dns), the `A` (cloudflare-ddns), `AAAA` and `aaaa-*` TXT (external-dns) records of `gateway-external.kube-cluster01.shelltopia.net`. Their comment says which tool manages them. See [ingress.md](ingress.md#dns).

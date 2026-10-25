@@ -2,7 +2,7 @@
 
 | Stack | Content | Provider credentials (`infrastructure` vault) |
 | --- | --- | --- |
-| `cloudflare` | Skeleton of the stack for the DNS zones of `shelltopia.net` and `shelltopia.org`, no resource yet. | `cloudflare-tofu` |
+| `cloudflare` | DNS records of `shelltopia.net` and `shelltopia.org` not managed from the cluster ([ingress.md](../docs/ingress.md#dns)), SSL mode, Universal SSL and DNSSEC of the zones ([Cloudflare](#cloudflare)), applied. | `cloudflare-tofu` |
 | `backblaze` | B2 buckets and application keys of the restic repositories ([backups.md](../docs/backups.md#destination-backblaze-b2)), pushed to 1Password. | `backblaze-b2-tofu-admin` |
 
 | Recipe | What it does |
@@ -90,3 +90,37 @@ After a [rebuild of a bucket at a past date](../docs/backups.md#recovery-after-a
 1. Remove the old bucket and key from the state, without deleting them: `just tofu run backblaze state rm "'b2_bucket.restic[\"<name>\"]'" "'b2_application_key.restic[\"<name>\"]'"` (the extra single quotes survive the interpolation of the arguments in the recipe, which the shell would otherwise strip of the double quotes).
 2. Rename the entry of `restic_repositories` after the new bucket (`<new name>-gz8j9y`), import the bucket with an `import` block (its bucket ID; import support by the provider to check).
 3. `just tofu apply backblaze`: a new key, pushed to the item. Then delete the temporary keys and the old bucket by hand.
+
+## Cloudflare
+
+Cloudflare only serves the zones `shelltopia.net` and `shelltopia.org` (the domains are registered elsewhere): no proxied record, no other Cloudflare product. The stack manages:
+
+- **Records** (`records.tf`, one map per zone in `shelltopia-net.tf` and `shelltopia-org.tf`): mail (Purelymail, the same records in both zones, `purelymail.tf`), CAA, CNAMEs of the applications hosted by PikaPods. Comment `managed by opentofu`. The other records of the zones are left alone: those of external-dns and cloudflare-ddns ([ingress.md](../docs/ingress.md#dns)), never added to the stack; the A and AAAA records of `shelltopia.net` (hosts, firewall, WireGuard endpoints), updated by ddns-updater or by hand.
+- **CAA**: `letsencrypt.org` on both zones, plus `sectigo.com` on `shelltopia.org`, required by PikaPods (its documentation and its web interface ask for it, although the certificates served are from Let's Encrypt).
+- **SSL mode** `off` and **Universal SSL disabled**: nothing is proxied. While Universal SSL is enabled, Cloudflare adds hidden CAA records for its own certificate authorities to the zones that have CAA records.
+- **DNSSEC**, signed by Cloudflare, `prevent_destroy`: disabling it while the DS record is still at the registrar breaks the resolution of the whole zone. The `ds` output must match the DS record at the registrar.
+- **Not the zones themselves**: data sources only, the token cannot create nor delete a zone.
+
+### Token
+
+`infrastructure/cloudflare-tofu` ("API credential" item, field `credential`). Custom token restricted to the 2 zones, with:
+
+- *Zone → Zone → Read*: the data sources;
+- *Zone → DNS → Edit*: records and DNSSEC;
+- *Zone → Zone Settings → Edit*: SSL mode;
+- *Zone → SSL and Certificates → Edit*: Universal SSL.
+
+**The Cloudflare tokens are created by hand, not by OpenTofu**, unlike the B2 keys. Creating tokens needs the *API Tokens Edit* permission, which (as far as known) allows creating a token with any permission of the account: the token of the stack would go from "DNS of 2 zones" to "administrator of the account". For the B2 keys, `writeKeys` adds little to the admin key, which can already make the backups disappear with `writeBuckets` (shorter lifecycle rules). The cluster tokens (`cloudflare-cert-manager`, `cloudflare-external-dns`, `cloudflare-ddns`) are created once and seldom rotated. They can be restricted to the client IP of the WAN (*Client IP Address Filtering*) when they are rotated.
+
+**Every token with *DNS → Edit* can also disable DNSSEC** (same permission as the records): a stolen cluster token can break the resolution of its zones, not only change records. `just tofu plan cloudflare` shows it (`status` back to `active`).
+
+### Cloudflare setup
+
+- [x] Add the zones `shelltopia.net` and `shelltopia.org` to Cloudflare by hand and set the Cloudflare name servers at the registrar of each domain. Delete the records found by the initial DNS scan of Cloudflare, if any: the `apply` fails on a record of the stack that already exists.
+- [x] Create the token ([above](#token)) and the `infrastructure/cloudflare-tofu` item.
+- [x] `just tofu init cloudflare` and commit `.terraform.lock.hcl`.
+- [x] `just tofu apply cloudflare`: records, SSL settings, DNSSEC.
+- [x] Add the DS record of `just tofu run cloudflare output ds` at the registrar of each domain (or check that it matches).
+- [x] `just tofu plan cloudflare` shows no change.
+- [x] `dig +short CAA shelltopia.net @aria.ns.cloudflare.com` (same for `shelltopia.org`) only returns the CAA records of the stack.
+- [x] [DNSViz](https://dnsviz.net) shows no error for both zones, once the DS record is published.

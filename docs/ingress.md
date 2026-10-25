@@ -131,7 +131,8 @@ flowchart TD
 | `<app>.shelltopia.org`, public (Cloudflare) | `CNAME` → `gateway-external.kube-cluster01.shelltopia.net` | external-dns, from the routes attached to the `external` Gateway |
 | `gateway-external.kube-cluster01.shelltopia.net` (Cloudflare) | `A` → WAN IPv4 (HAProxy, then port forwarding) | cloudflare-ddns |
 | | `AAAA` → IPv6 of the `external` Gateway | external-dns, from the Envoy Service (hostname annotation in `envoyproxy-external.yaml`) |
-| Everything else in `shelltopia.net` and `shelltopia.org` (Cloudflare) | | OpenTofu (`tofu/cloudflare`) |
+| Everything else in `shelltopia.net` and `shelltopia.org` (Cloudflare): mail, CAA, applications hosted by PikaPods | | OpenTofu (`tofu/cloudflare`, [README](../tofu/README.md#cloudflare)) |
+| `A` and `AAAA` of `shelltopia.net` (hosts, firewall, WireGuard endpoints), historical CNAMEs of `shelltopia.org` to the Ansible hosts (Cloudflare) | | ddns-updater or by hand; the historical CNAMEs are removed during the migration |
 
 A public route is attached to both Gateways: Unbound never asks Cloudflare for `shelltopia.org`, so the LAN clients get the internal Gateway and the internet gets the external one. An internal-only route never shows up in Cloudflare.
 
@@ -141,7 +142,7 @@ Rules:
 - external-dns only changes or deletes the records it owns: ownership TXT records `cname-<name>` and `aaaa-<name>`, owner `kube-cluster01`. Policy `sync`: removing a route from the external Gateway removes its CNAME.
 - external-dns ignores the `A` records (`exclude-record-types`): it never publishes any, and the `A` of the entry name belongs to cloudflare-ddns. Without that, this `A` would block the `AAAA`: external-dns creates nothing on a name that has a record owned by someone else, whatever its type.
 - A CNAME cannot coexist with another record of the same name. A name that already has records (created by hand, by OpenTofu, or still pointing to `home`) must lose them first. Otherwise: an existing `CNAME` or `AAAA` makes external-dns skip the name silently (only visible with `--log-level=debug`); any other record (`A`, `TXT`, ...) makes Cloudflare reject the CNAME, and external-dns logs an error every minute.
-- OpenTofu never manages the records of external-dns and cloudflare-ddns (the CNAMEs of the applications, the `cname-*`/`aaaa-*` TXT records, the `A` and `AAAA` of the entry name): do not import them.
+- OpenTofu never manages the records of external-dns and cloudflare-ddns (the CNAMEs of the applications, the `cname-*`/`aaaa-*` TXT records, the `A` and `AAAA` of the entry name): never add them to `tofu/cloudflare`.
 
 ### Internal: k8s-gateway
 
@@ -170,7 +171,7 @@ Rules:
 ### Migrating a name from `home`
 
 1. Deploy the application with its route (`hostnames`, attached to the right Gateway(s)).
-2. Public name: remove its current records from Cloudflare (from `tofu/cloudflare` then `just tofu apply cloudflare`, or from the dashboard). external-dns creates the CNAME within a minute. Update HAProxy ([above](#haproxy-ipv4-during-the-migration)).
+2. Public name: remove its current records from the Cloudflare dashboard (the historical names are not managed by OpenTofu; if one is, remove it from `tofu/cloudflare` then `just tofu apply cloudflare`). external-dns creates the CNAME within a minute. Update HAProxy ([above](#haproxy-ipv4-during-the-migration)).
 3. Internal name: remove its Unbound host override, the forward to k8s-gateway takes over.
 
 ## Checks
