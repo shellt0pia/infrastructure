@@ -29,3 +29,5 @@ MINIJINJA_CONFIG_FILE = "{{ config_root }}/.minijinja.toml"
 "pypi:ansible" = "latest"
 "pypi:ansible-core" = "latest"
 "pypi:ansible-lint" = "latest"
+# B2 CLI (tofu/README.md#setup, docs/backups.md): not in the aqua registry.
+"pypi:b2" = "latest"

@@ -22,8 +22,9 @@ talosconfig
 kubeconfig
 *.iso
 
-# OpenTofu (the encrypted terraform.tfstate and .terraform.lock.hcl are committed)
+# OpenTofu (the states are in B2, see tofu/README.md; .terraform.lock.hcl is committed)
 .terraform/
+*.tfstate
 *.tfstate.backup
 *.tfplan
 

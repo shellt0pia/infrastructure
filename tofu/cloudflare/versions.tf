@@ -8,7 +8,11 @@ terraform {
     }
   }
 
-  # The state is committed to Git, so it is always encrypted (and so are saved plans).
+  # Shared settings in ../backend.hcl, passed by `just tofu init`.
+  backend "s3" {
+    key = "cloudflare/terraform.tfstate"
+  }
+
   # The passphrase is injected from 1Password by `op run`, see ../op.env.
   encryption {
     key_provider "pbkdf2" "main" {

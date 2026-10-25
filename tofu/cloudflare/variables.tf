@@ -3,8 +3,3 @@ variable "state_passphrase" {
   type        = string
   sensitive   = true
 }
-
-variable "cloudflare_account_id" {
-  description = "Cloudflare account ID."
-  type        = string
-}
