@@ -154,6 +154,22 @@ Roughly in priority order.
   - `browse-pvc` and `view-secret`: need the `browse-pvc` and `view-secret` kubectl plugins.
   - `apply-ks` / `delete-ks`: apply a Flux Kustomization from the working copy, with `flate` or `flux build ks`.
 
+### 12. Cluster tools
+
+- [ ] Reloader ([stakater/Reloader](https://github.com/stakater/Reloader)): Kubernetes (v1.37) still does not restart the pods when a ConfigMap or Secret they use changes. Mounted files are refreshed eventually (not with `subPath`), environment variables never, and most applications only read their configuration at startup. Needed mainly for the Secrets synced by External Secrets (rotated tokens) and the ConfigMaps not generated with a hash suffix. Opt-in per workload (`reloader.stakater.com/auto: "true"` or the explicit `secret.reloader.stakater.com/reload` annotation) rather than watching everything.
+- [ ] Web UI to view the cluster, with simple actions (restart a workload, look at logs and events, reconcile Flux). Candidates to compare:
+  - Headlamp (kubernetes-sigs): general purpose, plugins (Flux among them), OIDC or token login, the actions follow the RBAC of the user.
+  - Flux Operator web UI: already shipped with flux-operator, Flux resources only (status, reconcile, suspend/resume).
+  - Kubernetes Dashboard: retired (repository archived in `kubernetes-retired` in January 2026), avoid. Rancher, Portainer: much heavier than needed.
+  - Exposure: `internal` Gateway only, behind an authentication (no identity provider yet: OIDC would need one, otherwise basic auth with a `SecurityPolicy`). The service account must not be `cluster-admin`: read-only plus the few verbs needed (`patch` on Deployments/StatefulSets for the restarts).
+
+### 13. Remote node management
+
+- [ ] Study a way to power cycle a node remotely and, ideally, to see its console without a working OS. A cold power cycle is the only fix found for the TPM unlock failure seen once on kube-01 (see *To check or watch*), and with 3 nodes a stuck node should not need a trip to the rack.
+  - Intel AMT: power control and remote KVM out of band. Needs a vPro chipset and CPU (check in the MEBx, `Ctrl+P` at boot), on each node. Very privileged and on the same NIC as Talos: strong password in 1Password, TLS if possible, OPNsense rules so that only the admin workstation reaches the AMT ports (16992-16995, 664). Clients: MeshCommander, `amtterm`/`wsman`.
+  - Otherwise: a smart plug (local API, no cloud) per node with *AC Recovery: Power On* in the firmware, power only. Or a PiKVM-like device for the console.
+  - Document the procedure in [first-bootstrap.md](first-bootstrap.md#appendix--rebuilding-a-node).
+
 ## Open decisions
 
 | Topic | Options | Notes |
@@ -184,4 +200,6 @@ Roughly in priority order.
 - [ ] LINSTOR thin pool: LINSTOR allows overcommitting it by default. If volumes grow close to the NVMe size, set `MaxOversubscriptionRatio` on the `LinstorCluster` (and watch the thin pool data and metadata usage once the metrics stack is there).
 - [ ] Talos and the LINSTOR VG: Talos scans the LVM volumes at boot. Check that it does not activate or complain about the `linstor_nvme` thin pool (`talosctl dmesg`, `talosctl logs` after a reboot).
 - [ ] Piraeus on Talos: the `talos-loader-override` satellite configuration follows the Piraeus how-to (`docs/how-to/talos.md`). Compare it with the how-to after each operator upgrade.
+- [ ] TPM unlock failure: once, on kube-01, the first boot after the upgrade to the schematic with `drbd` could not unlock `STATE` (`no signatures matching PCR SHA256 digest found in signature JSON`, then `no handlers available to get encryption keys from`). A cold power cycle fixed it. Not reproduced afterwards: several reboots of kube-01 (same PCR 11 value every time), reboots and the same upgrade on kube-03. Fast Boot is off (*Thorough*) on both. Keep a console at hand during the next Talos upgrades; if it happens again, note the boot (first one after an upgrade or not) and the console lines before the error, then report it to Sidero Labs.
+- [ ] Dell firmware: *Microsoft UEFI CA* disabled on kube-01 (*Enable for Option ROM* not needed, the iGPU test pod works). Same on kube-03 if its firmware offers the option.
 - [ ] Workstation 1Password service account: rotate its token every 30 days (`opsa` warns 5 days before and refuses past the limit), see [1password-local-access.md](1password-local-access.md#rotation).
