@@ -1,0 +1,33 @@
+---
+# Piraeus operator: deploys and manages the LINSTOR cluster (controller, satellites, CSI driver,
+# HA controller) described by the resources of ../cluster.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: piraeus-operator
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: piraeus-operator
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    # The CRDs are templates of the chart: Helm upgrades them.
+    installCRDs: true
+  # Unlike the other charts, this one has no option to keep its CRDs: without this annotation,
+  # uninstalling the release would delete the LinstorCluster and tear the storage down.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: CustomResourceDefinition
+            patch: |
+              - op: add
+                path: /metadata/annotations/helm.sh~1resource-policy
+                value: keep

@@ -1,0 +1,23 @@
+---
+# Kernel modules of the storage (Piraeus/LINSTOR, see kubernetes/apps/piraeus-datastore).
+# On Talos the LINSTOR satellite cannot load modules itself (its module loader is removed by
+# the talos-loader-override LinstorSatelliteConfiguration): every module it needs is listed here.
+#
+# DRBD, from the siderolabs/drbd extension (see schematic.yaml). The usermode helper must be
+# disabled: DRBD would otherwise call drbdadm on the host, which does not exist on Talos (the
+# satellite handles the events instead).
+apiVersion: v1alpha1
+kind: KernelModuleConfig
+name: drbd
+parameters:
+  - usermode_helper=disabled
+---
+apiVersion: v1alpha1
+kind: KernelModuleConfig
+name: drbd_transport_tcp
+---
+# LVM thin pool backing the LINSTOR storage pool (thin provisioning and CSI snapshots).
+# Built as a module in the Talos kernel, unlike dm-snapshot and dm-crypt which are built in.
+apiVersion: v1alpha1
+kind: KernelModuleConfig
+name: dm-thin-pool

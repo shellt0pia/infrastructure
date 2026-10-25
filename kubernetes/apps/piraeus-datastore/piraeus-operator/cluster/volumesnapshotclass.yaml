@@ -1,0 +1,13 @@
+---
+# CSI snapshots of the LINSTOR volumes (LVM thin snapshots, on every replica), used by the
+# backups (step 6) and to clone volumes. Default class for the linstor.csi.linbit.com driver.
+# The annotation domain is snapshot.storage.kubernetes.io, not the API group
+# (snapshot.storage.k8s.io): the snapshot-controller ignores any other key.
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: linstor
+  annotations:
+    snapshot.storage.kubernetes.io/is-default-class: "true"
+driver: linstor.csi.linbit.com
+deletionPolicy: Delete

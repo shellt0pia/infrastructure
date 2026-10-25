@@ -1,0 +1,18 @@
+---
+# LVM thin pool on the whole NVMe SSD of every node: the TPM-encrypted raw volume r-storage
+# created by Talos (talos/patches/storage.yaml), unlocked as /dev/mapper/luks2-r-storage.
+# The satellite creates the VG linstor_nvme and the thin pool linstor_nvme/nvme on first start,
+# and registers the existing ones afterwards.
+# Both StorageClasses (replicated and local) share this pool: thin provisioning, so no space is
+# reserved up front for either of them.
+apiVersion: piraeus.io/v1
+kind: LinstorSatelliteConfiguration
+metadata:
+  name: storage-pool
+spec:
+  storagePools:
+    - name: nvme
+      lvmThinPool: {}
+      source:
+        hostDevices:
+          - /dev/mapper/luks2-r-storage

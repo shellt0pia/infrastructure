@@ -1,0 +1,27 @@
+---
+# The satellites run in the host network namespace, so DRBD replicates between the node
+# addresses:
+# - no Cilium encapsulation on the replication path;
+# - the DRBD connections (kernel) do not depend on the satellite pod IP, which changes every
+#   time the pod restarts (operator or LINSTOR upgrade).
+# Dual-stack: the operator registers one LINSTOR network interface per pod IP, that is per
+# node IP (`nodeIP.validSubnets` in talos/patches/kubernetes.yaml.j2: IPv4 and ULA, never the
+# GUA whose prefix may change), named `default-ipv4` and `default-ipv6`. The controller can
+# reach a satellite over both.
+# DRBD only uses one of them per peer: `PrefNic` makes it the IPv6 (ULA) one, preferred
+# everywhere so that a future IPv6-only cluster needs fewer changes. Changing it on existing
+# volumes regenerates their DRBD configuration and briefly reconnects them.
+apiVersion: piraeus.io/v1
+kind: LinstorSatelliteConfiguration
+metadata:
+  name: host-network
+spec:
+  ipFamilies:
+    - IPv6
+    - IPv4
+  properties:
+    - name: PrefNic
+      value: default-ipv6
+  podTemplate:
+    spec:
+      hostNetwork: true

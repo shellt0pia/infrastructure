@@ -1,0 +1,25 @@
+---
+# The LINSTOR cluster: controller (database stored in Kubernetes CRDs), satellites on every
+# node, CSI driver, HA controller and affinity controller.
+#
+# Quorum: the operator defaults are kept (on-no-quorum and on-no-data-accessible: suspend-io,
+# on-suspended-primary-outdated: force-secondary). The HA controller relies on them: when a
+# node is lost, the I/O of its volumes is suspended instead of failing, it evicts the pods
+# and they restart on a node that still has quorum. io-error would turn the same event into
+# filesystem errors in the applications. With 2 replicas, quorum comes from the diskless
+# tie-breaker that LINSTOR adds on a third node (DrbdOptions/auto-add-quorum-tiebreaker,
+# enabled by default).
+apiVersion: piraeus.io/v1
+kind: LinstorCluster
+metadata:
+  name: linstorcluster
+spec:
+  properties:
+    # Cap the DRBD resynchronisation (KiB/s): the nodes have a single 1 Gb/s NIC, shared with
+    # the application and NFS traffic. A resync only copies the blocks written while a replica
+    # was away (activity log / bitmap), not the whole volume.
+    - name: DrbdOptions/PeerDevice/c-max-rate
+      value: "51200"
+  # NFS exports of LINSTOR volumes, for ReadWriteMany: not needed, shared data lives on the NAS.
+  nfsServer:
+    enabled: false

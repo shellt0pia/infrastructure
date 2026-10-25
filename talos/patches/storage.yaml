@@ -1,6 +1,6 @@
 ---
 # System disk (SATA SSD): default layout, EPHEMERAL takes the remaining space.
-# The NVMe SSD is a single raw volume (see below) for the storage solution (OpenEBS).
+# The NVMe SSD is a single raw volume (see below) for the storage solution (Piraeus/LINSTOR).
 #
 # STATE and EPHEMERAL are encrypted with a key sealed by the TPM. The key is only bound
 # to the Secure Boot signed boot chain (PCR 11, always used by Talos): `pcrs: []` drops the
@@ -37,10 +37,12 @@ encryption:
       lockToState: true
 ---
 # NVMe SSD: one unformatted partition (label `r-storage`) spanning the whole disk, handed over
-# to the CSI storage (OpenEBS). The disk selector (NVMe serial number) is set in each
+# to the CSI storage (Piraeus/LINSTOR). The disk selector (NVMe serial number) is set in each
 # nodes/<node>.yaml file, merged with this document.
-# Unlocked by Talos at boot, the CSI uses the decrypted device /dev/mapper/luks2-r-storage
-# (`talosctl get volumestatus r-storage`).
+# Unlocked by Talos at boot, the decrypted device /dev/mapper/luks2-r-storage
+# (`talosctl get volumestatus r-storage`) becomes the physical volume of the LVM thin pool
+# created by the LINSTOR satellite (VG linstor_nvme, see the storage-pool
+# LinstorSatelliteConfiguration). Both the replicated and the local volumes live in it.
 # Talos wipes it on reset with `--system-labels-to-wipe r-storage` (see `just talos reset-node`).
 apiVersion: v1alpha1
 kind: RawVolumeConfig

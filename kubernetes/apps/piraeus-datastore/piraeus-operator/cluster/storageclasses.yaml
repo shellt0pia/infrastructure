@@ -1,0 +1,49 @@
+---
+# Default class: DRBD volumes with 2 replicas on 2 nodes. A pod can run on any node: on a
+# node without a replica, it uses the volume over the network (diskless DRBD). When the node
+# of the pod is lost, the HA controller moves it to another node, which keeps working on the
+# remaining replica.
+#
+# The parameters are kept to the placement only: LINSTOR refuses to change the properties
+# (DrbdOptions/...) of an existing StorageClass, they are set cluster-wide on the
+# LinstorCluster instead. placementCount and layerList can still be changed later: they are
+# applied to the named resource group.
+#
+# Retain: deleting a PVC (or the app) never deletes the data. Released PVs and their LINSTOR
+# resources must be cleaned up by hand (`kubectl delete pv`, then `linstor resource-definition
+# delete`).
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: replicated
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: linstor.csi.linbit.com
+parameters:
+  linstor.csi.linbit.com/storagePool: nvme
+  linstor.csi.linbit.com/resourceGroup: replicated
+  linstor.csi.linbit.com/placementCount: "2"
+  csi.storage.k8s.io/fstype: ext4
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+# Place the first replica on the node of the pod (local reads).
+volumeBindingMode: WaitForFirstConsumer
+---
+# Single copy on the node of the pod, without DRBD: no replication, no network traffic. For data
+# that is replicated by the application itself or that can be lost (caches, metrics, logs).
+# The pod is bound to the node of its volume: it cannot be rescheduled while that node is down.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local
+provisioner: linstor.csi.linbit.com
+parameters:
+  linstor.csi.linbit.com/storagePool: nvme
+  linstor.csi.linbit.com/resourceGroup: local
+  linstor.csi.linbit.com/placementCount: "1"
+  # Plain thin LV, no DRBD layer: the volume is only accessible from its node.
+  linstor.csi.linbit.com/layerList: storage
+  csi.storage.k8s.io/fstype: ext4
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer

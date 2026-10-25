@@ -6,9 +6,9 @@ What is left to build on the Kubernetes cluster, the decisions already made (and
 
 | Area | Status |
 | --- | --- |
-| Talos machine configs (`talos/`) | Done: Secure Boot, TPM disk encryption, disks and NIC selectors, dynamic network, NTP, NUT, watchdog, i915, image verification. |
+| Talos machine configs (`talos/`) | Done: Secure Boot, TPM disk encryption, disks and NIC selectors, dynamic network, NTP, NUT, watchdog, i915, DRBD, image verification. |
 | Bootstrap (`bootstrap/`, `just bootstrap cluster`) | Done: Cilium (+ BGP and LB pools), CoreDNS, External Secrets, Flux. |
-| GitOps (`kubernetes/apps`) | Flux, External Secrets + 1Password store, Cilium, CoreDNS, cert-manager + Let's Encrypt issuers (staging and production, DNS-01 with Cloudflare), Intel GPU device plugin, Envoy Gateway + `internal` and `external` Gateways, application DNS (k8s-gateway, external-dns, cloudflare-ddns). |
+| GitOps (`kubernetes/apps`) | Flux, External Secrets + 1Password store, Cilium, CoreDNS, cert-manager + Let's Encrypt issuers (staging and production, DNS-01 with Cloudflare), Intel GPU device plugin, Envoy Gateway + `internal` and `external` Gateways, application DNS (k8s-gateway, external-dns, cloudflare-ddns), storage (Piraeus/LINSTOR, snapshot-controller). |
 | OpenTofu (`tofu/cloudflare`) | Skeleton only, the existing zones are not imported yet. |
 | First bootstrap | In progress, with kube-01 and kube-03 only. |
 
@@ -30,7 +30,7 @@ Kept here so they are not reopened by accident. Change them only for a new reaso
 - Secure Boot with the Sidero Labs keys, enrolled automatically by the ISO, **without** the Microsoft certificates.
 - STATE, EPHEMERAL and the NVMe raw volume (`r-storage`) encrypted by the TPM, bound to PCR 11 only (`pcrs: []`): firmware and dbx updates do not lock the disks. A node whose TPM can no longer unlock its disks is rebuilt, the data is replicated elsewhere.
 - Disks selected by unique hardware identifier: WWID for the SATA SSDs (Talos leaves their serial empty), serial number for the NVMe SSDs. NIC selected by permanent MAC address (`lan0` alias).
-- SATA SSD: Talos only (default layout). NVMe SSD: one unformatted encrypted partition for OpenEBS.
+- SATA SSD: Talos only (default layout). NVMe SSD: one unformatted encrypted partition, used whole as the LVM thin pool of LINSTOR (replicated and local volumes share it, no fixed split).
 - No swap, no zswap. Weekly fstrim with `allowDiscards`, weekly XFS scrub.
 - `watchdog0` (iTCO) armed, NUT client shutting down 90 s after the UPS goes on battery.
 - No Talos ingress firewall: OPNsense filters everything entering the nodes subnet. Pod ↔ node isolation will come from Cilium network policies.
@@ -62,7 +62,15 @@ Kept here so they are not reopened by accident. Change them only for a new reaso
   - Replaces the `ddns-updater` instances of the Ansible hosts for the migrated names.
 
 - GPU: Intel device plugin through the operator, `sharedDevNum: 3` (Plex, Immich). DRA rejected for now: the Intel DRA driver (0.12.x) only allocates whole GPUs and is beta.
-- Storage: OpenEBS rather than Longhorn (no iSCSI extension). Media stay on the NAS over NFS 4.2.
+- Storage: Piraeus/LINSTOR (DRBD 9), in `piraeus-datastore`. Chosen over Mayastor (hugepages, dedicated CPU cores, NVMe-oF): in-kernel replication, light on CPU and RAM, CSI snapshots on LVM thin, automatic failover with the HA controller.
+  - One LVM thin pool `nvme` per node on `/dev/mapper/luks2-r-storage` (whole NVMe SSD).
+  - StorageClass `replicated` (default): 2 replicas, diskless access from the other nodes, quorum from an automatic diskless tie-breaker on the third node. 3 replicas rejected: losing 2 nodes means a restore anyway, and every write would cross the single 1 Gb/s NIC twice.
+  - StorageClass `local`: 1 replica without DRBD, for data replicated by the application or disposable (metrics, logs, caches). TopoLVM only if this does not work out.
+  - Both classes `reclaimPolicy: Retain`, ext4, `WaitForFirstConsumer`. VolumeSnapshotClass `linstor` (default), snapshot-controller in `kube-system`.
+  - Quorum policy: operator defaults (`suspend-io`), required by the HA controller. DRBD resync capped at 50 MiB/s (single NIC).
+  - DRBD over the node addresses (satellites in the host network, dual-stack, DRBD over the IPv6 ULA address with `PrefNic`), no dedicated VLAN, no DRBD or LINSTOR TLS (the nodes subnet is trusted).
+  - No volumes for the bulk data: media, Immich library, Nextcloud data and mail/calendar archives stay on the NAS, mounted with native `nfs` pod volumes (NFS 4.2, no csi-driver-nfs).
+  - The DRBD module comes from the `siderolabs/drbd` extension and is loaded by Talos (`talos/patches/drbd.yaml`); the satellite module loader is removed (`talos-loader-override`).
 - No registry cache: Docker Hub credentials in containerd avoid the rate limit.
 
 ## To implement
@@ -101,9 +109,12 @@ Roughly in priority order.
 
 ### 5. Storage
 
-- [ ] Choose the OpenEBS engine (open decision below) and add its Talos prerequisites if any (kernel modules, hugepages, node labels, privileged namespace).
-- [ ] Use `/dev/mapper/luks2-r-storage` as the backing device.
-- [ ] NFS access to the NAS (open decision below). The NAS exports must allow the nodes subnet. Check the read-ahead (`nfsrahead`, phase 8 of first-bootstrap.md).
+- [x] Choose the storage: Piraeus/LINSTOR (see the decisions above).
+- [x] Talos prerequisites: `siderolabs/drbd` extension (`talos/schematic.yaml`), kernel modules `drbd` (`usermode_helper=disabled`), `drbd_transport_tcp`, `dm-thin-pool` (`talos/patches/drbd.yaml`), privileged namespace.
+- [x] Manifests: `kubernetes/apps/piraeus-datastore` (operator, `LinstorCluster`, satellite configurations, storage pool on `/dev/mapper/luks2-r-storage`, StorageClasses, VolumeSnapshotClass) and `kubernetes/apps/kube-system/snapshot-controller`.
+- [x] Deploy: new schematic and config on every node **before** Flux applies the manifests, then the checks of [first-bootstrap.md](first-bootstrap.md#phase-9--storage) (modules, satellites, storage pools, test PVCs, snapshot and restore).
+- [ ] Once kube-02 joins: check that the existing 2-replica volumes get their tie-breaker, then the failover test ([first-bootstrap.md](first-bootstrap.md#phase-9--storage)).
+- [ ] NFS access to the NAS: native `nfs` pod volumes, nothing to deploy. The NAS exports must allow the nodes subnet. Check the read-ahead (`nfsrahead`, phase 8 of first-bootstrap.md).
 
 ### 6. Backups
 
@@ -124,7 +135,7 @@ Roughly in priority order.
 
 ### 9. Security
 
-- [ ] Cilium network policies (replaces the Talos ingress firewall that was dropped), at least to protect the node ports (Talos API, kubelet, etcd) from the pods.
+- [ ] Cilium network policies (replaces the Talos ingress firewall that was dropped), at least to protect the node ports (Talos API, kubelet, etcd) from the pods. The host policies must keep the storage ports open between the nodes: LINSTOR satellite TCP 3366 (from the controller pod), DRBD TCP 7000-7999 (`TcpPortAutoRange`), drbd-reactor metrics TCP 9942.
 - [ ] Optional: Hubble for flow visibility.
 
 ### 10. Migration
@@ -147,9 +158,7 @@ Roughly in priority order.
 
 | Topic | Options | Notes |
 | --- | --- | --- |
-| OpenEBS engine | Replicated PV (Mayastor), Local PV (LVM/ZFS) with replication by the applications | Mayastor needs hugepages, the `nvme_tcp` module and dedicated CPU cores, to check against its docs and the 16 GB of RAM. With 2 test nodes, replication is limited to 2. |
-| NFS access | native `nfs` volumes, csi-driver-nfs | `nfsrahead` covers both. |
-| Backups | VolSync (restic/kopia), CloudNativePG backups to S3, etcd snapshots | Destination to choose: NAS (S3 service) and/or an off-site provider. |
+| Backups | VolSync (restic/kopia, from the `linstor` CSI snapshots), CloudNativePG backups to S3, etcd snapshots | Off-site destination required, the NAS (TrueNAS) as a secondary one. |
 | Talos/Kubernetes version source | `talos/vars.yaml` (+ mise) or tuppr resources | Renovate should bump both in the same PR, or one should reference the other. |
 | Metrics / logs | Prometheus or VictoriaMetrics / VictoriaLogs or Loki | |
 | Renovate in the cluster | Renovate operator, plain CronJob | GitHub App or fine-grained token. |
@@ -172,4 +181,7 @@ Roughly in priority order.
 - [ ] ISP prefix change: follow [ipv6-prefix-change.md](ipv6-prefix-change.md).
 - [ ] Envoy Gateway: `ecdhCurves` names are passed as is to Envoy (BoringSSL). After an Envoy upgrade, check that the listeners are not rejected (logs of `envoy-gateway`).
 - [ ] Milkywan WireGuard tunnel (planned): stable public IPv4 and IPv6 prefix. The `external` pool, the OPNsense prefix list and the NAT rules will move to it. cloudflare-ddns is then removed and the `A` record of `gateway-external.kube-cluster01.shelltopia.net` becomes static in OpenTofu.
+- [ ] LINSTOR thin pool: LINSTOR allows overcommitting it by default. If volumes grow close to the NVMe size, set `MaxOversubscriptionRatio` on the `LinstorCluster` (and watch the thin pool data and metadata usage once the metrics stack is there).
+- [ ] Talos and the LINSTOR VG: Talos scans the LVM volumes at boot. Check that it does not activate or complain about the `linstor_nvme` thin pool (`talosctl dmesg`, `talosctl logs` after a reboot).
+- [ ] Piraeus on Talos: the `talos-loader-override` satellite configuration follows the Piraeus how-to (`docs/how-to/talos.md`). Compare it with the how-to after each operator upgrade.
 - [ ] Workstation 1Password service account: rotate its token every 30 days (`opsa` warns 5 days before and refuses past the limit), see [1password-local-access.md](1password-local-access.md#rotation).

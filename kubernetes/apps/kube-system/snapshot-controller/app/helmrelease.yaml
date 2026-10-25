@@ -1,0 +1,27 @@
+---
+# Chart maintained by Piraeus, packaging the upstream snapshot-controller and its CRDs.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: snapshot-controller
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: snapshot-controller
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    # The CRDs are templates of the chart (installCRDs, default true): Helm upgrades them.
+    # Keep them (and therefore every VolumeSnapshot) if the release is ever uninstalled.
+    keepCRDs: true
+    controller:
+      # Leader election is on by default: the second replica takes over while a node is down.
+      replicaCount: 2
+      pdb:
+        maxUnavailable: 1

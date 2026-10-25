@@ -24,7 +24,7 @@ Be aware that an etcd cluster with 2 members has **no fault tolerance**: the quo
 | `kube-02` | OptiPlex 3000 Micro | TODO | TODO | RTL8111 (`r8169`) | `6c:3c:8c:18:d9:1b` |
 | `kube-03` | OptiPlex 3060 Micro | `naa.500a07510df503c3` | `24444BCBA81D` | I219-LM (`e1000e`) | `00:4e:01:98:9b:db` |
 
-Talos is installed on the SATA SSD, selected by WWID, and the `lan0` link is the onboard NIC, selected by its permanent MAC address. Both are set in `talos/nodes/kube-0X.yaml`. The NVMe SSD, selected by serial number, holds a single raw volume (`r-storage` partition spanning the whole disk, encrypted by the TPM, not formatted) for the storage solution (OpenEBS), see `talos/patches/storage.yaml`.
+Talos is installed on the SATA SSD, selected by WWID, and the `lan0` link is the onboard NIC, selected by its permanent MAC address. Both are set in `talos/nodes/kube-0X.yaml`. The NVMe SSD, selected by serial number, holds a single raw volume (`r-storage` partition spanning the whole disk, encrypted by the TPM, not formatted) for the storage solution (Piraeus/LINSTOR, LVM thin pool), see `talos/patches/storage.yaml`.
 
 The SATA SSDs are selected by WWID because Talos v1.14 leaves the serial of SATA disks empty: it reads the serial from sysfs, where libata does not expose it, and its fallback (udev `ata_id`/`scsi_id` helpers) only runs for the `ata` and `scsi` transports, not for `sata` (AHCI controllers). The WWID is the WWN written in the drive by the manufacturer (`naa.5…`), as unique and stable as the serial.
 
@@ -273,8 +273,8 @@ These checks have no impact on the nodes.
 - [ ] Checks after the bootstrap, on each node:
   - `talosctl health`
   - `talosctl get securitystate`: Secure Boot enabled.
-  - `talosctl get volumestatus`: `STATE`, `EPHEMERAL` and `r-storage` are `ready` and encrypted (`luks2`). `talosctl get volumestatus r-storage -o yaml`: the partition spans the whole NVMe SSD, and `mountLocation` is the decrypted device (`/dev/dm-N`). The stable name used later by OpenEBS is the `/dev/mapper/luks2-r-storage` link to it (`talosctl ls -l /dev/mapper`).
-  - `talosctl get extensions`: `i915`, `intel-ucode`, `nfsrahead`, `nut-client` and `realtek-firmware`.
+  - `talosctl get volumestatus`: `STATE`, `EPHEMERAL` and `r-storage` are `ready` and encrypted (`luks2`). `talosctl get volumestatus r-storage -o yaml`: the partition spans the whole NVMe SSD, and `mountLocation` is the decrypted device (`/dev/dm-N`). The stable name used by LINSTOR is the `/dev/mapper/luks2-r-storage` link to it (`talosctl ls -l /dev/mapper`).
+  - `talosctl get extensions`: `drbd`, `i915`, `intel-ucode`, `nfsrahead`, `nut-client` and `realtek-firmware`.
   - `talosctl service ext-nut-client`: running, and `talosctl logs ext-nut-client` shows the connection to the UPS.
   - `talosctl get addresses`: the IPv4, ULA and GUA addresses. The IPv6 ones must end with the EUI-64 identifier (`…ff:fe…`).
   - `talosctl get links`: find the kernel name of the `lan0` link, then `talosctl read /proc/sys/net/ipv6/conf/<link>/accept_ra` must return `2` (router advertisements accepted even with forwarding enabled). With `1`, the GUA/ULA addresses would disappear once forwarding is enabled by the CNI.
@@ -372,6 +372,127 @@ To start over from scratch: `just talos reset-node kube-0X` puts a node back in 
 
 Later, once a NFS volume is mounted by a pod, check the read-ahead set by `nfsrahead`: find the device number of the mount (`0:NN`) with `talosctl read /proc/self/mountinfo`, then `talosctl read /sys/class/bdi/0:NN/read_ahead_kb` must return `16000` (default embedded in the Talos v1.14 extension), or `16384` once the extension reads `/etc/nfs.conf` (`talos/patches/nfs.yaml`).
 
+## Phase 9 — Storage
+
+Piraeus/LINSTOR (DRBD), see the storage decisions of the [roadmap](roadmap.md#applications). On a fresh cluster, Phase 8 already installs the right schematic and config and Flux deploys the storage on its own: only the checks below are needed.
+
+On the cluster bootstrapped before the storage was added, the nodes need the `drbd` extension and the kernel modules **before** Flux applies `kubernetes/apps/piraeus-datastore` (otherwise the satellites fail until then):
+
+- [x] One node at a time: `just talos apply-node kube-0X` (kernel modules), then `just talos upgrade-node kube-0X` (new schematic with `siderolabs/drbd`, reboots the node). Wait for `talosctl health` before the next node.
+- [x] Checks on each node:
+  - `talosctl get extensions`: `drbd` is listed.
+  - `talosctl read /proc/modules`: `drbd`, `drbd_transport_tcp` and `dm_thin_pool` are loaded.
+  - `talosctl read /sys/module/drbd/parameters/usermode_helper`: `disabled`.
+- [x] Push the manifests, then `flux get ks -A`: `snapshot-controller`, `piraeus-operator` and `piraeus-cluster` are `Ready` (`piraeus-cluster` waits for the two others).
+- [ ] Checks on the cluster:
+  - `kubectl api-resources --api-group=snapshot.storage.k8s.io`: `volumesnapshots`, `volumesnapshotcontents` and `volumesnapshotclasses`.
+  - `kubectl -n piraeus-datastore get linstorcluster,linstorsatellites,pods -o wide`: every condition `True`, one `linstor-satellite`, `linstor-csi-node` and `ha-controller` pod per node, the satellites with the node IPv4 and ULA addresses (host network).
+  - `kubectl -n piraeus-datastore exec deploy/linstor-controller -- linstor node list`: every node `Online`.
+  - `kubectl -n piraeus-datastore exec deploy/linstor-controller -- linstor node interface list kube-01` (same for each node): `default-ipv4` and `default-ipv6` (ULA address, never the GUA one), and `linstor node list-properties kube-01`: `PrefNic` is `default-ipv6`.
+  - `kubectl -n piraeus-datastore exec deploy/linstor-controller -- linstor storage-pool list`: one `nvme` pool (`LVM_THIN`, `linstor_nvme/nvme`) per node, with about 1 TB of capacity, plus the `DfltDisklessStorPool`.
+  - `kubectl get storageclass,volumesnapshotclass`: `replicated (default)`, `local` and `linstor`.
+  - A volume of each class, a snapshot and a restore:
+
+    ```sh
+    kubectl apply -f - <<'EOF'
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: pvctest-replicated
+    spec:
+      accessModes: [ReadWriteOnce]
+      resources:
+        requests:
+          storage: 1Gi
+    ---
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: pvctest-local
+    spec:
+      storageClassName: local
+      accessModes: [ReadWriteOnce]
+      resources:
+        requests:
+          storage: 1Gi
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: pvctest
+    spec:
+      containers:
+        - name: pvctest
+          image: docker.io/library/busybox
+          command: [sh, -c, 'echo hello > /replicated/test && echo hello > /local/test && sleep infinity']
+          volumeMounts:
+            - name: replicated
+              mountPath: /replicated
+            - name: local
+              mountPath: /local
+      volumes:
+        - name: replicated
+          persistentVolumeClaim:
+            claimName: pvctest-replicated
+        - name: local
+          persistentVolumeClaim:
+            claimName: pvctest-local
+    EOF
+    kubectl wait --for=condition=Ready pod/pvctest
+    kubectl -n piraeus-datastore exec deploy/linstor-controller -- linstor resource list
+    # replicated volume: UpToDate on 2 nodes (the node of the pod and another one); with 3 nodes,
+    # a third TieBreaker (diskless) resource. local volume: a single resource without DRBD.
+    kubectl apply -f - <<'EOF'
+    apiVersion: snapshot.storage.k8s.io/v1
+    kind: VolumeSnapshot
+    metadata:
+      name: pvctest
+    spec:
+      source:
+        persistentVolumeClaimName: pvctest-replicated
+    ---
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: pvctest-restore
+    spec:
+      dataSource:
+        apiGroup: snapshot.storage.k8s.io
+        kind: VolumeSnapshot
+        name: pvctest
+      accessModes: [ReadWriteOnce]
+      resources:
+        requests:
+          storage: 1Gi
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: pvctest-restore
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: pvctest
+          image: docker.io/library/busybox
+          command: [cat, /restore/test]
+          volumeMounts:
+            - name: restore
+              mountPath: /restore
+      volumes:
+        - name: restore
+          persistentVolumeClaim:
+            claimName: pvctest-restore
+    EOF
+    kubectl wait --for=jsonpath='{.status.readyToUse}'=true volumesnapshot/pvctest --timeout=5m
+    # The restore PVC fails ("snapshot pvctest not bound") until the snapshot is ready, then the
+    # provisioner retries with a growing delay (up to 5 minutes).
+    kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/pvctest-restore --timeout=10m
+    kubectl logs pvctest-restore          # hello
+    ```
+
+    Clean up: `kubectl delete pod pvctest pvctest-restore`, `kubectl delete volumesnapshot pvctest`, `kubectl delete pvc pvctest-replicated pvctest-local pvctest-restore`. The classes use `reclaimPolicy: Retain`: the PVs stay `Released`, delete them with `kubectl delete pv <name>`, then their LINSTOR resources with `kubectl -n piraeus-datastore exec deploy/linstor-controller -- linstor resource-definition delete <pv name>`.
+- [ ] Failover test, once kube-02 has joined (not before: with 2 nodes, losing one also loses the etcd quorum): a pod using a `replicated` volume, power off its node. The HA controller deletes the pod once the node has lost quorum on the volume, and it restarts on another node with its data, without intervention. While the node is away, `linstor resource list` shows the replica of the lost node as `Unknown`/`Outdated`; when it comes back, DRBD only resynchronizes the blocks written in the meantime.
+
 ## Appendix — Adding kube-02
 
 Once `home` has been migrated to the cluster:
@@ -382,14 +503,15 @@ Once `home` has been migrated to the cluster:
 - [ ] Fill the WWID of the SATA SSD and the serial of the NVMe SSD in `talos/nodes/kube-02.yaml`, uncomment kube-02 in `talos/vars.yaml`.
 - [ ] `just talos talosconfig`, then `just talos apply-node kube-02 --insecure`. The node joins etcd automatically, check with `talosctl etcd members`.
 - [ ] Nothing to do for BGP: the node opens its sessions and OPNsense accepts them through the listen ranges. Check with `vtysh -c 'show bgp summary'`.
+- [ ] Storage: the satellite of kube-02 creates its `nvme` pool on its own (`linstor storage-pool list`). Check that the existing `replicated` volumes get a diskless `TieBreaker` resource on the third node (`linstor resource list`), then run the failover test of phase 9.
 
 ## Appendix — Rebuilding a node
 
 The disks are unlocked by the TPM as long as the machine boots a Talos image signed by Sidero Labs with Secure Boot enabled. Firmware updates, kernel arguments changes and Secure Boot database updates do not affect it. The unlocking fails if the TPM is cleared (BIOS reset of the PTT), the motherboard is replaced or Secure Boot is disabled. In that case, rebuild the node:
 
-- [ ] From another node: `talosctl --nodes <other> etcd remove-member kube-0X`, then `kubectl delete node kube-0X`.
+- [ ] From another node: `talosctl --nodes <other> etcd remove-member kube-0X`, then `kubectl delete node kube-0X`. LINSTOR: `kubectl -n piraeus-datastore exec deploy/linstor-controller -- linstor node lost kube-0X` removes the node and its replicas from LINSTOR (the operator keeps a deleted node registered by default, `deletionPolicy: Retain`, and its volumes will not exist on the wiped disk).
 - [ ] Boot the node from the ISO (re-enroll the keys if the firmware restored its defaults), then wipe both disks: `talosctl wipe disk sda nvme0n1 --insecure --nodes kube-0X.shelltopia.net` (not tested yet on this hardware). The `r-storage` volume of the NVMe SSD cannot be unlocked anymore either: if it were kept, Talos would find the encrypted partition and fail to open it instead of recreating it.
-- [ ] `just talos apply-node kube-0X --insecure`. The data stored by the applications is replicated on the other nodes (CloudNativePG, OpenEBS replication), the storage solution then rebuilds the replicas of this node.
+- [ ] `just talos apply-node kube-0X --insecure`. The data stored by the applications is replicated on the other nodes (CloudNativePG, DRBD replicas of the `replicated` class), the storage solution then rebuilds the replicas of this node. Check with `linstor resource list` that the `replicated` volumes are back to 2 replicas, otherwise `linstor resource-group adjust replicated`. The volumes of the `local` class of this node are lost: restore them from the backups.
 
 ## Appendix — OpenTofu / Cloudflare
 

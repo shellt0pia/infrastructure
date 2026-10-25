@@ -6,6 +6,8 @@
 customization:
   systemExtensions:
     officialExtensions:
+      # DRBD kernel module for the replicated storage (Piraeus/LINSTOR), loaded by patches/drbd.yaml.
+      - siderolabs/drbd
       # Intel iGPU (UHD 770 on kube-01/kube-02) firmware, for hardware transcoding.
       - siderolabs/i915
       - siderolabs/intel-ucode

@@ -1,0 +1,36 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: piraeus-operator
+spec:
+  interval: 1h
+  path: ./kubernetes/apps/piraeus-datastore/piraeus-operator/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: piraeus-datastore
+  wait: true
+---
+# Separate Kustomization: the LINSTOR cluster needs the CRDs and the webhook of the operator,
+# and the VolumeSnapshotClass needs the snapshot CRDs.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: piraeus-cluster
+spec:
+  dependsOn:
+    - name: piraeus-operator
+    - name: snapshot-controller
+      namespace: kube-system
+  interval: 1h
+  path: ./kubernetes/apps/piraeus-datastore/piraeus-operator/cluster
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: piraeus-datastore
+  wait: true
