@@ -8,7 +8,7 @@ What is left to build on the Kubernetes cluster, the decisions already made (and
 | --- | --- |
 | Talos machine configs (`talos/`) | Done: Secure Boot, TPM disk encryption, disks and NIC selectors, dynamic network, NTP, NUT, watchdog, i915, image verification. |
 | Bootstrap (`bootstrap/`, `just bootstrap cluster`) | Done: Cilium (+ BGP and LB pools), CoreDNS, External Secrets, Flux. |
-| GitOps (`kubernetes/apps`) | Flux, External Secrets + 1Password store, Cilium, CoreDNS, cert-manager + Let's Encrypt issuers (staging and production, DNS-01 with Cloudflare), Intel GPU device plugin, Envoy Gateway + `internal` and `external` Gateways. |
+| GitOps (`kubernetes/apps`) | Flux, External Secrets + 1Password store, Cilium, CoreDNS, cert-manager + Let's Encrypt issuers (staging and production, DNS-01 with Cloudflare), Intel GPU device plugin, Envoy Gateway + `internal` and `external` Gateways, application DNS (k8s-gateway, external-dns, cloudflare-ddns). |
 | OpenTofu (`tofu/cloudflare`) | Skeleton only, the existing zones are not imported yet. |
 | First bootstrap | In progress, with kube-01 and kube-03 only. |
 
@@ -38,7 +38,7 @@ Kept here so they are not reopened by accident. Change them only for a new reaso
 
 ### Network
 
-- Everything dynamic, FQDN wherever possible: DHCPv4 static mappings, SLAAC with EUI-64 addresses, `ntp-01.shelltopia.net`, `ups-01-dmz.shelltopia.net`.
+- Everything dynamic, FQDN wherever possible: DHCPv4 static mappings, SLAAC with EUI-64 addresses, `ntp-01.shelltopia.net`, `ups-01-dmz.shelltopia.net`. Only exception: the addresses of the internal DNS of the applications (k8s-gateway, `192.168.19.53` and `fd38:4c4d:8f66:13::53`), because Unbound only forwards to addresses.
 - Node names have **AAAA records only** (ULA): hosts must use IPv6 ULA to reach them. No A record is needed.
 - The GUA prefix may change: it is never used in the configs, except in the `external` LB pool and the matching OPNsense prefix list.
 - Cluster endpoint: DNS round-robin `kube-cluster01.shelltopia.net` (one AAAA per node).
@@ -55,6 +55,11 @@ Kept here so they are not reopened by accident. Change them only for a new reaso
 - Certificates: Let's Encrypt only, with two permanent `ClusterIssuer`s (`letsencrypt-staging` and `letsencrypt-production`, each `Certificate` picks one) and DNS-01 through Cloudflare. All the services live in `shelltopia.org` (`shelltopia.net` stays for the infrastructure), served by a wildcard `*.shelltopia.org` so that the application names do not appear in the Certificate Transparency logs. One Cloudflare token (*Zone → DNS → Edit*, *Zone → Zone → Read*), created by hand and distinct from the OpenTofu one: 1Password item `cloudflare-cert-manager`, field `credential`. The ACME propagation check only uses the public resolvers of Cloudflare, over plain DNS.
 - Ingress: Envoy Gateway (Gateway API), see [ingress.md](ingress.md). Cilium Gateway API stays disabled: Envoy Gateway is more complete (client, backend and security policies, PROXY protocol, HTTP/3) and its proxies are separate from the CNI. Two Gateways in `network`, `internal` and `external`, one per LB pool, each with its own Envoy proxies (`EnvoyProxy`, 2 replicas, `externalTrafficPolicy: Local`) and the same wildcard certificate. Each application chooses its Gateway(s); only the namespaces labeled `shelltopia.net/gateway-external: "true"` can use the external one. The internal Gateway only answers RFC 1918 and `fd00::/8` clients. TLS 1.3 only, `X25519MLKEM768` first, HTTP/3 on the internal Gateway only. Port 80 only redirects to HTTPS.
 - IPv4 HTTP(S) from the internet: HAProxy on OPNsense (SNI on 443, Host on 80) keeps sending the names of `home` to it and sends the migrated names to the `external` Gateway on 8080/8443 with the PROXY protocol, until `home` is migrated. Then a plain port forwarding to 80/443 of the Gateway replaces it and the PROXY protocol listeners are removed. IPv6 reaches the Gateway directly.
+- Application DNS, driven by the HTTPRoutes, see [ingress.md](ingress.md#dns). One GatewayClass per Gateway (`internal`, `external`) so that the tools can tell them apart.
+  - Internal: k8s-gateway (CoreDNS + k8s_gateway) is authoritative for `shelltopia.org` from the routes of the `internal` Gateway, Unbound forwards the zone to it. No external-dns webhook for OPNsense/Unbound. Losing the zone on the LAN while the cluster is down is accepted.
+  - Public: hybrid. external-dns (Cloudflare provider) publishes one CNAME per route of the `external` Gateway to the entry name `gateway-external.kube-cluster01.shelltopia.net`, and the `AAAA` of that name (IPv6 of the Gateway). cloudflare-ddns publishes its `A` (WAN IPv4) until the Milkywan tunnel brings a stable one. OpenTofu keeps the zones, the infrastructure records and the names of `home`. The list of the public names is visible in the zone, accepted.
+  - Cloudflare tokens: one per tool (`cloudflare-external-dns` on both zones, `cloudflare-ddns` on `shelltopia.net`), in the `Kubernetes` vault.
+  - Replaces the `ddns-updater` instances of the Ansible hosts for the migrated names.
 
 - GPU: Intel device plugin through the operator, `sharedDevNum: 3` (Plex, Immich). DRA rejected for now: the Intel DRA driver (0.12.x) only allocates whole GPUs and is beta.
 - Storage: OpenEBS rather than Longhorn (no iSCSI extension). Media stay on the NAS over NFS 4.2.
@@ -87,8 +92,12 @@ Roughly in priority order.
 
 ### 4. DNS records
 
-- [ ] Decide how the records of the applications are created (open decision below): Cloudflare for the public names, Unbound for the internal ones.
-- [ ] Import the existing Cloudflare zones in OpenTofu (`tofu/cloudflare`, appendix of first-bootstrap.md).
+- [x] Decide how the records of the applications are created: k8s-gateway + Unbound forward for the internal names, external-dns + cloudflare-ddns for the public ones, see [ingress.md](ingress.md#dns).
+- [x] Split the `envoy` GatewayClass into `internal` and `external`.
+- [x] Create the Cloudflare tokens and the 1Password items `cloudflare-external-dns` and `cloudflare-ddns` ([ingress.md](ingress.md#public-external-dns-and-cloudflare-ddns)).
+- [x] Deploy, then OPNsense: Unbound query forwarding of `shelltopia.org` to k8s-gateway, removal of the host overrides of the migrated names, HAProxy real servers checked after the GatewayClass split ([ingress.md](ingress.md#opnsense-unbound)).
+- [x] Checks: [ingress.md](ingress.md#checks), external-dns in `dry-run` first.
+- [ ] Import the existing Cloudflare zones in OpenTofu (`tofu/cloudflare`, appendix of first-bootstrap.md), without the records managed by external-dns and cloudflare-ddns.
 
 ### 5. Storage
 
@@ -121,7 +130,7 @@ Roughly in priority order.
 ### 10. Migration
 
 - [ ] Move the services of the Hetzner VM, then delete the VM.
-- [ ] Move the services of `home`, then turn it into kube-02 ([appendix](first-bootstrap.md#appendix--adding-kube-02)). Until then, the 2-node etcd has no fault tolerance. For each migrated name: HAProxy rules to the external Gateway and DNS records ([ingress.md](ingress.md#opnsense)). Per-route needs: basic authentication (`SecurityPolicy` on the route), Plex over HTTPS to its backend (or *Secure connections: Preferred*).
+- [ ] Move the services of `home`, then turn it into kube-02 ([appendix](first-bootstrap.md#appendix--adding-kube-02)). Until then, the 2-node etcd has no fault tolerance. For each migrated name: HAProxy rules to the external Gateway and DNS records ([ingress.md](ingress.md#migrating-a-name-from-home)). Per-route needs: basic authentication (`SecurityPolicy` on the route), Plex over HTTPS to its backend (or *Secure connections: Preferred*).
 - [ ] Replace calibre (KasmVNC) with another application.
 - [ ] Rewrite `README.md` once Ansible is gone (it still describes the Fedora CoreOS setup).
 
@@ -138,7 +147,6 @@ Roughly in priority order.
 
 | Topic | Options | Notes |
 | --- | --- | --- |
-| Application DNS records | external-dns (Cloudflare provider) for public names; for Unbound, a webhook provider or manual records | Check whether a maintained external-dns provider for OPNsense/Unbound exists. |
 | OpenEBS engine | Replicated PV (Mayastor), Local PV (LVM/ZFS) with replication by the applications | Mayastor needs hugepages, the `nvme_tcp` module and dedicated CPU cores, to check against its docs and the 16 GB of RAM. With 2 test nodes, replication is limited to 2. |
 | NFS access | native `nfs` volumes, csi-driver-nfs | `nfsrahead` covers both. |
 | Backups | VolSync (restic/kopia), CloudNativePG backups to S3, etcd snapshots | Destination to choose: NAS (S3 service) and/or an off-site provider. |
@@ -157,11 +165,11 @@ Roughly in priority order.
 - [ ] Talos firmware updates (announced by Sidero Labs): to use for the BIOS updates. The disk encryption is not bound to the firmware measurements.
 - [ ] Intel DRA driver: switch from the device plugin once it supports shared GPUs (DRAConsumableCapacity).
 - [ ] Cilium `bpf.masquerade`: reconsider once its IPv6 support is stable and picks the source address per destination (it would bring eBPF host routing).
-- [ ] Token expirations: Docker Hub, GitHub (Flux, Renovate), Cloudflare.
+- [ ] Token expirations: Docker Hub, GitHub (Flux, Renovate), Cloudflare (cert-manager, external-dns, cloudflare-ddns, OpenTofu).
 - [ ] Firmware reset to the factory Secure Boot keys (some BIOS updates do it): enroll the Sidero Labs keys again before booting Talos.
 - [ ] Talos: serial of SATA disks behind AHCI controllers (transport `sata`) not detected. If fixed upstream, the SATA SSDs could go back to serial selectors (optional, the WWID is as good).
 - [ ] Talos: `EthernetConfig` does not resolve link aliases (v1.14.4, the name is passed as is to ethtool), the node files use the kernel interface names (`enp2s0`, `eno1`). If fixed upstream, move it back to `patches/network.yaml.j2` with `name: lan0`.
 - [ ] ISP prefix change: follow [ipv6-prefix-change.md](ipv6-prefix-change.md).
 - [ ] Envoy Gateway: `ecdhCurves` names are passed as is to Envoy (BoringSSL). After an Envoy upgrade, check that the listeners are not rejected (logs of `envoy-gateway`).
-- [ ] Milkywan WireGuard tunnel (planned): stable public IPv4 and IPv6 prefix. The `external` pool, the OPNsense prefix list and the NAT rules will move to it.
+- [ ] Milkywan WireGuard tunnel (planned): stable public IPv4 and IPv6 prefix. The `external` pool, the OPNsense prefix list and the NAT rules will move to it. cloudflare-ddns is then removed and the `A` record of `gateway-external.kube-cluster01.shelltopia.net` becomes static in OpenTofu.
 - [ ] Workstation 1Password service account: rotate its token every 30 days (`opsa` warns 5 days before and refuses past the limit), see [1password-local-access.md](1password-local-access.md#rotation).

@@ -1,0 +1,9 @@
+---
+# The external-dns chart is only published in a classic Helm repository, not as an OCI artifact.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: external-dns
+spec:
+  interval: 1h
+  url: https://kubernetes-sigs.github.io/external-dns/

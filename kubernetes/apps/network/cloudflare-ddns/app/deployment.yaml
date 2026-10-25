@@ -1,0 +1,66 @@
+---
+# A record of gateway-external.kube-cluster01.shelltopia.net, the target of the CNAME records of
+# the public applications (external-dns): the dynamic IPv4 address of the WAN, where HAProxy (then
+# a plain port forwarding) sends the traffic to the `external` Gateway. The address is detected
+# with Cloudflare (`cloudflare.trace`, over HTTPS): the pods leave through the NAT of OPNsense.
+# IPv6 is not managed here: the AAAA record is the address of the Gateway, from external-dns.
+# Temporary: with the stable IPv4 address of the Milkywan tunnel, this Deployment is removed and
+# the A record becomes static in OpenTofu.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflare-ddns
+  labels:
+    app.kubernetes.io/name: cloudflare-ddns
+spec:
+  replicas: 1
+  # Never two updaters at the same time.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflare-ddns
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloudflare-ddns
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cloudflare-ddns
+          image: docker.io/favonia/cloudflare-ddns:1.18.0
+          env:
+            - name: CLOUDFLARE_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflare-ddns
+                  key: api-token
+            - name: IP4_DOMAINS
+              value: gateway-external.kube-cluster01.shelltopia.net
+            # `none` leaves the existing AAAA records alone (owned by external-dns).
+            - name: IP6_PROVIDER
+              value: none
+            - name: PROXIED
+              value: "false"
+            - name: RECORD_COMMENT
+              value: managed by cloudflare-ddns (kube-cluster01)
+            - name: EMOJI
+              value: "false"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              memory: 64Mi

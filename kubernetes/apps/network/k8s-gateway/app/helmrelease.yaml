@@ -1,0 +1,87 @@
+---
+# Internal DNS of shelltopia.org: k8s-gateway (CoreDNS with the k8s_gateway plugin) answers with
+# the addresses of the `internal` Gateway for every hostname of the HTTPRoutes attached to it.
+# Unbound (OPNsense) forwards shelltopia.org to the LoadBalancer addresses of this release, see
+# docs/ingress.md#dns. Authoritative only: no forward plugin, a name without route gets NXDOMAIN.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: k8s-gateway
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: k8s-gateway
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    replicaCount: 2
+    podDisruptionBudget:
+      minAvailable: 1
+    # One replica per node when possible. ScheduleAnyway: with 2 nodes, a strict constraint
+    # would leave a replica Pending while a node is down.
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: k8s-gateway
+            app.kubernetes.io/instance: k8s-gateway
+    serviceType: LoadBalancer
+    service:
+      ipFamilyPolicy: RequireDualStack
+      annotations:
+        # Pinned addresses of the `internal` pool, an exception to the "everything dynamic"
+        # rule: Unbound only accepts addresses as forward targets. Keep them in sync with the
+        # Unbound query forwarding (docs/ingress.md#dns). If another Service already holds one of
+        # them, this Service gets no address at all: check `kubectl -n network get svc k8s-gateway`.
+        lbipam.cilium.io/ips: "192.168.19.53,fd38:4c4d:8f66:13::53"
+    # The image is built FROM scratch and runs as root by default. CoreDNS listens on 1053 so
+    # that it needs no capability; the Service still exposes 53.
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: ["ALL"]
+    servers:
+      - zones:
+          - zone: shelltopia.org
+            # Also expose TCP 53 on the Service, for the large answers.
+            use_tcp: true
+        port: 1053
+        servicePort: 53
+        plugins:
+          - name: errors
+          # /health on :8080 and /ready on :8181, used by the probes of the chart.
+          - name: health
+            configBlock: |-
+              lameduck 10s
+          - name: ready
+          # Only the HTTPRoutes, and only their parents of the `internal` class: a route
+          # attached to both Gateways resolves to the internal addresses (IPv4 and ULA).
+          # No cache plugin: the answers come from the informers, a change is visible at once.
+          - name: k8s_gateway
+            parameters: shelltopia.org
+            configBlock: |-
+              resources HTTPRoute
+              gatewayClasses internal
+          - name: prometheus
+            parameters: 0.0.0.0:9153
+          - name: reload
+          - name: loadbalance
+    prometheus:
+      monitor:
+        # Enable once the Prometheus Operator CRDs are installed.
+        enabled: false

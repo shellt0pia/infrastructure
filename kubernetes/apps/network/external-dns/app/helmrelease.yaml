@@ -1,0 +1,75 @@
+---
+# Public DNS records of the applications, in Cloudflare:
+# - one CNAME per hostname of the HTTPRoutes attached to the `external` Gateway, pointing to
+#   gateway-external.kube-cluster01.shelltopia.net (target annotation of the Gateway);
+# - the AAAA record of gateway-external.kube-cluster01.shelltopia.net, from the public IPv6
+#   address of the Envoy Service of that Gateway (hostname annotation, envoyproxy-external.yaml).
+#   Its A record is the WAN address, managed by cloudflare-ddns.
+# The rest of the zones (infrastructure, names still served by `home`) is managed by OpenTofu
+# (tofu/cloudflare). external-dns only changes or deletes the records it owns (TXT registry,
+# `cname-<name>`/`aaaa-<name>` records), so a name already created by hand or by OpenTofu must be
+# removed there before its route is attached to the external Gateway.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-dns
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: external-dns
+      version: 1.23.0
+      sourceRef:
+        kind: HelmRepository
+        name: external-dns
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    provider:
+      name: cloudflare
+    env:
+      - name: CF_API_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: external-dns-cloudflare
+            key: api-token
+    sources:
+      - gateway-httproute
+      - service
+    # Only the routes attached to the `external` Gateway: the internal names are served by
+    # k8s-gateway, never published.
+    gatewayNamespace: network
+    # Deletes the records of the routes that are removed (only the records it owns).
+    policy: sync
+    registry: txt
+    # Never change it: the existing ownership records would no longer be recognized.
+    txtOwnerId: kube-cluster01
+    extraArgs:
+      gateway-name: external
+      # Only LoadBalancer Services: the Envoy Service of the `external` Gateway.
+      service-type-filter: LoadBalancer
+      # The zones and the names external-dns may touch: every name of shelltopia.org, and only
+      # the entry name in shelltopia.net (plus its apex, to select the zone). A plain domain
+      # filter on the entry name would exclude the shelltopia.net zone itself.
+      regex-domain-filter: '^(.+\.)?shelltopia\.org$|^(gateway-external\.kube-cluster01\.)?shelltopia\.net$'
+      # It never publishes A records (the IPv4 addresses are private, the CNAMEs carry the
+      # names). Excluding the type also hides the A record of the entry name, owned by
+      # cloudflare-ddns: the planner skips every creation on a name that has a record owned by
+      # someone else, whatever its type, so that A record would block the AAAA record.
+      exclude-record-types:
+        - A
+      # The private addresses of the Services (IPv4 of the LB pools, ULA) are never published.
+      exclude-target-net:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+        - fc00::/7
+      cloudflare-record-comment: managed by external-dns (kube-cluster01)
+    serviceMonitor:
+      # Enable once the Prometheus Operator CRDs are installed.
+      enabled: false

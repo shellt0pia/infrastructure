@@ -1,0 +1,23 @@
+---
+# Needs the Gateway API CRDs (envoy-gateway release, through gateways) and the
+# ClusterSecretStore. Waits for gateways: started before the annotations of the Gateways and of
+# the HTTPS redirect route, it would publish a wildcard *.shelltopia.org AAAA record.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: external-dns
+spec:
+  dependsOn:
+    - name: gateways
+      namespace: network
+    - name: external-secrets-stores
+      namespace: external-secrets
+  interval: 1h
+  path: ./kubernetes/apps/network/external-dns/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: network
+  wait: true

@@ -1,7 +1,17 @@
 ---
+# One GatewayClass per Gateway, both handled by Envoy Gateway: the DNS tools tell the Gateways
+# apart by their class. k8s-gateway (internal DNS) only reads the `internal` class, so a route
+# attached to both Gateways only resolves to the internal addresses.
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
-  name: envoy
+  name: internal
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: external
 spec:
   controllerName: gateway.envoyproxy.io/gatewayclass-controller

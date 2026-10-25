@@ -33,3 +33,8 @@ spec:
         externalTrafficPolicy: Local
         labels:
           lbipam.shelltopia.net/pool: external
+        annotations:
+          # external-dns publishes the public IPv6 address of the Service as the AAAA record of the
+          # entry name of the Gateway (the IPv4 one is private and excluded by external-dns, the
+          # A record is the WAN address, managed by cloudflare-ddns).
+          external-dns.kubernetes.io/hostname: gateway-external.kube-cluster01.shelltopia.net

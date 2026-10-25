@@ -4,6 +4,10 @@
   flux: {
     managerFilePatterns: ['/(^|/)kubernetes/.+\\.ya?ml$/'],
   },
+  // Images of the plain manifests (Deployments not managed by a chart, e.g. cloudflare-ddns).
+  kubernetes: {
+    managerFilePatterns: ['/(^|/)kubernetes/.+\\.ya?ml$/'],
+  },
   customManagers: [
     {
       customType: 'regex',

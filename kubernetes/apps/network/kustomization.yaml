@@ -6,3 +6,6 @@ namespace: network
 resources:
   - ./namespace.yaml
   - ./gateways/ks.yaml
+  - ./k8s-gateway/ks.yaml
+  - ./external-dns/ks.yaml
+  - ./cloudflare-ddns/ks.yaml

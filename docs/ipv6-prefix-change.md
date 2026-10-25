@@ -67,7 +67,7 @@ Order matters: let OPNsense accept the new routes **before** the cluster adverti
 
 ### 4. DNS
 
-- [ ] Cloudflare: AAAA records of the public names pointing to the `external` pool. With OpenTofu: update the addresses in `tofu/cloudflare`, then `just tofu plan cloudflare` and `just tofu apply cloudflare`. Not needed for records managed by external-dns, if it is deployed by then: they follow the Service status.
+- [ ] Cloudflare: nothing to do for the applications. Their names are CNAMEs to `gateway-external.kube-cluster01.shelltopia.net`, whose `AAAA` record is updated by external-dns from the new address of the Service (check with `dig +short AAAA gateway-external.kube-cluster01.shelltopia.net @1.1.1.1`). Other AAAA records with a GUA address managed by OpenTofu, if any: update them in `tofu/cloudflare`, then `just tofu plan cloudflare` and `just tofu apply cloudflare`.
 - [ ] Unbound: host overrides with a GUA address, if any (the node names and internal services use ULA addresses).
 
 ### 5. Elsewhere
@@ -85,6 +85,5 @@ Order matters: let OPNsense accept the new routes **before** the cluster adverti
 ## Reducing the work
 
 - Use a single OPNsense *Network* alias for the `external` pool in every rule: one place to change instead of every rule.
-- Manage the public records with external-dns: the DNS step disappears.
 - Do not pin GUA addresses on Services (`lbipam.cilium.io/ips`) unless needed.
 - Once the Milkywan tunnel is in place, the `external` pool moves to its stable prefix and this procedure no longer applies to it.

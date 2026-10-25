@@ -332,6 +332,7 @@ These checks have no impact on the nodes.
   - `kubectl -n cert-manager get pods`: the controller, the webhook and the cainjector are running.
     - `kubectl get clusterissuers`: `letsencrypt-staging` and `letsencrypt-production` are `Ready`. This needs the `cloudflare-cert-manager` item in the `Kubernetes` vault (field `credential`, a Cloudflare token with *Zone → DNS → Edit* and *Zone → Zone → Read*), synced by `kubectl -n cert-manager get externalsecret cloudflare-api-token`.
   - Envoy Gateway and the Gateways: see the checks of [ingress.md](ingress.md#checks). The wildcard certificate is issued by `letsencrypt-production`.
+  - Application DNS (k8s-gateway, external-dns, cloudflare-ddns): see the DNS checks of [ingress.md](ingress.md#checks). external-dns and cloudflare-ddns need the `cloudflare-external-dns` and `cloudflare-ddns` items in the `Kubernetes` vault ([ingress.md](ingress.md#public-external-dns-and-cloudflare-ddns)); Unbound must forward `shelltopia.org` to k8s-gateway ([ingress.md](ingress.md#opnsense-unbound)).
   - Intel GPU device plugin:
     - `kubectl get gpudeviceplugins`: `intel-gpu`, with as many ready nodes as desired.
     - `kubectl -n kube-system get pods -o wide | grep intel-gpu-plugin`: one pod on kube-01 only (kube-02 later), none on kube-03.
@@ -402,3 +403,4 @@ Independent from the cluster, can wait.
 - [ ] Create the `infrastructure/tofu-state` item with a `password` field: a generated passphrase of **at least 16 characters** (minimum required by `pbkdf2`). If it is lost, the encrypted state becomes unreadable and everything has to be imported again.
 - [ ] Run `just tofu init cloudflare` and commit `.terraform.lock.hcl`.
 - [ ] Import the existing zones with `import` blocks (example in `tofu/cloudflare/main.tf`), until `just tofu plan cloudflare` shows no change.
+- [ ] Do not import the records managed from the cluster (they would be fought over): the CNAMEs of the applications in `shelltopia.org` and their `cname-*` TXT records (external-dns), the `A` (cloudflare-ddns), `AAAA` and `aaaa-*` TXT (external-dns) records of `gateway-external.kube-cluster01.shelltopia.net`. Their comment says which tool manages them. See [ingress.md](ingress.md#dns).

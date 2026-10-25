@@ -8,8 +8,13 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: external
+  annotations:
+    # external-dns publishes every public route as a CNAME to this name (its A and AAAA records
+    # are managed by cloudflare-ddns and external-dns, see envoyproxy-external.yaml). Only read
+    # on the Gateway, ignored on the routes.
+    external-dns.kubernetes.io/target: gateway-external.kube-cluster01.shelltopia.net
 spec:
-  gatewayClassName: envoy
+  gatewayClassName: external
   infrastructure:
     parametersRef:
       group: gateway.envoyproxy.io
