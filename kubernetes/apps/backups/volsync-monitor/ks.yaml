@@ -1,0 +1,20 @@
+---
+# Needs the ClusterSecretStore. Does not need the VolSync CRDs to be applied (RBAC rules can name
+# any resource), but the job fails until they exist.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: volsync-monitor
+spec:
+  dependsOn:
+    - name: external-secrets-stores
+      namespace: external-secrets
+  interval: 1h
+  path: ./kubernetes/apps/backups/volsync-monitor/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: backups
+  wait: true

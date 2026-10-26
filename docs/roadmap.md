@@ -72,6 +72,14 @@ Kept here so they are not reopened by accident. Change them only for a new reaso
   - No volumes for the bulk data: media, Immich library, Nextcloud data and mail/calendar archives stay on the NAS, mounted with native `nfs` pod volumes (NFS 4.2, no csi-driver-nfs).
   - The DRBD module comes from the `siderolabs/drbd` extension and is loaded by Talos (`talos/patches/drbd.yaml`); the satellite module loader is removed (`talos-loader-override`).
 - No registry cache: Docker Hub credentials in containerd avoid the rate limit.
+- Backups, see [backups/README.md](backups/README.md): Backblaze B2 only (existing account, new buckets), plain restic repositories encrypted client-side, one bucket and one key per tool, keys and passwords in 1Password. RPO 24 h, rebuild from scratch in one day at most (Git + 1Password + backups). Crash-consistent snapshots, no application stop. No copy on the NAS until TrueNAS 27 brings an S3 API.
+  - Volumes: VolSync (restic mover) from the `linstor` CSI snapshots, rejected Velero (backs up the resources already in Git, imperative restores). New PVCs are filled from the latest backup by the VolSync volume populator (on a new cluster; after deleting a PVC, its ReplicationDestination must be deleted too). Temporary volumes in the `replicated-temporary` class (`reclaimPolicy: Delete`).
+  - etcd: not backed up, everything it holds is rebuilt from Git, 1Password and the backups. Reasons in [backups/evaluations.md](backups/evaluations.md#etcd-not-backed-up).
+  - NAS data: Backrest as a TrueNAS App, on the NAS itself (no traffic through the nodes, keeps running without the cluster).
+  - PostgreSQL: CloudNativePG Barman Cloud plugin (proposed, with CNPG).
+  - No B2 Object Lock (incompatible with restic). Keys without `deleteFiles` plus a lifecycle rule instead (tested: restic works with them, a stolen key can only hide files, recoverable for 30 days).
+  - Restores from the workstation with the `just kube volsync-*` recipes (credentials from 1Password). No Backrest UI for the cluster repositories.
+  - Kopiur (Kopia operator) evaluated and set aside for now: too young (`v1alpha1`), to look at again in early 2027.
 
 ## To implement
 
@@ -118,8 +126,21 @@ Roughly in priority order.
 
 ### 6. Backups
 
-- [ ] etcd snapshots: needs the `os:etcd:backup` role and the namespace of the backup tool in `KubeTalosAPIAccessConfig` (`talos/patches/kubernetes.yaml.j2`).
-- [ ] Application volumes and databases (CloudNativePG): tool and destination still open.
+Architecture: [backups/README.md](backups/README.md), with the deployment, the runbook and the evaluations. Order: volumes, NAS data.
+
+- [x] Test the restricted B2 key (no `deleteFiles`) and the lifecycle rule with restic on a throwaway bucket ([results](backups/evaluations.md#restricted-b2-key-test)).
+- [ ] Test the bucket rebuild at a past date with rclone on a new throwaway bucket ([procedure](backups/runbook.md#recovery-after-a-deletion-of-the-backups)): the first test bucket was deleted before this test. Delete the bucket and its keys afterwards.
+- [x] etcd: no backup, decision in [backups/evaluations.md](backups/evaluations.md#etcd-not-backed-up), recovery in [backups/runbook.md](backups/runbook.md#etcd-quorum-lost).
+- [x] Application volumes: VolSync controller (`kubernetes/apps/backups/volsync`), component `kubernetes/components/volsync`, StorageClass `replicated-temporary`.
+- [x] Monitoring: healthchecks.io ping (CronJob `volsync-monitor`). Alertmanager later.
+- [x] Restore recipes in `kubernetes/mod.just`: `volsync-snapshots`, `volsync-restic`, `volsync-backup`, `volsync-restore` (credentials from 1Password, B2 readable at a past date; in place, Flux suspended and replicas restored).
+- [x] B2 buckets, lifecycle rules and keys in OpenTofu (`tofu/backblaze`), keys pushed to the `restic-*` 1Password items by `just tofu apply`.
+- [x] OpenTofu setup ([tofu/README.md](../tofu/README.md#setup)): bucket of the states, admin key (escalation test done: it can create a key with `deleteFiles`, accepted), lock test (B2 does not implement it: locking disabled), first `just tofu apply backblaze` (push to 1Password through `host-spawn op` checked).
+- [ ] Deploy: healthchecks check, then the checks of [backups/bootstrap.md](backups/bootstrap.md#2-test-volsync), including the LINSTOR behaviours with a test application.
+- [ ] NAS data: Backrest App on TrueNAS ([checklist](backups/bootstrap.md#3-nas-data-backrest)), then stop autorestic and delete the old buckets.
+- [ ] PostgreSQL: Barman Cloud plugin of CloudNativePG, implemented with CNPG.
+- [ ] Automated restore tests in a throwaway namespace, once applications use VolSync.
+- [ ] Monitor the content of the repositories: the healthchecks checks watch the jobs, not the repositories, so a malicious `forget` would go unnoticed. Check the number and age of the snapshots of each repository, compared with the previous run.
 - [ ] The Talos secrets bundle is already in 1Password, nothing else to back up for Talos itself.
 
 ### 7. Upgrades
@@ -147,7 +168,7 @@ Roughly in priority order.
 
 ### 11. Kubernetes recipes
 
-- [ ] `kubernetes/mod.just` module (`just kube ...`), ideas taken from [onedr0p/home-ops](https://github.com/onedr0p/home-ops/blob/main/kubernetes/mod.just):
+- [ ] `kubernetes/mod.just` module (`just kube ...`, already holds the backup recipes), ideas taken from [onedr0p/home-ops](https://github.com/onedr0p/home-ops/blob/main/kubernetes/mod.just):
   - `sync <hr|ks|gitrepo|ocirepo|es>`: force the reconciliation of every resource of a kind (`reconcile.fluxcd.io/requestedAt` annotation).
   - `debug-node <node>`: `kubectl debug node --profile=sysadmin`, removing the debug pod on exit. The only way to get a shell on a Talos node.
   - `prune-pods`: delete the Failed, Succeeded and Pending pods.
@@ -174,7 +195,6 @@ Roughly in priority order.
 
 | Topic | Options | Notes |
 | --- | --- | --- |
-| Backups | VolSync (restic/kopia, from the `linstor` CSI snapshots), CloudNativePG backups to S3, etcd snapshots | Off-site destination required, the NAS (TrueNAS) as a secondary one. |
 | Talos/Kubernetes version source | `talos/vars.yaml` (+ mise) or tuppr resources | Renovate should bump both in the same PR, or one should reference the other. |
 | Metrics / logs | Prometheus or VictoriaMetrics / VictoriaLogs or Loki | |
 | Renovate in the cluster | Renovate operator, plain CronJob | GitHub App or fine-grained token. |
@@ -203,3 +223,4 @@ Roughly in priority order.
 - [ ] TPM unlock failure: once, on kube-01, the first boot after the upgrade to the schematic with `drbd` could not unlock `STATE` (`no signatures matching PCR SHA256 digest found in signature JSON`, then `no handlers available to get encryption keys from`). A cold power cycle fixed it. Not reproduced afterwards: several reboots of kube-01 (same PCR 11 value every time), reboots and the same upgrade on kube-03. Fast Boot is off (*Thorough*) on both. Keep a console at hand during the next Talos upgrades; if it happens again, note the boot (first one after an upgrade or not) and the console lines before the error, then report it to Sidero Labs.
 - [ ] Dell firmware: *Microsoft UEFI CA* disabled on kube-01 (*Enable for Option ROM* not needed, the iGPU test pod works). Same on kube-03 if its firmware offers the option.
 - [ ] Workstation 1Password service account: rotate its token every 30 days (`opsa` warns 5 days before and refuses past the limit), see [1password-local-access.md](1password-local-access.md#rotation).
+- [ ] Kopiur ([home-operations/kopiur](https://github.com/home-operations/kopiur)): look at it again in early 2027, [checklist](backups/evaluations.md#kopiur-evaluated-to-revisit).

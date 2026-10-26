@@ -1,0 +1,32 @@
+---
+# VolSync controller: backs up the application volumes to restic repositories on B2, from CSI
+# snapshots, and fills the new volumes from the latest backup (volume populator). The
+# ReplicationSources and ReplicationDestinations come from kubernetes/components/volsync, in the
+# namespaces of the applications. The mover pods (restic) run in those namespaces, with the
+# security context of the application (no privileged movers). See docs/backups/README.md.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: volsync
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: volsync
+      version: 0.17.0
+      sourceRef:
+        kind: HelmRepository
+        name: backube
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    # The CRDs are templates of the chart (manageCRDs, default true): Helm upgrades them.
+    manageCRDs: true
+    # Dual-stack like the rest of the cluster (metrics Service).
+    service:
+      ipFamilyPolicy: PreferDualStack

@@ -29,6 +29,26 @@ allowVolumeExpansion: true
 # Place the first replica on the node of the pod (local reads).
 volumeBindingMode: WaitForFirstConsumer
 ---
+# Same volumes as `replicated` (same resource group and placement, so that a snapshot of a
+# `replicated` volume can be restored into it), but deleted with their PVC. Only for the
+# temporary volumes created by VolSync: the clone of the snapshot backed up by each sync, the
+# restic cache, the volume restored before it fills an application PVC, and the restore tests.
+# With Retain, every daily backup would leave a released volume behind. Never for application
+# data.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: replicated-temporary
+provisioner: linstor.csi.linbit.com
+parameters:
+  linstor.csi.linbit.com/storagePool: nvme
+  linstor.csi.linbit.com/resourceGroup: replicated
+  linstor.csi.linbit.com/placementCount: "2"
+  csi.storage.k8s.io/fstype: ext4
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+---
 # Single copy on the node of the pod, without DRBD: no replication, no network traffic. For data
 # that is replicated by the application itself or that can be lost (caches, metrics, logs).
 # The pod is bound to the node of its volume: it cannot be rescheduled while that node is down.

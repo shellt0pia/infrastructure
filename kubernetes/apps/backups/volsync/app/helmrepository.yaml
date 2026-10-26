@@ -1,0 +1,9 @@
+---
+# The VolSync chart is only published in a classic Helm repository, not as an OCI artifact.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: backube
+spec:
+  interval: 1h
+  url: https://backube.github.io/helm-charts/

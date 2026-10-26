@@ -25,13 +25,13 @@
       groupName: 'Talos',
     },
     {
-      description: 'Deployed Kubernetes version and kubectl (mise.toml) in the same PR',
-      matchDepNames: ['ghcr.io/siderolabs/kubelet', '/kubernetes\\/kubernetes/'],
+      description: 'Deployed Kubernetes version, kubectl (mise.toml) and the kubectl image (volsync-monitor) in the same PR',
+      matchDepNames: ['ghcr.io/siderolabs/kubelet', '/kubernetes\\/kubernetes/', 'docker.io/alpine/k8s'],
       groupName: 'Kubernetes',
     },
     {
       description: 'Talos and Kubernetes are upgraded manually with `just talos upgrade-node` and `just talos upgrade-k8s`',
-      matchDepNames: ['ghcr.io/siderolabs/installer', '/siderolabs\\/talos/', 'ghcr.io/siderolabs/kubelet', '/kubernetes\\/kubernetes/'],
+      matchDepNames: ['ghcr.io/siderolabs/installer', '/siderolabs\\/talos/', 'ghcr.io/siderolabs/kubelet', '/kubernetes\\/kubernetes/', 'docker.io/alpine/k8s'],
       matchUpdateTypes: ['major', 'minor'],
       dependencyDashboardApproval: true,
     },

@@ -1,0 +1,20 @@
+---
+# Needs the snapshot CRDs (copyMethod: Snapshot). The applications backed up with the volsync
+# component depend on this Kustomization (CRDs of ReplicationSource and ReplicationDestination).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: volsync
+spec:
+  dependsOn:
+    - name: snapshot-controller
+      namespace: kube-system
+  interval: 1h
+  path: ./kubernetes/apps/backups/volsync/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: backups
+  wait: true

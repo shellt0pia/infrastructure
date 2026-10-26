@@ -1,0 +1,11 @@
+---
+# Backup tooling: the VolSync controller and the backup monitoring. The ReplicationSources and
+# ReplicationDestinations live in the namespaces of the applications
+# (kubernetes/components/volsync). See docs/backups/README.md.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: backups
+  annotations:
+    # Never delete a namespace (and everything in it) because of a refactoring.
+    kustomize.toolkit.fluxcd.io/prune: disabled

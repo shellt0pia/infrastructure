@@ -11,6 +11,9 @@ export MINIJINJA_CONFIG_FILE := justfile_directory() / ".minijinja.toml"
 mod bootstrap
 
 [group('kubernetes')]
+mod kube 'kubernetes/mod.just'
+
+[group('kubernetes')]
 mod talos
 
 [group('infrastructure')]

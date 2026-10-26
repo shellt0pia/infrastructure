@@ -3,7 +3,7 @@
 | Stack | Content | Provider credentials (`infrastructure` vault) |
 | --- | --- | --- |
 | `cloudflare` | DNS records of `shelltopia.net` and `shelltopia.org` not managed from the cluster ([ingress.md](../docs/ingress.md#dns)), SSL mode, Universal SSL and DNSSEC of the zones ([Cloudflare](#cloudflare)), applied. | `cloudflare-tofu` |
-| `backblaze` | B2 buckets and application keys of the restic repositories ([backups.md](../docs/backups.md#destination-backblaze-b2)), pushed to 1Password. | `backblaze-b2-tofu-admin` |
+| `backblaze` | B2 buckets and application keys of the restic repositories ([docs/backups](../docs/backups/README.md#destination-backblaze-b2)), pushed to 1Password. | `backblaze-b2-tofu-admin` |
 
 | Recipe | What it does |
 | --- | --- |
@@ -49,7 +49,7 @@ Once, with the B2 CLI ([b2](https://www.backblaze.com/docs/cloud-storage-command
 
   The exact list needed by the provider is not documented: if an `apply` fails with an `unauthorized` error, add the missing capability (a new key: capabilities cannot be changed).
 - [x] 1Password, `infrastructure` vault, "API credential" item `backblaze-b2-tofu-admin`: `access-key-id` as username and `secret-access-key` as credential.
-- [x] Escalation test, done on 2026-10-25: the admin key **can** create a key with `deleteFiles`. B2 does not limit the capabilities of a new key to those of the key creating it, and the new key deleted a file version of the state bucket for good. Accepted ([backups.md](../docs/backups.md#protection-against-ransomware-and-stolen-keys)). The new key did not show in the web interface: list the keys with `b2 key list --long`. To redo:
+- [x] Escalation test, done on 2026-10-25: the admin key **can** create a key with `deleteFiles`. B2 does not limit the capabilities of a new key to those of the key creating it, and the new key deleted a file version of the state bucket for good. Accepted ([docs/backups](../docs/backups/README.md#protection-against-ransomware-and-stolen-keys)). The new key did not show in the web interface: list the keys with `b2 key list --long`. To redo:
 
   ```sh
   b2 account authorize   # with the admin key
@@ -70,7 +70,7 @@ The workstation service account is read-only. `sync-1password` uses it to find t
 - The values go through pipes only (`op item edit` reads the item JSON from its standard input), never through command arguments (`/proc/<pid>/cmdline` is world-readable) nor files.
 - The rest of the item is kept, the restic `password` in particular: OpenTofu never manages it, a new password would make the repository unreadable.
 - If the update fails (approval denied, `host-spawn` not forwarding the standard input...), the recipe offers to print the values, to update the item by hand.
-- A change of the capabilities of a key replaces it: the old one is deleted at the end of the `apply`, the backups fail until the item is updated and External Secrets refreshes the Secrets (every 12 hours, or force it, see [backups.md](../docs/backups.md#recovery-after-a-deletion-of-the-backups), step 5).
+- A change of the capabilities of a key replaces it: the old one is deleted at the end of the `apply`, the backups fail until the item is updated and External Secrets refreshes the Secrets (every 12 hours, or [force it](../docs/backups/runbook.md#refreshing-the-secrets)).
 
 ## Restoring a previous state
 
@@ -85,7 +85,7 @@ The copy becomes the current version, still encrypted with the same passphrase. 
 
 ## Bucket rebuilt by hand
 
-After a [rebuild of a bucket at a past date](../docs/backups.md#recovery-after-a-deletion-of-the-backups), done with the master key outside OpenTofu, bring the new bucket under OpenTofu. Not tested:
+After a [rebuild of a bucket at a past date](../docs/backups/runbook.md#recovery-after-a-deletion-of-the-backups), done with the master key outside OpenTofu, bring the new bucket under OpenTofu. Not tested:
 
 1. Remove the old bucket and key from the state, without deleting them: `just tofu run backblaze state rm "'b2_bucket.restic[\"<name>\"]'" "'b2_application_key.restic[\"<name>\"]'"` (the extra single quotes survive the interpolation of the arguments in the recipe, which the shell would otherwise strip of the double quotes).
 2. Rename the entry of `restic_repositories` after the new bucket (`<new name>-gz8j9y`), import the bucket with an `import` block (its bucket ID; import support by the provider to check).

@@ -1,0 +1,35 @@
+---
+# Backup of the main volume of an application with VolSync (restic, B2), see docs/backups/README.md.
+# Creates the PVC `${APP}` of the application: on a new cluster, it is filled from the latest
+# backup before the application starts. To restore a deleted PVC, delete the ReplicationDestination
+# with it (see replicationdestination.yaml).
+#
+# Usage, in the Flux Kustomization (ks.yaml) of the application:
+#
+#   spec:
+#     components:
+#       - ../../../../components/volsync     # relative to spec.path
+#     dependsOn:
+#       - name: volsync
+#         namespace: backups
+#       - name: external-secrets-stores
+#         namespace: external-secrets
+#     postBuild:
+#       substitute:
+#         APP: <name>                    # PVC, repository path, secret and object names
+#         VOLSYNC_CAPACITY: 5Gi          # size of the PVC (default 1Gi)
+#         VOLSYNC_UID: "1000"            # user and group owning the files of the volume,
+#         VOLSYNC_GID: "1000"            # the restic mover runs as them (default 1000)
+#
+# Optional: VOLSYNC_SCHEDULE (cron, UTC, default "30 1 * * *"), VOLSYNC_STORAGECLASS (class of
+# the PVC, default replicated). The application mounts the PVC `${APP}` and must not define it.
+# VOLSYNC_SCHEDULE must not start with `*` ("0,15,30,45 * * * *" rather than "*/15 * * * *"):
+# kustomize drops the quotes around the variable, Flux substitutes it in plain YAML, and a
+# leading `*` is read as a YAML alias.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - ./externalsecret.yaml
+  - ./pvc.yaml
+  - ./replicationdestination.yaml
+  - ./replicationsource.yaml

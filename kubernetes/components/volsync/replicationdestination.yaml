@@ -1,0 +1,36 @@
+---
+# Restore of the latest backup, used by the volume populator of the PVC (pvc.yaml). Runs once,
+# when it is created (`manual` trigger): restic restores into a temporary volume, VolSync snapshots
+# it (status.latestImage), and the PVC of the application is created from that snapshot. The
+# temporary volume and the cache are deleted afterwards; the snapshot stays, and holds the LINSTOR
+# resource definition of the deleted volume.
+# The snapshot is never refreshed: a PVC created later gets the same data. To restore the latest
+# backup into a new PVC, delete this ReplicationDestination with the PVC, Flux recreates both
+# (docs/backups/runbook.md, "One application volume, from scratch"). For an older backup, restore
+# it in place afterwards.
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationDestination
+metadata:
+  name: ${APP}-dst
+spec:
+  trigger:
+    manual: restore-once
+  restic:
+    repository: ${APP}-volsync
+    copyMethod: Snapshot
+    volumeSnapshotClassName: linstor
+    # Same resource group as `replicated`, deleted with the PVC (see storageclasses.yaml).
+    storageClassName: replicated-temporary
+    accessModes: ["ReadWriteOnce"]
+    capacity: ${VOLSYNC_CAPACITY:=1Gi}
+    cacheStorageClassName: replicated-temporary
+    cleanupTempPVC: true
+    cleanupCachePVC: true
+    enableFileDeletion: true
+    moverSecurityContext:
+      runAsNonRoot: true
+      runAsUser: ${VOLSYNC_UID:=1000}
+      runAsGroup: ${VOLSYNC_GID:=1000}
+      fsGroup: ${VOLSYNC_GID:=1000}
+      seccompProfile:
+        type: RuntimeDefault

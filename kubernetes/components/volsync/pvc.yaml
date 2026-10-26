@@ -1,0 +1,22 @@
+---
+# The volume of the application. dataSourceRef only acts when the PVC is created: the VolSync
+# volume populator fills it from the snapshot of the ReplicationDestination (the backup restored
+# when the ReplicationDestination was created, empty when the repository had no snapshot yet), then
+# it is a plain PVC. Changing dataSourceRef later is refused by the API.
+# After deleting the PVC, delete the ReplicationDestination too, or the new PVC gets that old
+# restore instead of the latest backup (docs/backups/runbook.md, "One application volume, from
+# scratch").
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ${APP}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  dataSourceRef:
+    apiGroup: volsync.backube
+    kind: ReplicationDestination
+    name: ${APP}-dst
+  resources:
+    requests:
+      storage: ${VOLSYNC_CAPACITY:=1Gi}
+  storageClassName: ${VOLSYNC_STORAGECLASS:=replicated}

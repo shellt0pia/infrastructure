@@ -1,0 +1,33 @@
+---
+# Daily backup of the PVC of the application: a CSI snapshot (crash-consistent, the application
+# keeps running), cloned into a temporary volume that restic backs up, then deleted.
+# Retention: 28 daily, 8 weekly, 6 monthly (`restic forget` after each backup). The prune, which
+# frees the space, runs separately every 7 days.
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: ${APP}
+spec:
+  sourcePVC: ${APP}
+  trigger:
+    # UTC (time zone of the controller).
+    schedule: "${VOLSYNC_SCHEDULE:=30 1 * * *}"
+  restic:
+    repository: ${APP}-volsync
+    copyMethod: Snapshot
+    volumeSnapshotClassName: linstor
+    # Same resource group as `replicated`, deleted with the PVC (see storageclasses.yaml).
+    storageClassName: replicated-temporary
+    cacheStorageClassName: replicated-temporary
+    pruneIntervalDays: 7
+    retain:
+      daily: 28
+      weekly: 8
+      monthly: 6
+    moverSecurityContext:
+      runAsNonRoot: true
+      runAsUser: ${VOLSYNC_UID:=1000}
+      runAsGroup: ${VOLSYNC_GID:=1000}
+      fsGroup: ${VOLSYNC_GID:=1000}
+      seccompProfile:
+        type: RuntimeDefault

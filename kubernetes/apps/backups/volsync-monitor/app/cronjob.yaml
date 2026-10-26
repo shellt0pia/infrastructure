@@ -1,0 +1,87 @@
+---
+# Daily check of the VolSync backups, reported to healthchecks.io: success when every
+# ReplicationSource of the cluster has a successful sync younger than 26 hours (or was created
+# less than 26 hours ago), failure (with
+# the list of the late ones in the body of the ping) otherwise. A paused ReplicationSource is
+# reported as late. Runs well after the backups (01:30 UTC by default).
+# To be replaced by an alert on the VolSync metrics (volsync_volume_out_of_sync) once
+# Alertmanager is configured.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: volsync-monitor
+spec:
+  schedule: "0 9 * * *"
+  timeZone: Europe/Paris
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 21600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: volsync-monitor
+        spec:
+          restartPolicy: Never
+          serviceAccountName: volsync-monitor
+          enableServiceLinks: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: check
+              # kubectl, jq and curl. Same minor version as the cluster (talos/vars.yaml).
+              image: docker.io/alpine/k8s:1.37.1
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  max_age=93600
+                  kubectl get replicationsources --all-namespaces --output json > /tmp/sources.json
+                  total=$(jq '.items | length' /tmp/sources.json)
+                  late=$(jq --raw-output --argjson max_age "$max_age" '
+                    (now - $max_age) as $limit
+                    | .items[]
+                    | select(.spec.paused == true
+                        or ((.status.lastSyncTime // .metadata.creationTimestamp) | fromdateiso8601) < $limit)
+                    | "\(.metadata.namespace)/\(.metadata.name) last sync: \(.status.lastSyncTime // "never")\(if .spec.paused then " (paused)" else "" end)"
+                  ' /tmp/sources.json)
+                  if [ -n "$late" ]; then
+                    printf 'Late backups (%s sources):\n%s\n' "$total" "$late" | tee /tmp/body
+                    curl --fail --silent --show-error --max-time 10 --retry 5 --data-binary @/tmp/body "$HEALTHCHECKS_URL/fail"
+                    exit 1
+                  fi
+                  echo "All $total sources backed up within the last 26 hours" | tee /tmp/body
+                  curl --fail --silent --show-error --max-time 10 --retry 5 --data-binary @/tmp/body "$HEALTHCHECKS_URL"
+              envFrom:
+                - secretRef:
+                    name: volsync-monitor
+              env:
+                # kubectl writes its discovery cache under $HOME.
+                - name: HOME
+                  value: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 64Mi

@@ -22,6 +22,9 @@ MINIJINJA_CONFIG_FILE = "{{ config_root }}/.minijinja.toml"
 "aqua:coreos/butane" = "latest"
 # Structured logs of the just recipes.
 "aqua:charmbracelet/gum" = "latest"
+# Backups (`just kube volsync-*`, docs/backups/runbook.md). rclone reads the hidden B2 versions.
+"aqua:restic/restic" = "latest"
+"aqua:rclone/rclone" = "latest"
 # `kubectl linstor`: LINSTOR client of the controller pod, `pvc:` and `pod:`
 # arguments, sos-report download. Not in the aqua registry: GitHub releases.
 "github:piraeusdatastore/kubectl-linstor" = "latest"
@@ -32,5 +35,5 @@ MINIJINJA_CONFIG_FILE = "{{ config_root }}/.minijinja.toml"
 "pypi:ansible" = "latest"
 "pypi:ansible-core" = "latest"
 "pypi:ansible-lint" = "latest"
-# B2 CLI (tofu/README.md#setup, docs/backups.md): not in the aqua registry.
+# B2 CLI (tofu/README.md#setup, docs/backups/runbook.md): not in the aqua registry.
 "pypi:b2" = "latest"

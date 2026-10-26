@@ -37,7 +37,7 @@ resource "b2_application_key" "restic" {
 
   key_name   = each.key
   bucket_ids = [b2_bucket.restic[each.key].bucket_id]
-  # No deleteFiles: deletions only hide files (docs/backups.md#protection-against-ransomware-and-stolen-keys).
+  # No deleteFiles: deletions only hide files (docs/backups/README.md#protection-against-ransomware-and-stolen-keys).
   # No writeBuckets: the lifecycle rule cannot be changed with the key.
   capabilities = ["listBuckets", "listFiles", "readFiles", "writeFiles"]
 
