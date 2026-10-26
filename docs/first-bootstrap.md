@@ -387,9 +387,9 @@ On the cluster bootstrapped before the storage was added, the nodes need the `dr
 - [ ] Checks on the cluster:
   - `kubectl api-resources --api-group=snapshot.storage.k8s.io`: `volumesnapshots`, `volumesnapshotcontents` and `volumesnapshotclasses`.
   - `kubectl -n piraeus-datastore get linstorcluster,linstorsatellites,pods -o wide`: every condition `True`, one `linstor-satellite`, `linstor-csi-node` and `ha-controller` pod per node, the satellites with the node IPv4 and ULA addresses (host network).
-  - `kubectl -n piraeus-datastore exec deploy/linstor-controller -- linstor node list`: every node `Online`.
-  - `kubectl -n piraeus-datastore exec deploy/linstor-controller -- linstor node interface list kube-01` (same for each node): `default-ipv4` and `default-ipv6` (ULA address, never the GUA one), and `linstor node list-properties kube-01`: `PrefNic` is `default-ipv6`.
-  - `kubectl -n piraeus-datastore exec deploy/linstor-controller -- linstor storage-pool list`: one `nvme` pool (`LVM_THIN`, `linstor_nvme/nvme`) per node, with about 1 TB of capacity, plus the `DfltDisklessStorPool`.
+  - `kubectl linstor node list` (kubectl-linstor plugin, installed by mise): every node `Online`.
+  - `kubectl linstor node interface list kube-01` (same for each node): `default-ipv4` and `default-ipv6` (ULA address, never the GUA one), and `kubectl linstor node list-properties kube-01`: `PrefNic` is `default-ipv6`.
+  - `kubectl linstor storage-pool list`: one `nvme` pool (`LVM_THIN`, `linstor_nvme/nvme`) per node, with about 1 TB of capacity, plus the `DfltDisklessStorPool`.
   - `kubectl get storageclass,volumesnapshotclass`: `replicated (default)`, `local` and `linstor`.
   - A volume of each class, a snapshot and a restore:
 
@@ -439,7 +439,7 @@ On the cluster bootstrapped before the storage was added, the nodes need the `dr
             claimName: pvctest-local
     EOF
     kubectl wait --for=condition=Ready pod/pvctest
-    kubectl -n piraeus-datastore exec deploy/linstor-controller -- linstor resource list
+    kubectl linstor resource list
     # replicated volume: UpToDate on 2 nodes (the node of the pod and another one); with 3 nodes,
     # a third TieBreaker (diskless) resource. local volume: a single resource without DRBD.
     kubectl apply -f - <<'EOF'
@@ -490,8 +490,8 @@ On the cluster bootstrapped before the storage was added, the nodes need the `dr
     kubectl logs pvctest-restore          # hello
     ```
 
-    Clean up: `kubectl delete pod pvctest pvctest-restore`, `kubectl delete volumesnapshot pvctest`, `kubectl delete pvc pvctest-replicated pvctest-local pvctest-restore`. The classes use `reclaimPolicy: Retain`: the PVs stay `Released`, delete them with `kubectl delete pv <name>`, then their LINSTOR resources with `kubectl -n piraeus-datastore exec deploy/linstor-controller -- linstor resource-definition delete <pv name>`.
-- [ ] Failover test, once kube-02 has joined (not before: with 2 nodes, losing one also loses the etcd quorum): a pod using a `replicated` volume, power off its node. The HA controller deletes the pod once the node has lost quorum on the volume, and it restarts on another node with its data, without intervention. While the node is away, `linstor resource list` shows the replica of the lost node as `Unknown`/`Outdated`; when it comes back, DRBD only resynchronizes the blocks written in the meantime.
+    Clean up: `kubectl delete pod pvctest pvctest-restore`, `kubectl delete volumesnapshot pvctest`, `kubectl delete pvc pvctest-replicated pvctest-local pvctest-restore`. The classes use `reclaimPolicy: Retain`: the PVs stay `Released`, delete them with `kubectl delete pv <name>`, then their LINSTOR resources with `kubectl linstor resource-definition delete <pv name>`.
+- [ ] Failover test, once kube-02 has joined (not before: with 2 nodes, losing one also loses the etcd quorum): a pod using a `replicated` volume, power off its node. The HA controller deletes the pod once the node has lost quorum on the volume, and it restarts on another node with its data, without intervention. While the node is away, `kubectl linstor resource list` shows the replica of the lost node as `Unknown`/`Outdated`; when it comes back, DRBD only resynchronizes the blocks written in the meantime.
 
 ## Appendix — Adding kube-02
 
@@ -503,15 +503,15 @@ Once `home` has been migrated to the cluster:
 - [ ] Fill the WWID of the SATA SSD and the serial of the NVMe SSD in `talos/nodes/kube-02.yaml`, uncomment kube-02 in `talos/vars.yaml`.
 - [ ] `just talos talosconfig`, then `just talos apply-node kube-02 --insecure`. The node joins etcd automatically, check with `talosctl etcd members`.
 - [ ] Nothing to do for BGP: the node opens its sessions and OPNsense accepts them through the listen ranges. Check with `vtysh -c 'show bgp summary'`.
-- [ ] Storage: the satellite of kube-02 creates its `nvme` pool on its own (`linstor storage-pool list`). Check that the existing `replicated` volumes get a diskless `TieBreaker` resource on the third node (`linstor resource list`), then run the failover test of phase 9.
+- [ ] Storage: the satellite of kube-02 creates its `nvme` pool on its own (`kubectl linstor storage-pool list`). Check that the existing `replicated` volumes get a diskless `TieBreaker` resource on the third node (`kubectl linstor resource list`), then run the failover test of phase 9.
 
 ## Appendix — Rebuilding a node
 
 The disks are unlocked by the TPM as long as the machine boots a Talos image signed by Sidero Labs with Secure Boot enabled. Firmware updates, kernel arguments changes and Secure Boot database updates do not affect it. The unlocking fails if the TPM is cleared (BIOS reset of the PTT), the motherboard is replaced or Secure Boot is disabled. In that case, rebuild the node:
 
-- [ ] From another node: `talosctl --nodes <other> etcd remove-member kube-0X`, then `kubectl delete node kube-0X`. LINSTOR: `kubectl -n piraeus-datastore exec deploy/linstor-controller -- linstor node lost kube-0X` removes the node and its replicas from LINSTOR (the operator keeps a deleted node registered by default, `deletionPolicy: Retain`, and its volumes will not exist on the wiped disk).
+- [ ] From another node: `talosctl --nodes <other> etcd remove-member kube-0X`, then `kubectl delete node kube-0X`. LINSTOR: `kubectl linstor node lost kube-0X` removes the node and its replicas from LINSTOR (the operator keeps a deleted node registered by default, `deletionPolicy: Retain`, and its volumes will not exist on the wiped disk).
 - [ ] Boot the node from the ISO (re-enroll the keys if the firmware restored its defaults), then wipe both disks: `talosctl wipe disk sda nvme0n1 --insecure --nodes kube-0X.shelltopia.net` (not tested yet on this hardware). The `r-storage` volume of the NVMe SSD cannot be unlocked anymore either: if it were kept, Talos would find the encrypted partition and fail to open it instead of recreating it.
-- [ ] `just talos apply-node kube-0X --insecure`. The data stored by the applications is replicated on the other nodes (CloudNativePG, DRBD replicas of the `replicated` class), the storage solution then rebuilds the replicas of this node. Check with `linstor resource list` that the `replicated` volumes are back to 2 replicas, otherwise `linstor resource-group adjust replicated`. The volumes of the `local` class of this node are lost: restore them from the backups.
+- [ ] `just talos apply-node kube-0X --insecure`. The data stored by the applications is replicated on the other nodes (CloudNativePG, DRBD replicas of the `replicated` class), the storage solution then rebuilds the replicas of this node. Check with `kubectl linstor resource list` that the `replicated` volumes are back to 2 replicas, otherwise `kubectl linstor resource-group adjust replicated`. The volumes of the `local` class of this node are lost: restore them from the backups.
 
 ## Appendix — OpenTofu / Cloudflare
 

@@ -10,8 +10,8 @@
 # applied to the named resource group.
 #
 # Retain: deleting a PVC (or the app) never deletes the data. Released PVs and their LINSTOR
-# resources must be cleaned up by hand (`kubectl delete pv`, then `linstor resource-definition
-# delete`).
+# resources must be cleaned up by hand (`kubectl delete pv`, then `kubectl linstor
+# resource-definition delete`).
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:

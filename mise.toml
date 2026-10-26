@@ -22,6 +22,9 @@ MINIJINJA_CONFIG_FILE = "{{ config_root }}/.minijinja.toml"
 "aqua:coreos/butane" = "latest"
 # Structured logs of the just recipes.
 "aqua:charmbracelet/gum" = "latest"
+# `kubectl linstor`: LINSTOR client of the controller pod, `pvc:` and `pod:`
+# arguments, sos-report download. Not in the aqua registry: GitHub releases.
+"github:piraeusdatastore/kubectl-linstor" = "latest"
 
 # Python tools are installed in isolated environments with uv.
 "aqua:astral-sh/uv" = "latest"
