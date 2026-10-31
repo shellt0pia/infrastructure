@@ -5,6 +5,7 @@ How the DNS records of the applications are created: from their HTTPRoutes, by k
 | Document | Content |
 | --- | --- |
 | [bootstrap.md](bootstrap.md) | First deployment: Cloudflare tokens, checks, Unbound on OPNsense, the OpenTofu stack of the other records. |
+| [runbook.md](runbook.md) | Day-to-day: where to create a record, a name that does not resolve, external-dns dry run, the addresses of k8s-gateway. |
 | [evaluations.md](evaluations.md) | What was considered or accepted, and the open points. |
 
 Migrating a name from `home` is in the [ingress runbook](../ingress/runbook.md#migrating-a-name-from-home).

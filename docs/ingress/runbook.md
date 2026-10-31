@@ -63,6 +63,50 @@ The `Certificate` `shelltopia-org` is issued by `letsencrypt-production`. To tes
 
 3. **Switch back to production**, the same way.
 
+## A certificate is not issued or renewed
+
+The wildcard `Certificate` `shelltopia-org` lives in `network`, and cert-manager renews it by itself. If the issuance fails, the Gateways keep serving the previous certificate until it expires.
+
+1. **Follow the chain**, from the Certificate to the DNS-01 challenge (these objects are in the namespace of the Certificate):
+
+   ```sh
+   kubectl -n network get certificate shelltopia-org
+   kubectl -n network get certificaterequest,order,challenge
+   kubectl -n network describe challenge
+   ```
+
+   Expected, when healthy: the Certificate `Ready`, no pending Order or Challenge. Otherwise, the `describe` of the failing object gives the reason.
+
+2. **Read the controller logs:**
+
+   ```sh
+   kubectl -n cert-manager logs deploy/cert-manager
+   ```
+
+3. **Look for the cause:**
+
+   - **The Cloudflare token** (authorization error, `403`): expired or revoked. Check the ExternalSecret, then [replace the token](../secrets/runbook.md#replacing-a-token-synced-to-the-cluster) (item `cloudflare-cert-manager`):
+
+     ```sh
+     kubectl -n cert-manager get externalsecret cloudflare-api-token
+     kubectl get clusterissuers
+     ```
+
+     Expected: `SecretSynced`, both issuers `Ready`.
+
+   - **The propagation check never succeeds** (the challenge stays `pending`, `propagation check failed`): the nodes must reach the public resolvers set in `dns01RecursiveNameservers` ([firewall](../network/bootstrap.md#3-firewall)), and `dns01RecursiveNameserversOnly` must still be `true` in the cert-manager values.
+
+   - **Let's Encrypt rate limit.** Test with the [staging issuer](#testing-a-change-with-the-staging-issuer) first: a rebuild repeated several times in a week may hit the limit on duplicate certificates.
+
+4. **Retry**, once the cause is fixed. Either wait for cert-manager, or delete the failed `CertificateRequest` so that it creates a new one:
+
+   ```sh
+   kubectl -n network delete certificaterequest <name>
+   kubectl -n network get certificate shelltopia-org -w
+   ```
+
+   Expected: the Certificate becomes `Ready`.
+
 ## Migrating a name from `home`
 
 1. **Deploy the application** with its route (`hostnames`, attached to the right Gateway(s)).

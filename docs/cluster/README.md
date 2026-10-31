@@ -5,7 +5,7 @@ How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap he
 | Document | Content |
 | --- | --- |
 | [bootstrap.md](bootstrap.md) | First deployment: cluster ranges, Git repository, dry checks, `just bootstrap cluster`, checks of the cluster. |
-| [runbook.md](runbook.md) | Day-to-day: the `just kube` recipes, the upgrades. |
+| [runbook.md](runbook.md) | Day-to-day: the `just kube` recipes, the upgrades by hand, diagnosing Flux, recovering it on the wrong branch. |
 | [evaluations.md](evaluations.md) | The choices considered, and the points to check or watch. |
 
 ## Status

@@ -5,7 +5,7 @@ How the HTTP(S) traffic reaches the applications: Envoy Gateway, two Gateways, t
 | Document | Content |
 | --- | --- |
 | [bootstrap.md](bootstrap.md) | First deployment: prerequisites, the checks of the Gateways, the OPNsense firewall and HAProxy. |
-| [runbook.md](runbook.md) | Day-to-day: exposing an application, the staging certificate, migrating a name from `home`, removing HAProxy. |
+| [runbook.md](runbook.md) | Day-to-day: exposing an application, the staging certificate, a certificate that is not issued, migrating a name from `home`, removing HAProxy. |
 | [evaluations.md](evaluations.md) | What was considered or rejected, and the open points. |
 
 The manifests are in `kubernetes/apps/envoy-gateway-system` (controller), `kubernetes/apps/network/gateways` (Gateways, certificate, policies) and `kubernetes/apps/cert-manager` (issuers). The DNS tools (`kubernetes/apps/network/{k8s-gateway,external-dns,cloudflare-ddns}`) are described in [dns](../dns/README.md).

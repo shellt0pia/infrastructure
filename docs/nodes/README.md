@@ -5,7 +5,7 @@ The machines of the cluster: hardware, BIOS, Secure Boot, disk encryption and th
 | Document | Content |
 | --- | --- |
 | [bootstrap.md](bootstrap.md) | First installation: BIOS, ISO, first boot in maintenance mode, checks of the nodes after the cluster bootstrap. |
-| [runbook.md](runbook.md) | Day-to-day: adding kube-02, rebuilding a node, starting over. |
+| [runbook.md](runbook.md) | Day-to-day: adding kube-02, rebuilding a node, power outage and shutdown, starting over. |
 | [evaluations.md](evaluations.md) | The disk selectors, the tooling that was set aside, the remote management study, and the points to watch. |
 
 ## Status

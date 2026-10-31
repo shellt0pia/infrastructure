@@ -66,6 +66,50 @@ The disks are unlocked by the TPM as long as the machine boots a Talos image sig
 
 A node that stays stuck after a TPM unlock failure may only need a cold power cycle ([open points](evaluations.md#open-points)).
 
+## Power outage
+
+The NAS runs the NUT server that watches the UPS (`ups` in `talos/vars.yaml`), and every node runs the NUT client extension (`talos/patches/extensions.yaml.j2`): when the UPS goes on battery, the nodes shut down 90 s later with `/sbin/poweroff` ([decisions](README.md#decisions)). They all go down together, so the whole cluster stops: there is no quorum left for etcd nor for the DRBD volumes. The BIOS is set to *Power On* after a power loss, so the nodes boot again by themselves when the power is back ([BIOS checklist](bootstrap.md#1-hardware-and-bios)).
+
+Not tested yet with a real outage.
+
+- [ ] **Network and NAS first.** The nodes configure their network dynamically (DHCPv4, router advertisements) and get their time and names from OPNsense, and the applications need the NAS for their NFS volumes. Check that both are back before the nodes, so that they find their network and their volumes as soon as they boot.
+- [ ] **Power the nodes on** that did not boot by themselves (*Wake-on-LAN* is set to *LAN only*). Keep a console at hand: a [TPM unlock failure](evaluations.md#open-points) needs a cold power cycle.
+- [ ] **Checks**, once the nodes are back:
+
+  ```sh
+  talosctl etcd members
+  kubectl get nodes
+  flux get ks -A
+  kubectl linstor node list
+  kubectl linstor resource list
+  ```
+
+  Expected: every node a member of etcd and `Ready`, every Kustomization `Ready`, every LINSTOR node `Online`. The replicas are `Outdated` then `UpToDate` once DRBD has resynchronized ([checking the state](../storage/runbook.md#checking-the-state)).
+
+- [ ] **BGP.** On OPNsense, the sessions with the nodes are `Established` again:
+
+  ```sh
+  vtysh -c 'show bgp summary'
+  ```
+
+## Shutting the cluster down on purpose
+
+Before a power maintenance, for instance. Not tested yet.
+
+- [ ] **Node by node**, while the Kubernetes API answers. The recipe cordons and drains the node first:
+
+  ```sh
+  just talos shutdown-node kube-0X
+  ```
+
+- [ ] **The last nodes.** Once etcd has lost its quorum, the API is down and the nodes can no longer be drained: skip the cordon and the drain.
+
+  ```sh
+  just talos shutdown-node kube-0X --force
+  ```
+
+Then start again as after a [power outage](#power-outage).
+
 ## Starting over
 
 Put a node back in maintenance mode, then run the bootstrap again:

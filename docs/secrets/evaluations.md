@@ -83,3 +83,4 @@ A [1Password service account](https://developer.1password.com/docs/service-accou
 | Rotation | Manual: `opsa` warns 5 days before and refuses to run past 30 days ([procedure](runbook.md#rotating-the-workstation-token)). |
 | Secret Service (oo7) | Does not change the model for processes outside a Flatpak sandbox, which the toolbox is ([option E](README.md#where-the-token-lives-between-two-commands--b-a-non-exported-shell-parameter-with-a-ttl)). |
 | topf | Not adopted for now ([why](#replacing-the-talos-recipes-with-topf)). |
+| Copy of the critical secrets outside 1Password | The Talos secrets bundle and the restic passwords only exist in 1Password: without access to the account, the cluster cannot be rebuilt nor the backups read ([1Password unavailable](runbook.md#1password-unavailable)). Decide whether an offline copy is wanted, and where. |

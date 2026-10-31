@@ -5,7 +5,7 @@ How the applications get persistent volumes: Piraeus/LINSTOR (DRBD 9) on the NVM
 | Document | Content |
 | --- | --- |
 | [bootstrap.md](bootstrap.md) | First deployment: preparing the nodes, the checks, a volume of each class with a snapshot and a restore, the failover test. |
-| [runbook.md](runbook.md) | Day-to-day: orphan volumes, adjusting the replicas, removing a lost node. |
+| [runbook.md](runbook.md) | Day-to-day: orphan volumes, adjusting the replicas, removing a lost node, replacing a failed disk, a thin pool filling up. |
 | [evaluations.md](evaluations.md) | The options set aside, and the points to check or watch. |
 
 ## Status

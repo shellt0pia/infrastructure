@@ -5,7 +5,7 @@ Where the secrets live, and how the workstation and the cluster read them. The c
 | Document | Content |
 | --- | --- |
 | [bootstrap.md](bootstrap.md) | First setup: the service accounts and the items to create before the first `just bootstrap cluster`. |
-| [runbook.md](runbook.md) | Day-to-day: rotating the workstation token, the personal account, the tokens to renew. |
+| [runbook.md](runbook.md) | Day-to-day: rotating the workstation token, replacing a token synced to the cluster, 1Password unavailable, the tokens to renew. |
 | [evaluations.md](evaluations.md) | The approval prompt problem, the options evaluated, and why a read-only service account was chosen. |
 
 The cluster side is in `kubernetes/apps/external-secrets` (operator and `onepassword` ClusterSecretStore) and `bootstrap/resources/secrets.yaml.j2` (token of the store, injected at the bootstrap). The workstation side is the `op inject` and `op read` calls of the recipes (`talos/mod.just`, `bootstrap/mod.just`, `tofu/mod.just`, `kubernetes/mod.just`), and the shell functions of the toolbox (`just`, `opsa`), which are outside of this repository.
