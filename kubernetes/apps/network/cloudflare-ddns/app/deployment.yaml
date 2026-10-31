@@ -12,6 +12,10 @@ metadata:
   name: cloudflare-ddns
   labels:
     app.kubernetes.io/name: cloudflare-ddns
+  annotations:
+    # Restarted by Reloader when the token is rotated: CLOUDFLARE_API_TOKEN is only read at
+    # startup.
+    reloader.stakater.com/auto: "true"
 spec:
   replicas: 1
   # Never two updaters at the same time.

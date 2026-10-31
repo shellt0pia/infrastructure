@@ -11,6 +11,8 @@ The choices considered and set aside, and what is still to check or watch. The r
 | Cilium `bpf.masquerade` | Its IPv6 support is beta and always uses the GUA as source ([network](../network/evaluations.md#rejected-options)). |
 | A registry cache | Docker Hub credentials in containerd avoid the rate limit. |
 | Intel DRA driver | See [below](#intel-dra-driver). |
+| Reloader watching every workload (`autoReloadAll: true`) | Each certificate renewed by cert-manager would restart the pods that mount it, including those that reload it themselves, and the storage and network components would restart without anyone asking for it. Opt-in per workload instead ([README](README.md#reloader)). |
+| Reloader `env-vars` strategy (its default) | Injects an env var in the containers of the workload: `annotations` leaves the containers as Flux and Helm applied them. |
 
 ## Intel DRA driver
 

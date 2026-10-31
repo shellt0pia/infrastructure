@@ -63,6 +63,12 @@ kubernetes/apps/<namespace>/
 - A long `refreshInterval` (`1h`, `12h` for VolSync): the service account has rate limits.
 - One item and one token per tool, so that a leaked one gives no access to the others. Items of the cluster in the `kubernetes` vault, the rest in `infrastructure` ([reference](reference.md#1password-items)).
 
+### Reloads
+
+- A workload that only reads a ConfigMap or Secret at startup (env var, `subPath` mount, configuration read once) carries `reloader.stakater.com/auto: "true"` on its own `metadata` (Deployment, StatefulSet, DaemonSet), not on the pod template: Reloader restarts it when the content changes ([cluster](cluster/README.md#reloader)). With a chart, through its value for the annotations of the workload (`deploymentAnnotations` for external-dns).
+- A comment next to the annotation says what it reloads.
+- Nothing for Jobs and CronJobs, nor for an application that watches its mounted files itself; a reference it reloads by itself is excluded with `secrets.exclude.reloader.stakater.com/reload` (or `configmaps.exclude.…`).
+
 ### Routes and names
 
 - A route lists its `hostnames` and its `parentRefs`: the DNS records are created from them ([dns](dns/README.md#overview)). Applications are served in `shelltopia.org`.

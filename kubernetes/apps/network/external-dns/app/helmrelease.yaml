@@ -32,6 +32,9 @@ spec:
   values:
     provider:
       name: cloudflare
+    # Restarted by Reloader when the token is rotated: CF_API_TOKEN is only read at startup.
+    deploymentAnnotations:
+      reloader.stakater.com/auto: "true"
     env:
       - name: CF_API_TOKEN
         valueFrom:

@@ -213,3 +213,62 @@ Checks on the cluster:
   kubectl logs gputest               # renderD128 (and card0) owned by 1000:1000
   kubectl delete pod gputest
   ```
+
+### Reloader
+
+- [x] **Deployment:**
+
+  ```sh
+  flux -n kube-system get hr reloader
+  kubectl -n kube-system get pods -l app=reloader
+  ```
+
+  Expected: the HelmRelease is `Ready`, one pod `Running`.
+
+- [x] **Reload on change.** A test Deployment that reads a ConfigMap as an env var is restarted when the ConfigMap changes:
+
+  ```sh
+  kubectl create configmap reloader-test --from-literal=VALUE=1
+  kubectl apply -f - <<'EOF'
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: reloader-test
+    annotations:
+      reloader.stakater.com/auto: "true"
+  spec:
+    selector:
+      matchLabels:
+        app: reloader-test
+    template:
+      metadata:
+        labels:
+          app: reloader-test
+      spec:
+        containers:
+          - name: test
+            image: docker.io/library/busybox
+            command: [sh, -c, 'echo "VALUE=$VALUE"; sleep 3600']
+            envFrom:
+              - configMapRef:
+                  name: reloader-test
+  EOF
+  kubectl rollout status deploy/reloader-test
+  kubectl create configmap reloader-test --from-literal=VALUE=2 --dry-run=client -o yaml | kubectl apply -f -
+  sleep 10
+  kubectl rollout status deploy/reloader-test
+  kubectl logs deploy/reloader-test
+  kubectl get deploy reloader-test -o jsonpath='{.spec.template.metadata.annotations}'
+  kubectl -n kube-system logs deploy/reloader | grep reloader-test
+  kubectl delete deploy/reloader-test configmap/reloader-test
+  ```
+
+  Expected: a new pod, whose log shows `VALUE=2`. The pod template carries `reloader.stakater.com/last-reloaded-from` and the log of Reloader reports the change of the ConfigMap. The containers have no `STAKATER_*` env var (`annotations` strategy).
+
+- [x] **Opted-in workloads.** external-dns and cloudflare-ddns carry the annotation:
+
+  ```sh
+  kubectl -n network get deploy external-dns cloudflare-ddns -o jsonpath='{range .items[*]}{.metadata.name}: {.metadata.annotations.reloader\.stakater\.com/auto}{"\n"}{end}'
+  ```
+
+  Expected: `true` for both. The restart itself is checked at the next token rotation ([secrets runbook](../secrets/runbook.md#replacing-a-token-synced-to-the-cluster)).

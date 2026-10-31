@@ -8,7 +8,7 @@ What is left to build on the Kubernetes cluster, and the questions still open. T
 | --- | --- |
 | Talos machine configs (`talos/`) | Done: Secure Boot, TPM disk encryption, disks and NIC selectors, dynamic network, NTP, NUT, watchdog, i915, DRBD, image verification. |
 | Bootstrap (`bootstrap/`, `just bootstrap cluster`) | Done: Cilium (+ BGP and LB pools), CoreDNS, External Secrets, Flux. |
-| GitOps (`kubernetes/apps`) | In use: Flux, External Secrets, Cilium, CoreDNS, cert-manager, Envoy Gateway and the Gateways, the application DNS, the storage and the backups. The status of each is in its [topic](README.md#list). |
+| GitOps (`kubernetes/apps`) | In use: Flux, External Secrets, Cilium, CoreDNS, cert-manager, Envoy Gateway and the Gateways, the application DNS, the storage, the backups and Reloader. The status of each is in its [topic](README.md#list). |
 | OpenTofu (`tofu/`) | States in B2 (encrypted, no locking). `backblaze`: buckets and keys of the backups, applied, keys pushed to 1Password. `cloudflare`: records not managed from the cluster (mail, CAA, PikaPods), SSL settings and DNSSEC, applied. |
 | First bootstrap | In progress, with kube-01 and kube-03 only. |
 
@@ -19,7 +19,7 @@ The sections of [To implement](#to-implement) are by topic, in the order they ar
 1. **Platform, before the applications move.** Everything that is cheap to do on an empty cluster and painful to retrofit on 30 applications:
    - [Observability](#observability): metrics, Flux notifications, alerting, logs.
    - [Security](#security): network policies, Pod Security Admission.
-   - [Cluster tools](#cluster-tools): resource and priority conventions, Reloader, Spegel, kubelet certificates and metrics-server, Headlamp and OIDC.
+   - [Cluster tools](#cluster-tools): resource and priority conventions, Spegel, kubelet certificates and metrics-server, Headlamp and OIDC.
    - [Backups](#backups): NAS data (independent of the cluster, can be done at any time) and PostgreSQL.
    - [Storage](#storage): NFS access to the NAS.
 2. **[Migration](#migration).** `home` first (it becomes kube-02, and the 2-node etcd has no fault tolerance until then), then the Hetzner VM.
@@ -44,7 +44,7 @@ The sections of [To implement](#to-implement) are by topic, in the order they ar
 ### Cluster tools
 
 - [ ] Resource requests and limits on every workload, and `PriorityClass`es so that the storage (LINSTOR, DRBD) and network (Cilium, CoreDNS, Envoy) components win against the applications under memory pressure. Nodes have 16 GiB with `systemReserved` and `kubeReserved` already set. Write the convention in [conventions.md](conventions.md) first, then size the requests from the real usage once the metrics stack runs (a VPA in recommendation mode or Goldilocks can help).
-- [ ] Reloader ([stakater/Reloader](https://github.com/stakater/Reloader)): Kubernetes (v1.37) still does not restart the pods when a ConfigMap or Secret they use changes. Mounted files are refreshed eventually (not with `subPath`), environment variables never, and most applications only read their configuration at startup. Needed mainly for the Secrets synced by External Secrets (rotated tokens) and the ConfigMaps not generated with a hash suffix. Opt-in per workload (`reloader.stakater.com/auto: "true"` or the explicit `secret.reloader.stakater.com/reload` annotation) rather than watching everything.
+
 - [ ] Spegel (registry mirror between the nodes): the Talos side is done (`CRICustomizationConfig` keeping the unpacked layers in `talos/patches/containerd.yaml.j2`, `ImageLocality` disabled in the scheduler), but there is no Spegel deployment in `kubernetes/apps` yet. Deploy it (namespace, HelmRelease, ServiceMonitor with the metrics stack), then document it in [cluster/](cluster/README.md).
 - [ ] kubelet serving certificates and metrics-server. The kubelets use self-signed serving certificates (no `serverTLSBootstrap` in `KubeletConfig`), which nothing verifies today.
   - Set `serverTLSBootstrap: true` in `KubeletConfig` and deploy `kubelet-serving-cert-approver`, otherwise the serving CSRs stay `Pending`. Deploy the approver first, then change the Talos config, so that no node is left without a valid certificate.

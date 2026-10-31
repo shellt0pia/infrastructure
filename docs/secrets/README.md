@@ -50,6 +50,7 @@ The items of the cluster are described with the tool that uses them: [backups](.
 - External Secrets Operator reads the `kubernetes` vault through the `onepassword` ClusterSecretStore (1Password SDK, no Connect server). ESO keeps the provider replaceable.
 - Its service account is read-only and sees **only** the `kubernetes` vault. Its token is the only secret injected by the bootstrap (`op inject` of `bootstrap/resources/secrets.yaml.j2`), everything else is pulled afterwards by `ExternalSecret`s (`remoteRef.key: <item>/<field>`).
 - The service accounts have rate limits: keep the refresh intervals of the `ExternalSecret`s long.
+- A rotated value reaches the pods that read it at startup only through a restart: [Reloader](../cluster/README.md#reloader) does it for the workloads that opt in.
 
 ## On the workstation: a read-only service account
 

@@ -38,10 +38,11 @@ For a secret of the `kubernetes` vault pulled by an `ExternalSecret` (the Cloudf
 
   Expected: `SecretSynced`, with a recent refresh.
 
-- [ ] **Restart the consumers that read it as an environment variable** (for instance external-dns, `CF_API_TOKEN`): Kubernetes does not restart a pod when its Secret changes ([Reloader](../roadmap.md#cluster-tools), to deploy).
+- [ ] **Restart the consumers that read it as an environment variable**, if they do not carry `reloader.stakater.com/auto` ([Reloader](../cluster/README.md#reloader)). external-dns and cloudflare-ddns carry it: check that a new pod started after the sync. Restart by hand the others, and the opted-in ones if Reloader was down during the sync:
 
   ```sh
-  kubectl -n network rollout restart deploy/external-dns
+  kubectl -n <namespace> get pods
+  kubectl -n <namespace> rollout restart deploy/<name>
   ```
 
 - [ ] **Revoke the old token** at its provider, once its consumers work with the new one.

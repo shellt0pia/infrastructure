@@ -1,0 +1,54 @@
+---
+# Kubernetes does not restart a pod when a ConfigMap or Secret it uses changes: environment
+# variables are never updated, mounted files only eventually (never with subPath), and most
+# applications read them at startup only. Reloader does a rolling restart of the workloads that
+# opt in, see docs/cluster/README.md#reloader.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: reloader
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: reloader
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    fullnameOverride: reloader
+    reloader:
+      # Opt-in only: a workload is restarted when it carries reloader.stakater.com/auto or
+      # secret/configmap.reloader.stakater.com/reload (docs/conventions.md). Watching
+      # everything would also restart the components that reload their files themselves (the
+      # certificates renewed by cert-manager) and the storage and network pods.
+      autoReloadAll: false
+      # Records the hash in an annotation of the pod template instead of an env var injected
+      # in the containers: the containers stay as Flux and Helm applied them.
+      reloadStrategy: annotations
+      # Defaults kept: a change made while Reloader is down is not caught up at its restart
+      # (restart the workload by hand, docs/secrets/runbook.md).
+      reloadOnCreate: false
+      syncAfterRestart: false
+      # Mounts an emptyDir on /tmp.
+      readOnlyRootFileSystem: true
+      deployment:
+        # A single replica without leader election: a short outage only delays a reload.
+        replicas: 1
+        containerSecurityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+      podMonitor:
+        # Enable once the Prometheus Operator CRDs are installed.
+        enabled: false
