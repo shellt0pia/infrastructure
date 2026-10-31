@@ -8,7 +8,7 @@ Create every prerequisite of a step before starting it, then follow the steps in
 
 | Step | Prerequisite | How | Status |
 | --- | --- | --- | --- |
-| 1 | Cluster: Cilium with the `internal` and `external` LB pools and the BGP sessions, External Secrets with the `onepassword` ClusterSecretStore. | [first-bootstrap.md](../first-bootstrap.md) | Done |
+| 1 | Cluster: Cilium with the `internal` and `external` LB pools and the BGP sessions, External Secrets with the `onepassword` ClusterSecretStore. | [cluster/bootstrap.md](../cluster/bootstrap.md) | Done |
 | 1 | cert-manager and the `letsencrypt-staging` and `letsencrypt-production` ClusterIssuers, with the Cloudflare token: item `cloudflare-cert-manager` of the `kubernetes` vault (field `credential`, token with *Zone → DNS → Edit* and *Zone → Zone → Read*). | `kubectl get clusterissuers`: both `Ready` | Done |
 | 2 | Firewall and HAProxy on OPNsense. | [Below](#2-opnsense) | Done |
 
@@ -78,7 +78,7 @@ The first certificate was issued by `letsencrypt-staging` then switched to produ
 - [x] **HAProxy.** No rule is needed for HAProxy → `external` pool IPv4 (8080, 8443): the traffic comes from the firewall itself.
 - [x] **Direct ports.** Do not open 8080 and 8443 of the `external` pool to the LAN either, for the same reason. The tests of these ports run from a pod.
 
-The `external` pool is in the GUA prefix delegated by the ISP: when it changes, the rules follow ([IPv6 prefix change](../ipv6-prefix-change.md)).
+The `external` pool is in the GUA prefix delegated by the ISP: when it changes, the rules follow ([IPv6 prefix change](../network/runbook.md#ipv6-prefix-change)).
 
 ### HAProxy (IPv4, during the migration)
 

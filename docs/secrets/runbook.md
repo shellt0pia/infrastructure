@@ -39,4 +39,4 @@ The permissions of a service account cannot be changed after its creation, and i
 | Cloudflare tokens | `kubernetes/cloudflare-cert-manager`, `kubernetes/cloudflare-external-dns`, `kubernetes/cloudflare-ddns`, `infrastructure/cloudflare-tofu` | cert-manager, external-dns, cloudflare-ddns, OpenTofu |
 | B2 keys | `kubernetes/restic-volsync`, `infrastructure/restic-nas`, `infrastructure/backblaze-b2-tofu-*` | VolSync, Backrest, OpenTofu (the `restic-*` keys are managed by OpenTofu, see [tofu/README.md](../../tofu/README.md)) |
 
-The expirations of the tokens are tracked in the [roadmap](../roadmap.md#to-check-or-watch).
+The expiration dates of the tokens are not tracked in the repository: the [roadmap](../roadmap.md#to-check-or-watch) only keeps a reminder to renew them, and the workstation token has its own 30-day rotation.

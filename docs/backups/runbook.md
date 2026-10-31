@@ -314,7 +314,7 @@ For the NAS data, the Backrest UI does the same (restore to a scratch dataset, o
 
 ### etcd quorum lost
 
-There is no etcd backup ([why](evaluations.md#etcd-not-backed-up)). One node lost out of three: etcd keeps its quorum, rebuild the node ([first-bootstrap.md](../first-bootstrap.md#appendix--rebuilding-a-node)). Without a surviving control plane disk: [full rebuild](#full-rebuild).
+There is no etcd backup ([why](evaluations.md#etcd-not-backed-up)). One node lost out of three: etcd keeps its quorum, rebuild the node ([rebuilding a node](../nodes/runbook.md#rebuilding-a-node)). Without a surviving control plane disk: [full rebuild](#full-rebuild).
 
 Quorum lost (including during the 2-node phase) with the disk of at least one control plane node intact, see the [Talos disaster recovery guide](https://docs.siderolabs.com/talos/v1.14/build-and-extend-talos/cluster-operations-and-maintenance/disaster-recovery):
 
@@ -340,7 +340,7 @@ Quorum lost (including during the 2-node phase) with the disk of at least one co
 
 Target: one day.
 
-1. **Cluster**: [first-bootstrap.md](../first-bootstrap.md) from phase 8 (the 1Password items and the B2 buckets already exist): bootstrap, Flux, External Secrets.
+1. **Cluster**: [the cluster bootstrap](../cluster/bootstrap.md#3-bootstrap) (the 1Password items and the B2 buckets already exist): bootstrap, Flux, External Secrets.
 
 2. **Application volumes**: Flux deploys VolSync before the applications (`dependsOn`), the PVCs are created and filled from the latest backups, the applications start with their data.
 

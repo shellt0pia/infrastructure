@@ -1,6 +1,6 @@
 # Roadmap
 
-What is left to build on the Kubernetes cluster, the decisions already made (and why), and the questions still open. The manual steps of the first bootstrap are in [first-bootstrap.md](first-bootstrap.md).
+What is left to build on the Kubernetes cluster, and the questions still open. The decisions already made are in the `README.md` of each [topic](README.md#topics). The manual steps of the first bootstrap are in [first-bootstrap.md](first-bootstrap.md).
 
 ## Current state
 
@@ -12,78 +12,13 @@ What is left to build on the Kubernetes cluster, the decisions already made (and
 | OpenTofu (`tofu/`) | States in B2 (encrypted, no locking). `backblaze`: buckets and keys of the backups, applied, keys pushed to 1Password. `cloudflare`: records not managed from the cluster (mail, CAA, PikaPods), SSL settings and DNSSEC, applied. |
 | First bootstrap | In progress, with kube-01 and kube-03 only. |
 
-## Decisions made
-
-Kept here so they are not reopened by accident. Change them only for a new reason.
-
-### Tooling
-
-- Talos configs: plain machine config documents templated with minijinja, secrets resolved by `op inject`. No talhelper (unmaintained), no Omni, no Cluster API, no Terraform provider for Talos.
-- GitOps: Flux (flux-operator + flux-instance), Kustomize + `HelmRelease` with charts from `OCIRepository`. The bootstrap helmfile reads the chart, version and values from `kubernetes/apps`, which stays the single source of truth.
-- Secrets: 1Password. Locally with a read-only service account (`infrastructure` and `kubernetes` vaults) from the toolbox, for Talos, bootstrap and OpenTofu, see [secrets/README.md](secrets/README.md#on-the-workstation-a-read-only-service-account). In the cluster with External Secrets Operator (`kubernetes` vault, read-only service account). ESO keeps the provider replaceable.
-- Updates: Renovate, run from the cluster. Talos and Kubernetes upgrades: tuppr.
-- Tools: pinned in `mise.toml` (kubectl and talosctl follow the cluster versions).
-- Cloudflare (records of the 2 DNS zones not managed from the cluster, SSL settings, DNSSEC; not the zones themselves nor the API tokens, created by hand) and Backblaze B2 (buckets and keys of the backups): OpenTofu, one stack each, states encrypted client-side in a B2 bucket created by hand ([tofu/README.md](../tofu/README.md)).
-
-### Nodes
-
-- Secure Boot with the Sidero Labs keys, enrolled automatically by the ISO, **without** the Microsoft certificates.
-- STATE, EPHEMERAL and the NVMe raw volume (`r-storage`) encrypted by the TPM, bound to PCR 11 only (`pcrs: []`): firmware and dbx updates do not lock the disks. A node whose TPM can no longer unlock its disks is rebuilt, the data is replicated elsewhere.
-- Disks selected by unique hardware identifier: WWID for the SATA SSDs (Talos leaves their serial empty), serial number for the NVMe SSDs. NIC selected by permanent MAC address (`lan0` alias).
-- SATA SSD: Talos only (default layout). NVMe SSD: one unformatted encrypted partition, used whole as the LVM thin pool of LINSTOR (replicated and local volumes share it, no fixed split).
-- No swap, no zswap. Weekly fstrim with `allowDiscards`, weekly XFS scrub.
-- `watchdog0` (iTCO) armed, NUT client shutting down 90 s after the UPS goes on battery.
-- No Talos ingress firewall: OPNsense filters everything entering the nodes subnet. Pod ↔ node isolation will come from Cilium network policies.
-- iGPU used on kube-01 and kube-02 only (`shelltopia.net/intel-gpu` label). The UHD 630 of kube-03 is not exposed.
-
-### Network
-
-- Everything dynamic, FQDN wherever possible: DHCPv4 static mappings, SLAAC with EUI-64 addresses, `ntp-01.shelltopia.net`, `ups-01-dmz.shelltopia.net`. Only exception: the addresses of the internal DNS of the applications (k8s-gateway, `192.168.19.53` and `fd38:4c4d:8f66:13::53`), because Unbound only forwards to addresses.
-- Node names have **AAAA records only** (ULA): hosts must use IPv6 ULA to reach them. No A record is needed.
-- The GUA prefix may change: it is never used in the configs, except in the `external` LB pool and the matching OPNsense prefix list.
-- Cluster endpoint: DNS round-robin `kube-cluster01.shelltopia.net` (one AAAA per node).
-- Dual-stack, **IPv4 primary**: applications listening on `0.0.0.0` only keep working. Services that must answer over IPv6 use `ipFamilyPolicy: PreferDualStack`.
-- Pods `10.244.0.0/16` + `fd1b:654d:9afe:100::/56`, services `10.96.0.0/12` + `fd1b:654d:9afe:200::/112`. The ULA `/48` is dedicated to the cluster and never advertised. These ranges are permanent.
-- Cilium: native routing, kube-proxy replacement through KubePrism, **iptables masquerading** (not `bpf.masquerade`: its IPv6 support is beta and always uses the GUA as source, even towards ULA destinations).
-- CoreDNS: the Talos one is disabled, replaced by the Helm chart (2 replicas, forwards to the Talos host DNS).
-- BGP: eBGP, OPNsense AS 64512, nodes AS 64513, one session per address family, nodes open the sessions to OPNsense listen ranges. The IPv6 peer is written as is (`fd38:4c4d:8f66:f::1`): router advertisement gateways are link-local, which Cilium cannot use. Inbound prefix lists limited to the pools, nothing advertised to the nodes, no MD5.
-- LB pools: `internal` (default, `192.168.19.0/25` + `fd38:4c4d:8f66:13::/64`) and `external` (label `lbipam.shelltopia.net/pool: external`, `192.168.19.128/25` + `2a02:8434:f003:d113::/64`). Internet exposure is still decided by OPNsense.
-- NAS: static, non-EUI-64 ULA on its nodes subnet interface, router advertisements disabled there by a *Pre Init* script, so its only default routes stay on its main interface (no asymmetric path).
-
-### Applications
-
-- Certificates, see [ingress/README.md](ingress/README.md#certificate): Let's Encrypt only, with two permanent `ClusterIssuer`s (`letsencrypt-staging` and `letsencrypt-production`, each `Certificate` picks one) and DNS-01 through Cloudflare. All the services live in `shelltopia.org` (`shelltopia.net` stays for the infrastructure), served by a wildcard `*.shelltopia.org` so that the application names do not appear in the Certificate Transparency logs. One Cloudflare token created by hand, distinct from the OpenTofu one.
-- Ingress: Envoy Gateway (Gateway API), see [ingress/README.md](ingress/README.md). Cilium Gateway API stays disabled ([why](ingress/evaluations.md#rejected-options)). Two Gateways in `network`, `internal` and `external`, one per LB pool, each with its own Envoy proxies and the same wildcard certificate. Each application chooses its Gateway(s); only the namespaces labeled `shelltopia.net/gateway-external: "true"` can use the external one. TLS 1.3 only, `X25519MLKEM768` first, HTTP/3 on the internal Gateway only. Port 80 only redirects to HTTPS.
-- IPv4 HTTP(S) from the internet: HAProxy on OPNsense sends the migrated names to the `external` Gateway with the PROXY protocol, until `home` is migrated. Then a plain port forwarding replaces it. IPv6 reaches the Gateway directly ([details](ingress/README.md#ipv4-from-the-internet)).
-- Application DNS, driven by the HTTPRoutes, see [dns/README.md](dns/README.md). Internal: k8s-gateway, authoritative for `shelltopia.org`, with a forward in Unbound. Public: external-dns publishes one CNAME per route of the `external` Gateway, cloudflare-ddns the `A` of the entry name until the Milkywan tunnel brings a stable IPv4. OpenTofu keeps the zones, the infrastructure records and the names of `home`. One Cloudflare token per tool. Replaces the `ddns-updater` instances of the Ansible hosts for the migrated names.
-
-- GPU: Intel device plugin through the operator, `sharedDevNum: 3` (Plex, Immich). DRA rejected for now: the Intel DRA driver (0.12.x) only allocates whole GPUs and is beta.
-- Storage: Piraeus/LINSTOR (DRBD 9), in `piraeus-datastore`. Chosen over Mayastor (hugepages, dedicated CPU cores, NVMe-oF): in-kernel replication, light on CPU and RAM, CSI snapshots on LVM thin, automatic failover with the HA controller.
-  - One LVM thin pool `nvme` per node on `/dev/mapper/luks2-r-storage` (whole NVMe SSD).
-  - StorageClass `replicated` (default): 2 replicas, diskless access from the other nodes, quorum from an automatic diskless tie-breaker on the third node. 3 replicas rejected: losing 2 nodes means a restore anyway, and every write would cross the single 1 Gb/s NIC twice.
-  - StorageClass `local`: 1 replica without DRBD, for data replicated by the application or disposable (metrics, logs, caches). TopoLVM only if this does not work out.
-  - Both classes `reclaimPolicy: Retain`, ext4, `WaitForFirstConsumer`. VolumeSnapshotClass `linstor` (default), snapshot-controller in `kube-system`.
-  - Quorum policy: operator defaults (`suspend-io`), required by the HA controller. DRBD resync capped at 50 MiB/s (single NIC).
-  - DRBD over the node addresses (satellites in the host network, dual-stack, DRBD over the IPv6 ULA address with `PrefNic`), no dedicated VLAN, no DRBD or LINSTOR TLS (the nodes subnet is trusted).
-  - No volumes for the bulk data: media, Immich library, Nextcloud data and mail/calendar archives stay on the NAS, mounted with native `nfs` pod volumes (NFS 4.2, no csi-driver-nfs).
-  - The DRBD module comes from the `siderolabs/drbd` extension and is loaded by Talos (`talos/patches/drbd.yaml`); the satellite module loader is removed (`talos-loader-override`).
-- No registry cache: Docker Hub credentials in containerd avoid the rate limit.
-- Backups, see [backups/README.md](backups/README.md): Backblaze B2 only (existing account, new buckets), plain restic repositories encrypted client-side, one bucket and one key per tool, keys and passwords in 1Password. RPO 24 h, rebuild from scratch in one day at most (Git + 1Password + backups). Crash-consistent snapshots, no application stop. No copy on the NAS until TrueNAS 27 brings an S3 API.
-  - Volumes: VolSync (restic mover) from the `linstor` CSI snapshots, rejected Velero (backs up the resources already in Git, imperative restores). New PVCs are filled from the latest backup by the VolSync volume populator (on a new cluster; after deleting a PVC, its ReplicationDestination must be deleted too). Temporary volumes in the `replicated-temporary` class (`reclaimPolicy: Delete`).
-  - etcd: not backed up, everything it holds is rebuilt from Git, 1Password and the backups. Reasons in [backups/evaluations.md](backups/evaluations.md#etcd-not-backed-up).
-  - NAS data: Backrest as a TrueNAS App, on the NAS itself (no traffic through the nodes, keeps running without the cluster).
-  - PostgreSQL: CloudNativePG Barman Cloud plugin (proposed, with CNPG).
-  - No B2 Object Lock (incompatible with restic). Keys without `deleteFiles` plus a lifecycle rule instead (tested: restic works with them, a stolen key can only hide files, recoverable for 30 days).
-  - Restores from the workstation with the `just kube volsync-*` recipes (credentials from 1Password). No Backrest UI for the cluster repositories.
-  - Kopiur (Kopia operator) evaluated and set aside for now: too young (`v1alpha1`), to look at again in early 2027.
-
 ## To implement
 
 Roughly in priority order.
 
 ### 1. Finish the test bootstrap
 
-- [x] Phases 4 to 8 of [first-bootstrap.md](first-bootstrap.md) with kube-01 and kube-03.
+- [x] The [first bootstrap](first-bootstrap.md), from the first boot to the checks of the cluster, with kube-01 and kube-03.
 - [x] `kubernetes/apps/flux-system/flux-instance/app/helmrelease.yaml`: final repository URL and branch (`TODO`), `pullSecret` if the repository is private.
 
 ### 2. Certificates
@@ -116,9 +51,9 @@ Roughly in priority order.
 - [x] Choose the storage: Piraeus/LINSTOR (see the decisions above).
 - [x] Talos prerequisites: `siderolabs/drbd` extension (`talos/schematic.yaml`), kernel modules `drbd` (`usermode_helper=disabled`), `drbd_transport_tcp`, `dm-thin-pool` (`talos/patches/drbd.yaml`), privileged namespace.
 - [x] Manifests: `kubernetes/apps/piraeus-datastore` (operator, `LinstorCluster`, satellite configurations, storage pool on `/dev/mapper/luks2-r-storage`, StorageClasses, VolumeSnapshotClass) and `kubernetes/apps/kube-system/snapshot-controller`.
-- [x] Deploy: new schematic and config on every node **before** Flux applies the manifests, then the checks of [first-bootstrap.md](first-bootstrap.md#phase-9--storage) (modules, satellites, storage pools, test PVCs, snapshot and restore).
-- [ ] Once kube-02 joins: check that the existing 2-replica volumes get their tie-breaker, then the failover test ([first-bootstrap.md](first-bootstrap.md#phase-9--storage)).
-- [ ] NFS access to the NAS: native `nfs` pod volumes, nothing to deploy. The NAS exports must allow the nodes subnet. Check the read-ahead (`nfsrahead`, phase 8 of first-bootstrap.md).
+- [x] Deploy: new schematic and config on every node **before** Flux applies the manifests, then the checks of [storage/bootstrap.md](storage/bootstrap.md#2-deploy-and-check) (modules, satellites, storage pools, test PVCs, snapshot and restore).
+- [ ] Once kube-02 joins: check that the existing 2-replica volumes get their tie-breaker, then the [failover test](storage/bootstrap.md#3-failover-test).
+- [ ] NFS access to the NAS: native `nfs` pod volumes, nothing to deploy. The NAS exports must allow the nodes subnet. Check the [read-ahead](nodes/runbook.md#checking-the-nfs-read-ahead) (`nfsrahead`).
 
 ### 6. Backups
 
@@ -158,7 +93,7 @@ Architecture: [backups/README.md](backups/README.md), with the deployment, the r
 ### 10. Migration
 
 - [ ] Move the services of the Hetzner VM, then delete the VM.
-- [ ] Move the services of `home`, then turn it into kube-02 ([appendix](first-bootstrap.md#appendix--adding-kube-02)). Until then, the 2-node etcd has no fault tolerance. For each migrated name: HAProxy rules to the external Gateway and DNS records ([ingress/runbook.md](ingress/runbook.md#migrating-a-name-from-home)). Per-route needs: basic authentication (`SecurityPolicy` on the route), Plex over HTTPS to its backend (or *Secure connections: Preferred*).
+- [ ] Move the services of `home`, then turn it into kube-02 ([procedure](nodes/runbook.md#adding-kube-02)). Until then, the 2-node etcd has no fault tolerance. For each migrated name: HAProxy rules to the external Gateway and DNS records ([ingress/runbook.md](ingress/runbook.md#migrating-a-name-from-home)). Per-route needs: basic authentication (`SecurityPolicy` on the route), Plex over HTTPS to its backend (or *Secure connections: Preferred*).
 - [ ] Replace calibre (KasmVNC) with another application.
 - [ ] Rewrite `README.md` once Ansible is gone (it still describes the Fedora CoreOS setup).
 
@@ -182,10 +117,7 @@ Architecture: [backups/README.md](backups/README.md), with the deployment, the r
 
 ### 13. Remote node management
 
-- [ ] Study a way to power cycle a node remotely and, ideally, to see its console without a working OS. A cold power cycle is the only fix found for the TPM unlock failure seen once on kube-01 (see *To check or watch*), and with 3 nodes a stuck node should not need a trip to the rack.
-  - Intel AMT: power control and remote KVM out of band. Needs a vPro chipset and CPU (check in the MEBx, `Ctrl+P` at boot), on each node. Very privileged and on the same NIC as Talos: strong password in 1Password, TLS if possible, OPNsense rules so that only the admin workstation reaches the AMT ports (16992-16995, 664). Clients: MeshCommander, `amtterm`/`wsman`.
-  - Otherwise: a smart plug (local API, no cloud) per node with *AC Recovery: Power On* in the firmware, power only. Or a PiKVM-like device for the console.
-  - Document the procedure in [first-bootstrap.md](first-bootstrap.md#appendix--rebuilding-a-node).
+- [ ] Study a way to power cycle a node remotely and, ideally, to see its console without a working OS (Intel AMT, smart plug, PiKVM-like device): [nodes/evaluations.md](nodes/evaluations.md#remote-node-management).
 
 ## Open decisions
 
@@ -198,25 +130,13 @@ Architecture: [backups/README.md](backups/README.md), with the deployment, the r
 
 ## To check or watch
 
-- [ ] ECMP on OPNsense: FRR selects every path; the kernel installs them once `net.route.multipath=1` (phase 3). Check that the flows are actually spread across the nodes: FreeBSD picks the next hop from the flow hash of the packet, which depends on the NIC driver.
-- [ ] Multi-WAN (4G backup, Milkywan WireGuard tunnel) with `net.route.multipath=1`: OPNsense gateway groups use pf `route-to` rules, unaffected, but the routes OPNsense writes in the kernel table are. After setting up and during a failover test, `netstat -rn | grep default` and `netstat -rn -f inet6 | grep default` must show a single line each. Give each gateway its own monitor IP (dpinger host routes). If a duplicate shows up, `net.route.multipath=0` only costs the BGP ECMP.
-- [ ] Watchdog: `watchdog0` exists and is armed on kube-01 and kube-03 under Talos.
-- [ ] The NAS *Pre Init* script survives TrueNAS upgrades.
-- [ ] `nfsrahead`: siderolabs/extensions#1255 moves its configuration to `/etc/nfs.conf` (`talos/patches/nfs.yaml` is ready for it).
-- [ ] Talos firmware updates (announced by Sidero Labs): to use for the BIOS updates. The disk encryption is not bound to the firmware measurements.
-- [ ] Intel DRA driver: switch from the device plugin once it supports shared GPUs (DRAConsumableCapacity).
-- [ ] Cilium `bpf.masquerade`: reconsider once its IPv6 support is stable and picks the source address per destination (it would bring eBPF host routing).
-- [ ] Token expirations: Docker Hub, GitHub (Flux, Renovate), Cloudflare (cert-manager, external-dns, cloudflare-ddns, OpenTofu).
-- [ ] Firmware reset to the factory Secure Boot keys (some BIOS updates do it): enroll the Sidero Labs keys again before booting Talos.
-- [ ] Talos: serial of SATA disks behind AHCI controllers (transport `sata`) not detected. If fixed upstream, the SATA SSDs could go back to serial selectors (optional, the WWID is as good).
-- [ ] Talos: `EthernetConfig` does not resolve link aliases (v1.14.4, the name is passed as is to ethtool), the node files use the kernel interface names (`enp2s0`, `eno1`). If fixed upstream, move it back to `patches/network.yaml.j2` with `name: lan0`.
-- [ ] ISP prefix change: follow [ipv6-prefix-change.md](ipv6-prefix-change.md).
-- [ ] Envoy Gateway: check the listeners after an Envoy upgrade (`ecdhCurves`), [details](ingress/evaluations.md#open-points).
-- [ ] Milkywan WireGuard tunnel (planned): stable public IPv4 and IPv6 prefix. The `external` pool, the OPNsense prefix list and the NAT rules will move to it. cloudflare-ddns is then removed and the `A` record of `gateway-external.kube-cluster01.shelltopia.net` becomes static in OpenTofu.
-- [ ] LINSTOR thin pool: LINSTOR allows overcommitting it by default. If volumes grow close to the NVMe size, set `MaxOversubscriptionRatio` on the `LinstorCluster` (and watch the thin pool data and metadata usage once the metrics stack is there).
-- [ ] Talos and the LINSTOR VG: Talos scans the LVM volumes at boot. Check that it does not activate or complain about the `linstor_nvme` thin pool (`talosctl dmesg`, `talosctl logs` after a reboot).
-- [ ] Piraeus on Talos: the `talos-loader-override` satellite configuration follows the Piraeus how-to (`docs/how-to/talos.md`). Compare it with the how-to after each operator upgrade.
-- [ ] TPM unlock failure: once, on kube-01, the first boot after the upgrade to the schematic with `drbd` could not unlock `STATE` (`no signatures matching PCR SHA256 digest found in signature JSON`, then `no handlers available to get encryption keys from`). A cold power cycle fixed it. Not reproduced afterwards: several reboots of kube-01 (same PCR 11 value every time), reboots and the same upgrade on kube-03. Fast Boot is off (*Thorough*) on both. Keep a console at hand during the next Talos upgrades; if it happens again, note the boot (first one after an upgrade or not) and the console lines before the error, then report it to Sidero Labs.
-- [ ] Dell firmware: *Microsoft UEFI CA* disabled on kube-01 (*Enable for Option ROM* not needed, the iGPU test pod works). Same on kube-03 if its firmware offers the option.
-- [ ] Workstation 1Password service account: rotate its token every 30 days (`opsa` warns 5 days before and refuses past the limit), see [secrets/runbook.md](secrets/runbook.md#rotating-the-workstation-token).
-- [ ] Kopiur ([home-operations/kopiur](https://github.com/home-operations/kopiur)): look at it again in early 2027, [checklist](backups/evaluations.md#kopiur-evaluated-to-revisit).
+The points of each topic are kept in its `evaluations.md`.
+
+- [ ] Network: ECMP and multi-WAN on OPNsense, the NAS *Pre Init* script, the ISP prefix change, the Milkywan WireGuard tunnel (planned, stable public prefix), Cilium `bpf.masquerade`: [network/evaluations.md](network/evaluations.md#open-points).
+- [ ] Nodes: watchdog, `nfsrahead`, Talos firmware updates, firmware reset to the factory Secure Boot keys, serial of SATA disks, `EthernetConfig` alias, TPM unlock failure seen once on kube-01, Dell *Microsoft UEFI CA*: [nodes/evaluations.md](nodes/evaluations.md#open-points).
+- [ ] Cluster: Intel DRA driver: [cluster/evaluations.md](cluster/evaluations.md#open-points).
+- [ ] Storage: LINSTOR thin pool oversubscription, Talos and the LINSTOR VG, Piraeus `talos-loader-override`: [storage/evaluations.md](storage/evaluations.md#open-points).
+- [ ] Ingress: Envoy Gateway listeners after an upgrade (`ecdhCurves`): [ingress/evaluations.md](ingress/evaluations.md#open-points).
+- [ ] Backups: Kopiur, to look at again in early 2027 ([checklist](backups/evaluations.md#kopiur-evaluated-to-revisit)).
+- [ ] Token expirations: Docker Hub, GitHub (Flux, Renovate), Cloudflare (cert-manager, external-dns, cloudflare-ddns, OpenTofu), see the [tokens to renew](secrets/runbook.md#tokens-to-renew).
+- [ ] Workstation 1Password service account: rotate its token every 30 days (`opsa` warns 5 days before and refuses to run past the limit), see [secrets/runbook.md](secrets/runbook.md#rotating-the-workstation-token).

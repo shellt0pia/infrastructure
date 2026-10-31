@@ -1,5 +1,5 @@
 ---
-# eBGP between every node (AS 64513) and OPNsense (AS 64512, FRR), see docs/first-bootstrap.md.
+# eBGP between every node (AS 64513) and OPNsense (AS 64512, FRR), see docs/network/README.md.
 # The nodes only advertise the LoadBalancer IPs of the Services, as /32 and /128 routes. Cilium
 # does not install the routes it receives, and OPNsense advertises nothing anyway.
 #

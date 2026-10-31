@@ -10,7 +10,7 @@ Create every prerequisite of a step before starting it, then follow the steps in
 | --- | --- | --- | --- |
 | All | B2 account behind a strong password and a second factor. The master key is only used for the setups and never stored. | B2 web interface | Done |
 | All | OpenTofu: bucket of the states, admin key of the `backblaze` stack, items `tofu-state-encryption`, `backblaze-b2-tofu-state` and `backblaze-b2-tofu-admin` (`infrastructure` vault). | [tofu/README.md](../../tofu/README.md#setup) | Done |
-| 1, 2 | Cluster: Piraeus (`linstor` VolumeSnapshotClass, `replicated-temporary` StorageClass), snapshot-controller, External Secrets with the `onepassword` ClusterSecretStore. | [first-bootstrap.md](../first-bootstrap.md) | Done |
+| 1, 2 | Cluster: Piraeus (`linstor` VolumeSnapshotClass, `replicated-temporary` StorageClass), snapshot-controller, External Secrets with the `onepassword` ClusterSecretStore. | [cluster](../cluster/bootstrap.md), [storage](../storage/bootstrap.md) | Done |
 | 1, 2 | Bucket `kube-cluster01-volsync-gz8j9y` (lifecycle rule of 30 days from hiding to deleting), its restricted key, item `restic-volsync` (`kubernetes` vault: generated `password`, `repository`, `access-key-id`, `secret-access-key`). | Entry `kube-cluster01-volsync` in `restic_repositories` (`tofu/backblaze/main.tf`), `just tofu apply backblaze`, then `just tofu plan backblaze` shows no change. | Done |
 | 1 | healthchecks.io check `kube-cluster01-volsync`, period 1 day, grace 2 hours. | healthchecks.io | Done |
 | 1 | Item `healthchecks` (`kubernetes` vault), field `kube-cluster01-volsync`: the ping URL of the check. Without it, `volsync-monitor` is not ready. | 1Password | Done |

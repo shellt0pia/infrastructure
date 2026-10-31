@@ -60,7 +60,7 @@ Envoy Gateway (Gateway API) is the implementation, the Cilium Gateway API stays 
 - Let's Encrypt only, with two permanent `ClusterIssuer`s (`letsencrypt-staging` and `letsencrypt-production`, each `Certificate` picks one) and DNS-01 through Cloudflare.
 - All the services live in `shelltopia.org` (`shelltopia.net` stays for the infrastructure), served by a wildcard `*.shelltopia.org` so that the application names do not appear in the Certificate Transparency logs.
 - One Cloudflare token (*Zone → DNS → Edit*, *Zone → Zone → Read*), created by hand and distinct from the OpenTofu one: 1Password item `cloudflare-cert-manager`, field `credential`, synced by an `ExternalSecret` in `cert-manager`.
-- The internal DNS is split-horizon (Unbound overrides `shelltopia.net`): `dns01RecursiveNameservers` (public resolvers of Cloudflare, over plain DNS) and `dns01RecursiveNameserversOnly: true` are set in the cert-manager values, otherwise the propagation check may query Unbound and never succeed. The nodes are allowed to reach these resolvers ([network](../first-bootstrap.md#firewall)).
+- The internal DNS is split-horizon (Unbound overrides `shelltopia.net`): `dns01RecursiveNameservers` (public resolvers of Cloudflare, over plain DNS) and `dns01RecursiveNameserversOnly: true` are set in the cert-manager values, otherwise the propagation check may query Unbound and never succeed. The nodes are allowed to reach these resolvers ([network](../network/bootstrap.md#3-firewall)).
 - The `Certificate` `shelltopia-org` is issued by `letsencrypt-production`, in the namespace of the Gateways (`network`). It was first tested with `letsencrypt-staging`: [how to switch back to it](runbook.md#testing-a-change-with-the-staging-issuer).
 
 ## IPv4 from the internet

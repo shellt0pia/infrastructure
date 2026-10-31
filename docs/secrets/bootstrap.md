@@ -61,4 +61,4 @@ Create every prerequisite of a step before starting it, then follow the steps in
 
   Expected: **only** the `kubernetes` vault.
 
-- [x] **Test item.** Optional: create a test item in the `kubernetes` vault, to validate External Secrets after the bootstrap ([checks](../first-bootstrap.md#phase-8--bootstrap)).
+- [x] **Test item.** Optional: create a test item in the `kubernetes` vault, to validate External Secrets after the bootstrap ([checks](../cluster/bootstrap.md#3-bootstrap)).
