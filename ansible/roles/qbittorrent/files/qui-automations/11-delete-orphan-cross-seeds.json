@@ -1,0 +1,53 @@
+{
+  "name": "11 - Delete orphan cross-seeds (needs rules 06-08 enabled)",
+  "trackerPattern": "*",
+  "intervalSeconds": 3600,
+  "dryRun": false,
+  "conditions": {
+    "schemaVersion": "1",
+    "delete": {
+      "enabled": true,
+      "mode": "deleteWithFilesPreserveCrossSeeds",
+      "condition": {
+        "operator": "AND",
+        "conditions": [
+          {
+            "field": "CATEGORY",
+            "operator": "MATCHES",
+            "value": "^(tv|movies|audio|comics|seedonly)\\.cross$"
+          },
+          {
+            "field": "TAGS",
+            "operator": "EQUAL",
+            "value": "cross-seed"
+          },
+          {
+            "field": "CROSS_SEED_TAGS",
+            "operator": "NOT_EQUAL",
+            "value": "goal-pending"
+          },
+          {
+            "field": "CROSS_SEED_TAGS",
+            "operator": "NOT_EQUAL",
+            "value": "goal-met"
+          },
+          {
+            "field": "CROSS_SEED_TAGS",
+            "operator": "NOT_EQUAL",
+            "value": "cap-only"
+          },
+          {
+            "field": "CROSS_SEED_TAGS",
+            "operator": "NOT_EQUAL",
+            "value": "keep"
+          },
+          {
+            "field": "SEEDING_TIME",
+            "operator": "GREATER_THAN_OR_EQUAL",
+            "value": "691200"
+          }
+        ]
+      }
+    }
+  }
+}

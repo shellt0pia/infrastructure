@@ -1,8 +1,8 @@
 {
-  "name": "11 - Delete stuck partial cross-seeds",
+  "name": "13 - Delete seedonly build-buffer after 8 days of seeding",
   "trackerPattern": "*",
   "intervalSeconds": 3600,
-  "dryRun": true,
+  "dryRun": false,
   "conditions": {
     "schemaVersion": "1",
     "delete": {
@@ -13,28 +13,23 @@
         "conditions": [
           {
             "field": "CATEGORY",
-            "operator": "ENDS_WITH",
-            "value": ".cross"
-          },
-          {
-            "field": "STATE",
             "operator": "EQUAL",
-            "value": "stopped"
-          },
-          {
-            "field": "PROGRESS",
-            "operator": "LESS_THAN",
-            "value": "1"
-          },
-          {
-            "field": "ADDED_ON",
-            "operator": "GREATER_THAN_OR_EQUAL",
-            "value": "604800"
+            "value": "seedonly"
           },
           {
             "field": "TAGS",
+            "operator": "EQUAL",
+            "value": "build-buffer"
+          },
+          {
+            "field": "CROSS_SEED_TAGS",
             "operator": "NOT_EQUAL",
             "value": "keep"
+          },
+          {
+            "field": "SEEDING_TIME",
+            "operator": "GREATER_THAN_OR_EQUAL",
+            "value": "691200"
           }
         ]
       }

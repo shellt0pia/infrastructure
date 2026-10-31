@@ -15,7 +15,7 @@
             {
               "field": "CATEGORY",
               "operator": "MATCHES",
-              "value": "^(tv|movies|audio|comics|seedonly)(\\.cross)?$"
+              "value": "^(tv|movies|audio|comics|seedonly)$"
             },
             {
               "field": "TAGS",

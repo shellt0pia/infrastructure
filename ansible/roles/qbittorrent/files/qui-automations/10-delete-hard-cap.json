@@ -1,8 +1,8 @@
 {
-  "name": "10 - Delete after 180 days of seeding",
+  "name": "10 - Delete original after 180 days of seeding (hard cap)",
   "trackerPattern": "*",
   "intervalSeconds": 3600,
-  "dryRun": true,
+  "dryRun": false,
   "conditions": {
     "schemaVersion": "1",
     "delete": {
@@ -14,10 +14,10 @@
           {
             "field": "CATEGORY",
             "operator": "MATCHES",
-            "value": "^(tv|movies|audio|comics|seedonly)(\\.cross)?$"
+            "value": "^(tv|movies|audio|comics|seedonly)$"
           },
           {
-            "field": "TAGS",
+            "field": "CROSS_SEED_TAGS",
             "operator": "NOT_EQUAL",
             "value": "keep"
           },

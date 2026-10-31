@@ -1,5 +1,5 @@
 {
-  "name": "08 - Tag cap-only (shares files, only rule 10 deletes it)",
+  "name": "08 - Tag cap-only (goal not met after 90 days)",
   "trackerPattern": "*",
   "notify": false,
   "conditions": {
@@ -15,7 +15,7 @@
             {
               "field": "CATEGORY",
               "operator": "MATCHES",
-              "value": "^(tv|movies|audio|comics|seedonly)(\\.cross)?$"
+              "value": "^(tv|movies|audio|comics|seedonly)$"
             },
             {
               "field": "TAGS",
@@ -23,9 +23,9 @@
               "value": "keep"
             },
             {
-              "field": "HARDLINK_SCOPE",
-              "operator": "NOT_EQUAL",
-              "value": "none"
+              "field": "SEEDING_TIME",
+              "operator": "GREATER_THAN_OR_EQUAL",
+              "value": "7776000"
             },
             {
               "field": "SEEDING_TIME",
@@ -33,29 +33,9 @@
               "value": "15552000"
             },
             {
-              "operator": "OR",
-              "conditions": [
-                {
-                  "operator": "AND",
-                  "conditions": [
-                    {
-                      "field": "SEEDING_TIME",
-                      "operator": "GREATER_THAN_OR_EQUAL",
-                      "value": "2592000"
-                    },
-                    {
-                      "field": "UPLOADED_OVER_SIZE",
-                      "operator": "GREATER_THAN_OR_EQUAL",
-                      "value": "2"
-                    }
-                  ]
-                },
-                {
-                  "field": "SEEDING_TIME",
-                  "operator": "GREATER_THAN_OR_EQUAL",
-                  "value": "7776000"
-                }
-              ]
+              "field": "UPLOADED_OVER_SIZE",
+              "operator": "LESS_THAN",
+              "value": "2"
             }
           ]
         }

@@ -1,8 +1,8 @@
 {
-  "name": "09 - Delete when seeding goals are met, idle and not sharing files",
+  "name": "09 - Delete original at end of life (goal met and idle, or 90 days)",
   "trackerPattern": "*",
   "intervalSeconds": 3600,
-  "dryRun": true,
+  "dryRun": false,
   "conditions": {
     "schemaVersion": "1",
     "delete": {
@@ -14,22 +14,12 @@
           {
             "field": "CATEGORY",
             "operator": "MATCHES",
-            "value": "^(tv|movies|audio|comics|seedonly)(\\.cross)?$"
+            "value": "^(tv|movies|audio|comics|seedonly)$"
           },
           {
-            "field": "TAGS",
+            "field": "CROSS_SEED_TAGS",
             "operator": "NOT_EQUAL",
             "value": "keep"
-          },
-          {
-            "field": "HARDLINK_SCOPE",
-            "operator": "EQUAL",
-            "value": "none"
-          },
-          {
-            "field": "LAST_ACTIVITY",
-            "operator": "GREATER_THAN_OR_EQUAL",
-            "value": "604800"
           },
           {
             "operator": "OR",
@@ -46,13 +36,38 @@
                     "field": "UPLOADED_OVER_SIZE",
                     "operator": "GREATER_THAN_OR_EQUAL",
                     "value": "2"
+                  },
+                  {
+                    "field": "LAST_ACTIVITY",
+                    "operator": "GREATER_THAN_OR_EQUAL",
+                    "value": "259200"
                   }
                 ]
               },
               {
-                "field": "SEEDING_TIME",
-                "operator": "GREATER_THAN_OR_EQUAL",
-                "value": "7776000"
+                "operator": "AND",
+                "conditions": [
+                  {
+                    "field": "SEEDING_TIME",
+                    "operator": "GREATER_THAN_OR_EQUAL",
+                    "value": "7776000"
+                  },
+                  {
+                    "operator": "OR",
+                    "conditions": [
+                      {
+                        "field": "UPLOADED_OVER_SIZE",
+                        "operator": "GREATER_THAN_OR_EQUAL",
+                        "value": "2"
+                      },
+                      {
+                        "field": "LAST_ACTIVITY",
+                        "operator": "GREATER_THAN_OR_EQUAL",
+                        "value": "259200"
+                      }
+                    ]
+                  }
+                ]
               }
             ]
           }
