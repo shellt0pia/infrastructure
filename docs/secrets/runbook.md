@@ -38,7 +38,7 @@ For a secret of the `kubernetes` vault pulled by an `ExternalSecret` (the Cloudf
 
   Expected: `SecretSynced`, with a recent refresh.
 
-- [ ] **Restart the consumers that read it as an environment variable** (for instance external-dns, `CF_API_TOKEN`): Kubernetes does not restart a pod when its Secret changes ([Reloader](../roadmap.md#12-cluster-tools), to deploy).
+- [ ] **Restart the consumers that read it as an environment variable** (for instance external-dns, `CF_API_TOKEN`): Kubernetes does not restart a pod when its Secret changes ([Reloader](../roadmap.md#cluster-tools), to deploy).
 
   ```sh
   kubectl -n network rollout restart deploy/external-dns

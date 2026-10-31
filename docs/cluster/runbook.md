@@ -16,7 +16,7 @@ Recipes planned, with ideas taken from [onedr0p/home-ops](https://github.com/one
 
 ## Upgrades
 
-Not automated yet: Talos and Kubernetes are upgraded by hand with `just talos upgrade-node` and `just talos upgrade-k8s`. The plan is tuppr for both, in `system-upgrade` (Talos API access already allowed for this namespace, role `os:admin`), and Renovate in the cluster for the charts and the images ([roadmap](../roadmap.md#7-upgrades)). Until tuppr is deployed, keep a console at hand during the Talos upgrades ([TPM unlock failure](../nodes/evaluations.md#open-points)).
+Not automated yet: Talos and Kubernetes are upgraded by hand with `just talos upgrade-node` and `just talos upgrade-k8s`. The plan is tuppr for both, in `system-upgrade` (Talos API access already allowed for this namespace, role `os:admin`), and Renovate in the cluster for the charts and the images ([roadmap](../roadmap.md#upgrades)). Until tuppr is deployed, keep a console at hand during the Talos upgrades ([TPM unlock failure](../nodes/evaluations.md#open-points)).
 
 Once tuppr is in place, each Talos upgrade makes the API unavailable during the reboot of the node while the cluster only has [two nodes](../nodes/README.md#test-phase-2-nodes).
 

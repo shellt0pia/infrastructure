@@ -13,7 +13,7 @@ How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap he
 | Part | Tool | Status |
 | --- | --- | --- |
 | Bootstrap (`bootstrap/`, `just bootstrap cluster`) | `talosctl`, helmfile | Done: Cilium (+ BGP and LB pools), CoreDNS, External Secrets, Flux |
-| GitOps (`kubernetes/apps`) | Flux, Kustomize, Renovate | In use, Renovate and the upgrades by tuppr [to deploy](../roadmap.md#7-upgrades) |
+| GitOps (`kubernetes/apps`) | Flux, Kustomize, Renovate | In use, Renovate and the upgrades by tuppr [to deploy](../roadmap.md#upgrades) |
 | CNI, kube-proxy replacement | Cilium | In use ([below](#cilium)) |
 | Cluster DNS | CoreDNS | In use ([below](#coredns)) |
 | GPU | Intel device plugin | In use on kube-01 ([below](#gpu)) |
@@ -47,7 +47,7 @@ The chart source and version of each release come from its `OCIRepository`, and 
 ## Decisions
 
 - GitOps with Flux (flux-operator + flux-instance), Kustomize + `HelmRelease` with charts from `OCIRepository`. The bootstrap helmfile reads the chart, version and values from `kubernetes/apps`.
-- Updates: Renovate, run from the cluster. Talos and Kubernetes upgrades: tuppr (both [to deploy](../roadmap.md#7-upgrades)).
+- Updates: Renovate, run from the cluster. Talos and Kubernetes upgrades: tuppr (both [to deploy](../roadmap.md#upgrades)).
 - Tools pinned in `mise.toml` (kubectl and talosctl follow the cluster versions).
 - Secrets: External Secrets Operator with a read-only service account on the `kubernetes` vault ([secrets](../secrets/README.md)).
 - No registry cache: Docker Hub credentials in containerd avoid the rate limit.
@@ -69,7 +69,7 @@ These ranges are **permanent**: they cannot be changed once the cluster is creat
 - kube-proxy replacement through KubePrism.
 - **iptables masquerading**, not `bpf.masquerade`: its IPv6 support is beta and always uses the GUA as source, even towards ULA destinations ([evaluations](../network/evaluations.md#rejected-options)). A pod reaching an IPv6 ULA destination is masqueraded behind the ULA address of its node.
 - The BGP control plane advertises the LoadBalancer IPs to OPNsense, from the `internal` and `external` pools ([network](../network/README.md#bgp)).
-- Cilium network policies are to come, to replace the Talos ingress firewall that was dropped ([roadmap](../roadmap.md#9-security)).
+- Cilium network policies are to come, to replace the Talos ingress firewall that was dropped ([roadmap](../roadmap.md#security)).
 - Cilium Gateway API stays disabled: Envoy Gateway is used ([ingress](../ingress/evaluations.md#rejected-options)).
 
 ## CoreDNS

@@ -1,6 +1,6 @@
 # DNS
 
-How the DNS records of the applications are created: from their HTTPRoutes, by k8s-gateway for the LAN and by external-dns and cloudflare-ddns for the internet. Section 4 of the [roadmap](../roadmap.md#4-dns-records) tracks the implementation.
+How the DNS records of the applications are created: from their HTTPRoutes, by k8s-gateway for the LAN and by external-dns and cloudflare-ddns for the internet. The implementation is tracked in the [status](#status) below.
 
 | Document | Content |
 | --- | --- |

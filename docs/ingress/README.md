@@ -1,6 +1,6 @@
 # Ingress
 
-How the HTTP(S) traffic reaches the applications: Envoy Gateway, two Gateways, their certificate, and what OPNsense does in front of them. Sections 2 and 3 of the [roadmap](../roadmap.md#2-certificates) track the implementation. The DNS records of the applications are in [dns](../dns/README.md).
+How the HTTP(S) traffic reaches the applications: Envoy Gateway, two Gateways, their certificate, and what OPNsense does in front of them. The implementation is tracked in the [status](#status) below. The DNS records of the applications are in [dns](../dns/README.md).
 
 | Document | Content |
 | --- | --- |
