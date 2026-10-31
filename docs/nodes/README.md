@@ -42,6 +42,17 @@ The Talos ISO enrolls the Sidero Labs keys automatically (`secureboot.enrollKeys
 
 STATE, EPHEMERAL and the NVMe raw volume (`r-storage`) are encrypted by the TPM, bound to PCR 11 only (`pcrs: []`): firmware and dbx updates do not lock the disks. The disks are unlocked as long as the machine boots a Talos image signed by Sidero Labs with Secure Boot enabled. A node whose TPM can no longer unlock its disks is [rebuilt](runbook.md#rebuilding-a-node): the data is replicated elsewhere.
 
+```mermaid
+flowchart TD
+    FW["Firmware: UEFI, Secure Boot enabled, Sidero Labs keys only"] --> IMG["Talos image signed by Sidero Labs"]
+    IMG -->|"PCR 11 matches"| TPM["TPM releases the disk keys"]
+    TPM --> SATA["SATA SSD: STATE and EPHEMERAL"]
+    TPM --> NVME["NVMe SSD: r-storage raw volume"]
+    SATA --> TALOS["Talos: machine config, etcd, kubelet"]
+    NVME --> LVM["LVM thin pool of LINSTOR"]
+    FW -.->|"TPM cleared, motherboard replaced, Secure Boot disabled: disks stay locked"| REBUILD["Rebuild the node"]
+```
+
 ## Decisions
 
 - Talos configs: plain machine config documents templated with minijinja, secrets resolved by `op inject` ([secrets](../secrets/README.md)). No talhelper (unmaintained), no Omni, no Cluster API, no Terraform provider for Talos.

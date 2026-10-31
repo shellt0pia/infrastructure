@@ -4,6 +4,33 @@
 - [roadmap.md](roadmap.md): what is left to build and the open questions.
 - [tofu/README.md](../tofu/README.md): the OpenTofu stacks (Cloudflare, Backblaze).
 
+## Overview
+
+```mermaid
+flowchart TD
+    INET["Internet clients"] -->|"80, 443"| OPN
+    LAN["LAN and VPN clients"] --> OPN
+    OPN["OPNsense: firewall, HAProxy, Unbound, BGP"] --> CL
+    subgraph CL["Cluster: Talos nodes"]
+        K8S["Kubernetes: Cilium, Envoy Gateway, cert-manager, DNS tools, Flux"]
+        ST["Storage: Piraeus and LINSTOR on the NVMe SSDs"]
+        K8S --> ST
+    end
+    CL -->|"NFS"| NAS["NAS: bulk data, UPS server, Backrest"]
+    NAS -->|"UPS on battery: shutdown"| CL
+    GH["GitHub: this repository"] -->|"Flux pulls"| CL
+    OP["1Password"] -->|"External Secrets"| CL
+    CL -->|"VolSync, restic"| B2["Backblaze B2"]
+    NAS -->|"Backrest"| B2
+    CL -->|"external-dns, cloudflare-ddns, cert-manager"| CF["Cloudflare"]
+    WS["Workstation: just, OpenTofu"] -->|"talosctl, kubectl"| CL
+    WS -->|"OpenTofu"| CF
+    WS -->|"OpenTofu"| B2
+    CL -->|"pings of the backups"| HC["healthchecks.io"]
+```
+
+The topics below describe each part: the machines ([nodes](nodes/README.md)), what surrounds them ([network](network/README.md)), the cluster and its storage, then what runs on it.
+
 ## Topics
 
 ### Format

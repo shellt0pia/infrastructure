@@ -2,6 +2,25 @@
 
 Day-to-day administration of the backups. Architecture: [README.md](README.md).
 
+## Which procedure
+
+```mermaid
+flowchart TD
+    A{"Cluster or credentials compromised?"} -->|yes| X["Ransomware or compromised cluster"]
+    A -->|no| B{"Backups deleted or hidden?"}
+    B -->|yes| D["Recovery after a deletion of the backups"]
+    B -->|no| C{"Cluster running?"}
+    C -->|"no, one node lost"| N["Rebuilding a node, nodes runbook"]
+    C -->|"no, etcd quorum lost"| E["etcd quorum lost"]
+    C -->|"no, nothing left"| R["Full rebuild"]
+    C -->|yes| F{"What is lost?"}
+    F -->|"a few files"| G["A few files"]
+    F -->|"the data of a volume"| H["One application volume, in place"]
+    F -->|"the volume itself"| I["One application volume, from scratch"]
+```
+
+Each box is a section of this runbook, except the node rebuild ([nodes](../nodes/runbook.md#rebuilding-a-node)): [compromised cluster](#ransomware-or-compromised-cluster), [deleted backups](#recovery-after-a-deletion-of-the-backups), [etcd](#etcd-quorum-lost), [full rebuild](#full-rebuild), [a few files](#a-few-files), [in place](#one-application-volume-in-place), [from scratch](#one-application-volume-from-scratch).
+
 ## Recipes
 
 The credentials of each repository are in its `restic-*` 1Password item. The recipes of `kubernetes/mod.just` read them with the workstation service account ([secrets/README.md](../secrets/README.md#on-the-workstation-a-read-only-service-account)): listing and reading the backups needs 1Password and B2 only, not the cluster.

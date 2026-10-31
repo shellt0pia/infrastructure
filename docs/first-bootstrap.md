@@ -2,7 +2,18 @@
 
 The order of the manual steps to complete before the first `just bootstrap cluster`, each one detailed in the `bootstrap.md` of its topic. What comes next and the open questions are in the [roadmap](roadmap.md).
 
-Suggested order: phases 0 to 3 in order. The network (DHCP reservations, DNS records) is prepared before the first boot, so that the nodes are reachable by name from maintenance mode on. The secrets can be done in parallel at any time before the bootstrap.
+```mermaid
+flowchart TD
+    P0["0. Workstation"] --> P1["1. Nodes: hardware, BIOS, Talos image"]
+    P1 --> P2["2. Network: OPNsense"]
+    P2 --> P3["3. Nodes: first boot in maintenance mode"]
+    P3 --> P4["4. Cluster: Git repository, dry checks, just bootstrap cluster"]
+    P4 --> P5["5. Storage: Piraeus and LINSTOR checks"]
+    P5 --> LATER["Later: Ingress, DNS, Backups"]
+    SEC["Secrets: in parallel, before the bootstrap"] -.-> P4
+```
+
+The network (DHCP reservations, DNS records) is prepared before the first boot, so that the nodes are reachable by name from maintenance mode on.
 
 | Phase | Topic | Content |
 | --- | --- | --- |

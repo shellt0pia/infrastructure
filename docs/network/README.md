@@ -18,6 +18,20 @@ How the nodes are addressed and reached, and how OPNsense routes the cluster: DH
 | IPv6 prefix change | Procedure | [Written](runbook.md#ipv6-prefix-change), the prefix may change at any time |
 | Stable public prefix | Milkywan WireGuard tunnel | Planned ([open points](evaluations.md#open-points)) |
 
+## Overview
+
+```mermaid
+flowchart TD
+    ISP["ISP: WAN IPv4, delegated IPv6 prefix"] --> OPN
+    CLIENTS["LAN and VPN clients"] --> OPN
+    OPN["OPNsense: firewall, DHCPv4, router advertisements, Unbound, FRR AS 64512"] -->|"DHCPv4 mappings, SLAAC, names of the nodes"| NODES
+    NODES["Nodes subnet: kube-01, kube-02, kube-03, Cilium BGP AS 64513"] -->|"eBGP, one IPv4 and one IPv6 session per node"| OPN
+    NODES -->|"one /32 or /128 route per LoadBalancer IP"| POOLS
+    POOLS["LB pools, routed only through BGP: internal and external"] --> GW["Gateways and DNS of the applications"]
+```
+
+The nodes get their addresses from OPNsense and open the BGP sessions towards it. OPNsense then knows which node to send the traffic of each LoadBalancer IP to, whether it comes from the LAN or from the internet ([ingress](../ingress/README.md#overview)).
+
 ## Principles
 
 - **Everything dynamic, FQDN wherever possible**: DHCPv4 static mappings, SLAAC with EUI-64 addresses, `ntp-01.shelltopia.net`, `ups-01-dmz.shelltopia.net`. The only exception is the addresses of the internal DNS of the applications (k8s-gateway, `192.168.19.53` and `fd38:4c4d:8f66:13::53`), because Unbound only forwards to addresses ([dns](../dns/README.md#internal-k8s-gateway)).

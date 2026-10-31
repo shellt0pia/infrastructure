@@ -19,6 +19,22 @@ The cluster side is in `kubernetes/apps/external-secrets` (operator and `onepass
 | Writes to 1Password | Personal account, through `host-spawn op` (`talos gen-secrets`, `tofu apply`) | In use, one approval per call |
 | Rotation of the workstation token | Manual, every 30 days, reminders by `opsa` | [Procedure](runbook.md#rotating-the-workstation-token) |
 
+## Overview
+
+```mermaid
+flowchart TD
+    PA["Personal account, desktop app: host-spawn op"] -->|"writes: talos gen-secrets, keys pushed by tofu apply"| INFRA
+    PA --> PERSONAL["personal vault: token of the workstation service account"]
+    PERSONAL -->|"loaded by the just function or opsa, once an hour per shell"| WS["Workstation service account, read-only"]
+    WS -->|"op inject, op read, op run in the recipes"| INFRA["infrastructure vault: Talos secrets, Docker Hub, NUT, OpenTofu, restic-nas"]
+    WS --> KUBE["kubernetes vault: Cloudflare tokens, restic-volsync, healthchecks"]
+    WS -->|"op inject at the bootstrap: token of the store"| ESO["External Secrets Operator: ClusterSecretStore onepassword"]
+    KUBE -->|"read through the read-only service account of the cluster"| ESO
+    ESO -->|"ExternalSecrets"| SECRETS["Kubernetes Secrets"]
+```
+
+The cluster only ever sees the `kubernetes` vault. The workstation sees both vaults, and only the personal account writes.
+
 ## Vaults and items
 
 | Vault | Content | Read by |
