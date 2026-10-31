@@ -2,7 +2,7 @@
 
 | Stack | Content | Provider credentials (`infrastructure` vault) |
 | --- | --- | --- |
-| `cloudflare` | DNS records of `shelltopia.net` and `shelltopia.org` not managed from the cluster ([ingress.md](../docs/ingress.md#dns)), SSL mode, Universal SSL and DNSSEC of the zones ([Cloudflare](#cloudflare)), applied. | `cloudflare-tofu` |
+| `cloudflare` | DNS records of `shelltopia.net` and `shelltopia.org` not managed from the cluster ([dns](../docs/dns/README.md#overview)), SSL mode, Universal SSL and DNSSEC of the zones ([Cloudflare](#cloudflare)), applied. | `cloudflare-tofu` |
 | `backblaze` | B2 buckets and application keys of the restic repositories ([docs/backups](../docs/backups/README.md#destination-backblaze-b2)), pushed to 1Password. | `backblaze-b2-tofu-admin` |
 
 | Recipe | What it does |
@@ -95,7 +95,7 @@ After a [rebuild of a bucket at a past date](../docs/backups/runbook.md#recovery
 
 Cloudflare only serves the zones `shelltopia.net` and `shelltopia.org` (the domains are registered elsewhere): no proxied record, no other Cloudflare product. The stack manages:
 
-- **Records** (`records.tf`, one map per zone in `shelltopia-net.tf` and `shelltopia-org.tf`): mail (Purelymail, the same records in both zones, `purelymail.tf`), CAA, CNAMEs of the applications hosted by PikaPods. Comment `managed by opentofu`. The other records of the zones are left alone: those of external-dns and cloudflare-ddns ([ingress.md](../docs/ingress.md#dns)), never added to the stack; the A and AAAA records of `shelltopia.net` (hosts, firewall, WireGuard endpoints), updated by ddns-updater or by hand.
+- **Records** (`records.tf`, one map per zone in `shelltopia-net.tf` and `shelltopia-org.tf`): mail (Purelymail, the same records in both zones, `purelymail.tf`), CAA, CNAMEs of the applications hosted by PikaPods. Comment `managed by opentofu`. The other records of the zones are left alone: those of external-dns and cloudflare-ddns ([dns](../docs/dns/README.md#overview)), never added to the stack; the A and AAAA records of `shelltopia.net` (hosts, firewall, WireGuard endpoints), updated by ddns-updater or by hand.
 - **CAA**: `letsencrypt.org` on both zones, plus `sectigo.com` on `shelltopia.org`, required by PikaPods (its documentation and its web interface ask for it, although the certificates served are from Let's Encrypt).
 - **SSL mode** `off` and **Universal SSL disabled**: nothing is proxied. While Universal SSL is enabled, Cloudflare adds hidden CAA records for its own certificate authorities to the zones that have CAA records.
 - **DNSSEC**, signed by Cloudflare, `prevent_destroy`: disabling it while the DS record is still at the registrar breaks the resolution of the whole zone. The `ds` output must match the DS record at the registrar.

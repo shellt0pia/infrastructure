@@ -27,7 +27,7 @@ The cluster side is in `kubernetes/apps/external-secrets` (operator and `onepass
 | `kubernetes` | Secrets synced to the cluster: `1password-service-account-kubernetes` (token of the store), `cloudflare-cert-manager`, `cloudflare-external-dns`, `cloudflare-ddns`, `restic-volsync`, `healthchecks`, and `cnpg-b2` later | External Secrets, and the workstation service account |
 | `personal` | The token of the workstation service account | The personal account only |
 
-The items of the cluster are described with the tool that uses them: [backups](../backups/README.md#destination-backblaze-b2), [DNS](../ingress.md#dns) and [certificates](../ingress.md#certificate). The [Talos secrets bundle](bootstrap.md#2-talos-secrets) is the PKI of the cluster: generated once, never regenerated.
+The items of the cluster are described with the tool that uses them: [backups](../backups/README.md#destination-backblaze-b2), [DNS](../dns/README.md#public-external-dns-and-cloudflare-ddns) and [certificates](../ingress/README.md#certificate). The [Talos secrets bundle](bootstrap.md#2-talos-secrets) is the PKI of the cluster: generated once, never regenerated.
 
 ## In the cluster: External Secrets
 

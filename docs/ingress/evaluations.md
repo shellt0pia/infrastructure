@@ -1,0 +1,24 @@
+# Ingress: evaluations and open points
+
+What was considered or rejected, and what is still pending. The resulting architecture is in [README.md](README.md).
+
+## HSTS preload
+
+Every response carries the `preload` token, which is harmless on its own. Submitting `shelltopia.org` to [hstspreload.org](https://hstspreload.org) would also require the apex to serve HTTPS with this header, and would force HTTPS on every subdomain in the browsers, permanently. Not planned.
+
+## Rejected options
+
+| Option | Why not |
+| --- | --- |
+| Gateway API of Cilium | Stays disabled. Envoy Gateway is more complete (client, backend and security policies, PROXY protocol, HTTP/3) and its proxies are separate from the CNI. |
+| Plain port forwarding of 80/443 for IPv4 during the migration | `home` still serves names on the same ports: HAProxy routes on the SNI and the Host header. It goes away with `home` ([procedure](runbook.md#removing-haproxy)). |
+| HTTP/3 behind HAProxy | HAProxy cannot forward QUIC: HTTP/3 is on the internal Gateway only. |
+
+## Open points
+
+| Topic | Notes |
+| --- | --- |
+| Port forwarding instead of HAProxy | Once `home` is migrated: [procedure](runbook.md#removing-haproxy). |
+| `ecdhCurves` | The names are passed as is to Envoy (BoringSSL). After an Envoy upgrade, check that the listeners are not rejected (logs of `envoy-gateway`). |
+| Milkywan WireGuard tunnel (planned) | Stable public IPv4 and IPv6 prefix: the `external` pool, the OPNsense prefix list and the NAT rules will move to it ([roadmap](../roadmap.md#to-check-or-watch)). |
+| Per-route needs at migration | Basic authentication (`SecurityPolicy` on the route), Plex over HTTPS to its backend (or *Secure connections: Preferred*). |
