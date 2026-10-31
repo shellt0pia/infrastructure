@@ -2,6 +2,8 @@
 
 - [first-bootstrap.md](first-bootstrap.md): the order of the first bootstrap, linking to the `bootstrap.md` of each topic.
 - [roadmap.md](roadmap.md): what is left to build and the open questions.
+- [reference.md](reference.md): the names, addresses, ports, namespaces, 1Password items and schedules in one place.
+- [conventions.md](conventions.md): how the repository, the manifests, Talos and the documentation are organised.
 - [tofu/README.md](../tofu/README.md): the OpenTofu stacks (Cloudflare, Backblaze).
 
 ## Overview
