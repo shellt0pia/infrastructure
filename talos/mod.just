@@ -16,7 +16,7 @@ op_vault := "infrastructure"
 op_item := "talos-secrets"
 
 # The personal account, through the desktop app on the host: `op` in the toolbox uses the
-# workstation service account, which is read-only (docs/1password-local-access.md).
+# workstation service account, which is read-only (docs/secrets/README.md).
 op_personal := "host-spawn op"
 
 [doc('Generate the cluster secrets bundle and store it in 1Password (one-time operation)')]

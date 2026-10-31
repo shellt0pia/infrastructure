@@ -13,7 +13,7 @@
 | `just tofu sync-1password <stack>` | Creates or updates the 1Password items listed in the `onepassword_items` output of the stack, if any. |
 | `just tofu run <stack> <arguments>` | Any tofu command, e.g. `just tofu run backblaze state list`. |
 
-The recipes resolve `op.env` (backend and state encryption) and `<stack>/op.env` (provider credentials) with the workstation service account ([1password-local-access.md](../docs/1password-local-access.md)): no approval, and each stack only gets its own provider credentials.
+The recipes resolve `op.env` (backend and state encryption) and `<stack>/op.env` (provider credentials) with the workstation service account ([secrets/README.md](../docs/secrets/README.md#on-the-workstation-a-read-only-service-account)): no approval, and each stack only gets its own provider credentials.
 
 ## State
 

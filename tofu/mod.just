@@ -8,7 +8,7 @@ set shell := ['bash', '-euo', 'pipefail', '-c']
 just := quote(just_executable()) + " --justfile " + quote(justfile())
 
 # Environment of every stack (backend, state encryption), then the provider credentials of the
-# stack, both resolved with the workstation service account (docs/1password-local-access.md).
+# stack, both resolved with the workstation service account (docs/secrets/README.md).
 [doc('Run any tofu command on a stack, e.g. `just tofu run cloudflare state list`')]
 run stack *args:
     op run --env-file='{{ source_directory() }}/op.env' --env-file='{{ source_directory() }}/{{ stack }}/op.env' -- tofu -chdir='{{ source_directory() }}/{{ stack }}' {{ args }}

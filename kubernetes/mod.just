@@ -10,7 +10,7 @@ export KUBECONFIG := justfile_directory() / "kubeconfig"
 just := quote(just_executable()) + " --justfile " + quote(justfile())
 
 # Vault of the restic-* items (docs/backups/README.md), read with the workstation service account
-# (docs/1password-local-access.md).
+# (docs/secrets/README.md).
 op_vault := "kubernetes"
 
 # Read-only restic commands (snapshots, ls, diff, restore...) should get `--no-lock`: no lock file

@@ -4,7 +4,7 @@ Day-to-day administration of the backups. Architecture: [README.md](README.md).
 
 ## Recipes
 
-The credentials of each repository are in its `restic-*` 1Password item. The recipes of `kubernetes/mod.just` read them with the workstation service account ([1password-local-access.md](../1password-local-access.md)): listing and reading the backups needs 1Password and B2 only, not the cluster.
+The credentials of each repository are in its `restic-*` 1Password item. The recipes of `kubernetes/mod.just` read them with the workstation service account ([secrets/README.md](../secrets/README.md#on-the-workstation-a-read-only-service-account)): listing and reading the backups needs 1Password and B2 only, not the cluster.
 
 | Recipe | What it does |
 | --- | --- |
