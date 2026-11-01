@@ -121,7 +121,7 @@ spec:
 
 - Never in Git: an `ExternalSecret` next to the application, `secretStoreRef` on the `onepassword` `ClusterSecretStore`, `remoteRef.key: <item>/<field>` ([secrets](secrets/README.md#in-the-cluster-external-secrets)).
 - A long `refreshInterval` (`1h`, `12h` for VolSync): the service account has rate limits.
-- One item and one token per tool, so that a leaked one gives no access to the others. Items of the cluster in the `kubernetes` vault, the rest in `infrastructure` ([reference](reference.md#1password-items)).
+- One item and one token per tool, so that a leaked one gives no access to the others, named `<provider>-<app>` or `<host>-<service>` (`cloudflare-external-dns`, `sw-01-snmp`: [naming](secrets/README.md#naming-of-the-items)). Items of the cluster in the `kubernetes` vault, the rest in `infrastructure` ([reference](reference.md#1password-items)).
 
 ### Reloads
 

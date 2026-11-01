@@ -47,7 +47,7 @@ For a secret of the `kubernetes` vault pulled by an `ExternalSecret` (the Cloudf
 
 - [ ] **Revoke the old token** at its provider, once its consumers work with the new one.
 
-The token of External Secrets itself (`1password-service-account-kubernetes`) is not pulled by an ExternalSecret but injected by the bootstrap: after replacing the item, apply it again.
+The token of External Secrets itself (`1password-external-secrets-operator`) is not pulled by an ExternalSecret but injected by the bootstrap: after replacing the item, apply it again.
 
 ```sh
 just bootstrap secrets
@@ -75,9 +75,9 @@ The permissions of a service account cannot be changed after its creation, and i
 | Token | Item | Used by |
 | --- | --- | --- |
 | Workstation service account | `personal` vault | Every recipe, [rotation above](#rotating-the-workstation-token) |
-| `kubernetes-external-secrets` service account | `kubernetes/1password-service-account-kubernetes` | External Secrets |
-| Docker Hub personal access token | `infrastructure/docker-hub` | containerd of the nodes (rate limit) |
-| GitHub fine-grained token (private repository only) | `infrastructure/flux-github-token` | Flux |
+| `kubernetes-external-secrets` service account | `kubernetes/1password-external-secrets-operator` | External Secrets |
+| Docker Hub personal access token | `infrastructure/docker-hub-kube-cluster01` | containerd of the nodes (rate limit) |
+
 | Cloudflare tokens | `kubernetes/cloudflare-cert-manager`, `kubernetes/cloudflare-external-dns`, `kubernetes/cloudflare-ddns`, `infrastructure/cloudflare-tofu` | cert-manager, external-dns, cloudflare-ddns, OpenTofu |
 | B2 keys | `kubernetes/restic-volsync`, `infrastructure/restic-nas`, `infrastructure/backblaze-b2-tofu-*` | VolSync, Backrest, OpenTofu (the `restic-*` keys are managed by OpenTofu, see [tofu/README.md](../../tofu/README.md)) |
 

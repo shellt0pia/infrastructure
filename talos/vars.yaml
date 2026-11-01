@@ -39,7 +39,7 @@ network:
   ntp_servers:
     - ntp-01.shelltopia.net
 
-# NUT server (the NAS) monitoring the UPS. Credentials: op://infrastructure/nut-server.
+# NUT server (the NAS) monitoring the UPS. Credentials: op://infrastructure/nas-01-nut-server.
 ups:
   name: eaton-ellipse
   server: ups-01-dmz.shelltopia.net

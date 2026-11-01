@@ -73,19 +73,20 @@ A namespace whose applications are exposed on the internet carries the label `sh
 | Vault | Item | Used by | Described in |
 | --- | --- | --- | --- |
 | `infrastructure` | `talos-secrets` | Talos secrets bundle, the PKI of the cluster | [secrets](secrets/bootstrap.md#2-talos-secrets) |
-| `infrastructure` | `docker-hub` | containerd of the nodes (rate limit) | [secrets](secrets/bootstrap.md#3-docker-hub) |
-| `infrastructure` | `nut-server` | NUT client of the nodes | [secrets](secrets/bootstrap.md#4-nut) |
-| `infrastructure` | `flux-github-token` | Flux, private repository only | [secrets](secrets/README.md#vaults-and-items) |
+| `infrastructure` | `docker-hub-kube-cluster01` | containerd of the nodes (rate limit) | [secrets](secrets/bootstrap.md#3-docker-hub) |
+| `infrastructure` | `nas-01-nut-server` | NUT client of the nodes | [secrets](secrets/bootstrap.md#4-nut) |
 | `infrastructure` | `tofu-state-encryption`, `backblaze-b2-tofu-state`, `backblaze-b2-tofu-admin`, `cloudflare-tofu` | OpenTofu | [tofu/README.md](../tofu/README.md) |
 | `infrastructure` | `restic-nas` | Backrest on the NAS, never synced to the cluster | [backups](backups/README.md#destination-backblaze-b2) |
-| `kubernetes` | `1password-service-account-kubernetes` | Token of the store, injected by the bootstrap | [secrets](secrets/bootstrap.md#5-service-account-for-external-secrets) |
+| `kubernetes` | `1password-external-secrets-operator` | Token of the store, injected by the bootstrap | [secrets](secrets/bootstrap.md#5-service-account-for-external-secrets) |
 | `kubernetes` | `cloudflare-cert-manager`, `cloudflare-external-dns`, `cloudflare-ddns` | cert-manager, external-dns, cloudflare-ddns (field `credential`) | [ingress](ingress/README.md#certificate), [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
 | `kubernetes` | `restic-volsync` | VolSync | [backups](backups/README.md#destination-backblaze-b2) |
 | `kubernetes` | `healthchecks` | Ping URLs of the checks, one field per check | [backups](backups/README.md#monitoring) |
-| `kubernetes` | `cnpg-b2` | CloudNativePG, later | [backups](backups/README.md#destination-backblaze-b2) |
+| `kubernetes` | `pushover-alertmanager` | Alertmanager (field `username`: the Pushover user key, `credential`: the application token) | [observability](observability/README.md#alerting) |
+| `kubernetes` | `pocket-id-grafana` | Grafana, OIDC client of the Pocket ID (`username`: the client id, `credential`: the secret), later | [observability](observability/README.md#grafana) |
+| `kubernetes` | `backblaze-b2-cnpg` | CloudNativePG, later | [backups](backups/README.md#destination-backblaze-b2) |
 | `personal` | Token of the workstation service account | The shell of the workstation | [secrets](secrets/README.md#on-the-workstation-a-read-only-service-account) |
 
-The tokens to renew and their consumers are in the [secrets runbook](secrets/runbook.md#tokens-to-renew).
+The tokens to renew and their consumers are in the [secrets runbook](secrets/runbook.md#tokens-to-renew). The naming of the items is in [secrets](secrets/README.md#naming-of-the-items).
 
 ## External services
 

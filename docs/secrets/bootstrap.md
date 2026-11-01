@@ -27,12 +27,12 @@ Create every prerequisite of a step before starting it, then follow the steps in
 ## 3. Docker Hub
 
 - [x] **Token.** Create a Docker Hub *personal access token* with the *Public Repo Read-only* scope.
-- [x] **Item.** Store it in the `infrastructure/docker-hub` item, fields `username` and `credential`, referenced by `talos/patches/containerd.yaml.j2`.
+- [x] **Item.** Store it in the `infrastructure/docker-hub-kube-cluster01` item, fields `username` and `credential`, referenced by `talos/patches/containerd.yaml.j2`.
 
 ## 4. NUT
 
 - [x] **User.** On the NAS, use (or create) a NUT user with the `upsmon secondary` role in `upsd.users`.
-- [x] **Item.** Store it in the `infrastructure/nut-server` item, fields `username` and `password`, referenced by `talos/patches/extensions.yaml.j2`.
+- [x] **Item.** Store it in the `infrastructure/nas-01-nut-server` item, fields `username` and `password`, referenced by `talos/patches/extensions.yaml.j2`.
 
 ## 5. Service account for External Secrets
 
@@ -44,11 +44,11 @@ Create every prerequisite of a step before starting it, then follow the steps in
 
   The permissions of a service account cannot be changed after its creation, and the token is shown **only once**.
 
-- [x] **Item.** Store the token in the `kubernetes` vault, item `1password-service-account-kubernetes`, field `credential` (*API Credential* category), as referenced in `bootstrap/resources/secrets.yaml.j2`.
+- [x] **Item.** Store the token in the `kubernetes` vault, item `1password-external-secrets-operator`, field `credential` (*API Credential* category), as referenced in `bootstrap/resources/secrets.yaml.j2`.
 - [x] **Reference.** Check that it resolves with the workstation service account (`opsa` provides its token outside `just`):
 
   ```sh
-  opsa op read op://kubernetes/1password-service-account-kubernetes/credential >/dev/null && echo OK
+  opsa op read op://kubernetes/1password-external-secrets-operator/credential >/dev/null && echo OK
   ```
 
   Expected: `OK`.
@@ -56,7 +56,7 @@ Create every prerequisite of a step before starting it, then follow the steps in
 - [x] **Scope.** Check the scope of the token. The inner `op` uses the workstation service account, the outer one the External Secrets token:
 
   ```sh
-  OP_SERVICE_ACCOUNT_TOKEN="$(opsa op read op://kubernetes/1password-service-account-kubernetes/credential)" op vault list
+  OP_SERVICE_ACCOUNT_TOKEN="$(opsa op read op://kubernetes/1password-external-secrets-operator/credential)" op vault list
   ```
 
   Expected: **only** the `kubernetes` vault.

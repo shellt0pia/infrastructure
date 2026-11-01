@@ -16,7 +16,7 @@ Create every prerequisite of a step before starting it, then follow the steps in
 | 1 | Item `healthchecks` (`kubernetes` vault), field `kube-cluster01-volsync`: the ping URL of the check. Without it, `volsync-monitor` is not ready. | 1Password | Done |
 | 3 | Bucket of the NAS, its restricted key, item `restic-nas` in the **`infrastructure`** vault (never synced to the cluster), same fields as `restic-volsync`. | Entry in `restic_repositories` with the `infrastructure` vault, `just tofu apply backblaze`. | To do |
 | 3 | healthchecks.io checks `documents`, `groupware` and `media`, period 1 day, grace 2 hours. | healthchecks.io | To do |
-| 4 | Bucket and restricted key of CloudNativePG, item `cnpg-b2` (`kubernetes` vault). | `tofu/backblaze`, to define with CNPG. | Later |
+| 4 | Bucket and restricted key of CloudNativePG, item `backblaze-b2-cnpg` (`kubernetes` vault). | `tofu/backblaze`, to define with CNPG. | Later |
 
 ## 1. Deploy VolSync and the monitoring
 

@@ -9,7 +9,7 @@ name: nut-client
 configFiles:
   - mountPath: /usr/local/etc/nut/upsmon.conf
     content: |
-      MONITOR {{ ups.name }}@{{ ups.server }} 1 {{ '{{ op://infrastructure/nut-server/username }}' }} {{ '{{ op://infrastructure/nut-server/password }}' }} secondary
+      MONITOR {{ ups.name }}@{{ ups.server }} 1 {{ '{{ op://infrastructure/nas-01-nut-server/username }}' }} {{ '{{ op://infrastructure/nas-01-nut-server/password }}' }} secondary
       MINSUPPLIES 1
       SHUTDOWNCMD "/sbin/poweroff"
       POLLFREQ 5
