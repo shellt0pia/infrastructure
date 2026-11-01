@@ -1,0 +1,15 @@
+---
+# containerd pulls through the NodePort of Spegel. The local node is allowed by the baseline, but
+# when its own Spegel is not ready, the NodePort sends the pull to the Spegel of another node.
+# The traffic between the Spegel pods (router, 5001) is allowed by the namespace.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: spegel
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: spegel
+  ingress:
+    - fromEntities:
+        - remote-node

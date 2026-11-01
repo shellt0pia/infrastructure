@@ -10,7 +10,7 @@ The choices considered and set aside, and what is still to check or watch. The r
 | Cilium `bpf.masquerade` | Its IPv6 support is beta and always uses the GUA as source, even towards ULA destinations. iptables masquerading is used instead ([cluster](../cluster/README.md#cilium)). |
 | Link-local address for the IPv6 BGP peer | The router advertisement gateways are link-local, which Cilium cannot use: the peer is the ULA address of OPNsense, written as is. |
 | TCP MD5 on the BGP sessions | Cumbersome on FreeBSD. The listen ranges, the prefix lists and the firewall rule are enough on a dedicated subnet. |
-| A Talos ingress firewall | OPNsense filters everything entering the nodes subnet. Pod ↔ node isolation will come from Cilium network policies ([roadmap](../roadmap.md#security)). |
+| A Talos ingress firewall | OPNsense filters everything entering the nodes subnet. Pod ↔ node isolation comes from the Cilium host firewall ([cluster](../cluster/README.md#network-policies)). |
 | GUA addresses in the configs | The prefix may change: it is only used in the `external` LB pool and the matching OPNsense prefix list. |
 
 ## Open points

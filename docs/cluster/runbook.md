@@ -94,6 +94,41 @@ Start from what is not `Ready`:
 
 If every Kustomization fails with `kustomization path not found`, Flux follows the wrong branch: [see below](#recovering-flux-on-the-wrong-branch).
 
+## Network policies
+
+How they work: [README](README.md#network-policies). A flow denied by a policy times out (the packets are dropped, never refused): a connection that hangs between two pods, or from a pod to a node, starts here.
+
+- [ ] **Find the drop.** `-P` forwards the port of Hubble Relay; add `-f` to follow:
+
+  ```sh
+  hubble observe -P --verdict DROPPED --namespace <namespace> --last 100
+  hubble observe -P --verdict DROPPED --pod <namespace>/<pod> --last 100
+  ```
+
+  A line gives the source and destination (pod, or identity such as `world`, `host`, `remote-node`), the port, and `Policy denied` with its direction (`INGRESS` on the side of the server, `EGRESS` on the side of the client). In audit mode, the same flows have the verdict `AUDIT`.
+
+- [ ] **Allow it**, in Git, at the narrowest place:
+
+  | Flow | Where |
+  | --- | --- |
+  | Between two pods of the same namespace | Already allowed: check that the namespace includes the `network-policies` component. |
+  | To a pod, from another namespace, a node or outside of the cluster | `ciliumnetworkpolicy.yaml` next to the application that receives it, `ingress` ([conventions](../conventions.md#network-policies)). |
+  | From a pod to a private address outside of the cluster (NAS, OPNsense, a LAN device) | `ciliumnetworkpolicy.yaml` next to the application that sends it, `egress` with `toCIDR` (the only case with addresses). |
+  | From a pod to a port of the nodes (Talos API, kubelet, metrics) | A rule in `kubernetes/apps/kube-system/cilium/policies/host.yaml`, from the pods that need it (`fromEndpoints`) to that port only, and the port in [reference](../reference.md#ports). |
+  | From a new Gateway, or to every pod (a scraper) | `kubernetes/apps/kube-system/cilium/policies/baseline.yaml`. |
+
+  Then check with `hubble observe` that the flow is `FORWARDED`.
+
+- [ ] **Return to audit mode**, to roll out a change of the policies or when many flows break at once: set `policyAuditMode: true` in `kubernetes/apps/kube-system/cilium/app/helmrelease.yaml`, commit and push. The Cilium pods restart (a few seconds without new connections on each node, one node at a time). Set it back to `false` once the `AUDIT` flows are understood.
+- [ ] **Break-glass**, if the policies block Flux itself (it cannot apply a fix): suspend their Kustomization and delete the baseline, which opens every pod again (the host firewall stays):
+
+  ```sh
+  flux -n kube-system suspend ks cilium-policies
+  kubectl delete ciliumclusterwidenetworkpolicy baseline
+  ```
+
+  Once the fix is pushed, `flux -n kube-system resume ks cilium-policies` recreates it.
+
 ## Recovering Flux on the wrong branch
 
 If the `sync.ref` of the `flux-instance` HelmRelease pushed to GitHub is not the branch Flux must follow, every Kustomization fails with `kustomization path not found` ([why](bootstrap.md#1-git-repository)).

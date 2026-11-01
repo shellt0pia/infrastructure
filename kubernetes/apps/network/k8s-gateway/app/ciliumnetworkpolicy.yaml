@@ -1,0 +1,15 @@
+---
+# Queries from Unbound (OPNsense, `world`) and from the pods and nodes. `externalTrafficPolicy:
+# Cluster`: a query received by a node without replica arrives from that node (`remote-node`).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: k8s-gateway
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: k8s-gateway
+  ingress:
+    - fromEntities:
+        - world
+        - cluster

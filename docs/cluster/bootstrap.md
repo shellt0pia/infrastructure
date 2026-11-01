@@ -1,6 +1,6 @@
 # Cluster: first deployment
 
-The Git repository, the checks before the bootstrap, `just bootstrap cluster` and the checks of the cluster. Architecture: [README.md](README.md). The order of the whole bootstrap is in [first-bootstrap.md](../first-bootstrap.md).
+The Git repository, the checks before the bootstrap, `just bootstrap cluster` and the checks of the cluster and of the network policies. Architecture: [README.md](README.md). The order of the whole bootstrap is in [first-bootstrap.md](../first-bootstrap.md).
 
 Create every prerequisite of a step before starting it, then follow the steps in order. The statuses and checkboxes track `kube-cluster01`.
 
@@ -63,6 +63,7 @@ These checks have no impact on the nodes.
   kubectl kustomize kubernetes/apps/cert-manager/cert-manager/issuers
   kubectl kustomize kubernetes/apps/kube-system
   kubectl kustomize kubernetes/apps/kube-system/cilium/networking
+  kubectl kustomize kubernetes/apps/kube-system/cilium/policies
   kubectl kustomize kubernetes/apps/kube-system/intel-device-plugin/gpu
   kubectl kustomize kubernetes/apps/envoy-gateway-system
   kubectl kustomize kubernetes/apps/network
@@ -333,3 +334,69 @@ Spegel is installed by `just bootstrap apps` (after CoreDNS) and by Flux ([READM
 - [ ] **Mirror kept after a Talos change.** After the next `just talos apply-node` that changes the machine config of a node, and after the next Talos upgrade, read `_default/hosts.toml` again as above ([open point](evaluations.md#open-points)).
 
   Expected: the `http://<IPv4 of the node>:30020` host is still there. If not, restart the DaemonSet (`kubectl -n kube-system rollout restart ds/spegel`) and record it in the [runbook](runbook.md).
+
+### Network policies
+
+Not tested yet. The policies are first deployed in audit mode (`policyAuditMode: true` in `kubernetes/apps/kube-system/cilium/app/helmrelease.yaml`): the denied flows are reported, nothing is dropped. Enforce them once the flows are understood ([README](README.md#network-policies)).
+
+- [ ] **Deployment:**
+
+  ```sh
+  flux -n kube-system get ks cilium-policies
+  kubectl get ciliumclusterwidenetworkpolicies
+  kubectl get ciliumnetworkpolicies -A
+  kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.enable-host-firewall} {.data.policy-audit-mode}{"\n"}'
+  kubectl -n kube-system exec ds/cilium -- cilium-dbg status | grep -i firewall
+  kubectl -n flux-system get networkpolicies
+  ```
+
+  Expected: the Kustomization is `Ready`. The clusterwide policies `host`, `baseline` and `coredns`; `same-namespace` in each namespace of `kubernetes/apps`, plus `envoy-proxies`, `k8s-gateway`, `spegel` and `linstor-controller`. `true true`, and the host firewall `Enabled` on the devices of the node. No NetworkPolicy left in `flux-system`.
+
+- [ ] **Hubble Relay:**
+
+  ```sh
+  kubectl -n kube-system get pods -l k8s-app=hubble-relay
+  kubectl -n kube-system get cronjob hubble-generate-certs
+  hubble status -P
+  ```
+
+  Expected: the Relay pod is `Running`, the CronJob exists. `hubble status` reports every node as connected (`-P` forwards the port of the Relay through the Kubernetes API).
+
+- [ ] **Audited flows.** Over a few days, so that the nightly backups, a Flux reconciliation of each Kustomization and a certificate renewal check run at least once:
+
+  ```sh
+  hubble observe -P --verdict AUDIT --last 1000
+  hubble observe -P --verdict AUDIT -f
+  ```
+
+  Expected: none, except the tests below. Each other flow is either needed (add an exception, [runbook](runbook.md#network-policies)) or must be denied (note why).
+
+- [ ] **Denied flows.** From a test pod on kube-01, towards the ports of another node (kubelet over IPv4, Talos API over ULA), the GUA of another node, and a private address outside of the cluster (the NAS):
+
+  ```sh
+  kubectl run np-test --image=docker.io/library/busybox --restart=Never \
+    --overrides='{"spec":{"nodeName":"kube-01"}}' --command -- sleep 600
+  kubectl wait --for=condition=Ready pod/np-test
+  kubectl exec np-test -- nc -zv -w 3 192.168.15.13 10250
+  kubectl exec np-test -- nc -zv -w 3 <ULA of kube-03> 50000
+  kubectl exec np-test -- nc -zv -w 3 <GUA of kube-03> 50000
+  kubectl exec np-test -- nc -zv -w 3 <IPv4 of the NAS> 443
+  kubectl exec np-test -- nslookup github.com
+  kubectl exec np-test -- wget -q --spider https://github.com
+  hubble observe -P --verdict AUDIT --pod default/np-test
+  kubectl delete pod np-test
+  ```
+
+  Expected: the connections still succeed (audit mode), and each of the four first ones shows up as `AUDIT`, with `default/np-test` as source. For the two node addresses, this confirms that the masquerading keeps the pod address towards the nodes (inferred, not verified: Cilium excludes the node addresses from it), otherwise the source would be `remote-node` and the host firewall would allow it. DNS and HTTPS are not audited.
+
+- [ ] **Enforce.** Set `policyAuditMode: false` in `kubernetes/apps/kube-system/cilium/app/helmrelease.yaml`, commit and push. Once the Cilium pods are restarted:
+
+  ```sh
+  kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.policy-audit-mode}{"\n"}'
+  hubble observe -P --verdict DROPPED -f
+  flux get ks -A
+  ```
+
+  Then run the test pod above again, and check the Gateways from the LAN, the internal DNS ([dns/bootstrap.md](../dns/bootstrap.md#1-deploy-and-check)) and a volume attached on another node than its LINSTOR controller.
+
+  Expected: `false`. The four connections of the test pod time out, DNS and HTTPS work. No other `DROPPED` flow with `Policy denied`, and every Kustomization stays `Ready`. Then update the status in the [README](README.md#status) and the [roadmap](../roadmap.md#security).

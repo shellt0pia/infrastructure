@@ -61,5 +61,5 @@ flowchart TD
 - SATA SSD: Talos only (default layout). NVMe SSD: one unformatted encrypted partition, used whole as the LVM thin pool of LINSTOR (replicated and local volumes share it, no fixed split).
 - No swap, no zswap. Weekly fstrim with `allowDiscards`, weekly XFS scrub.
 - `watchdog0` (iTCO) armed, NUT client shutting down 90 s after the UPS goes on battery.
-- No Talos ingress firewall: OPNsense filters everything entering the nodes subnet. Pod ↔ node isolation will come from Cilium network policies.
+- No Talos ingress firewall: OPNsense filters everything entering the nodes subnet. Pod ↔ node isolation comes from the Cilium host firewall ([cluster](../cluster/README.md#network-policies)).
 - iGPU used on kube-01 and kube-02 only (`shelltopia.net/intel-gpu` label). The UHD 630 of kube-03 is not exposed.

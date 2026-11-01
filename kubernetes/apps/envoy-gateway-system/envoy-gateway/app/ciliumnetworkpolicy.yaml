@@ -1,0 +1,17 @@
+---
+# The Envoy proxies of the Gateways (the controller only needs its namespace): from outside of
+# the cluster (LAN, internet, HAProxy) and from the pods and nodes. Same policy for both Gateways:
+# the internal one filters its clients itself (SecurityPolicy in kubernetes/apps/network/gateways).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: envoy-proxies
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: gateway.envoyproxy.io/owning-gateway-name
+        operator: Exists
+  ingress:
+    - fromEntities:
+        - world
+        - cluster

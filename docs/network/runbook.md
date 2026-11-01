@@ -59,10 +59,12 @@ Order matters: let OPNsense accept the new routes **before** the cluster adverti
   git grep 'lbipam.cilium.io/ips'
   ```
 
+- [ ] **Pod baseline.** In `kubernetes/apps/kube-system/cilium/policies/baseline.yaml`, replace the delegated /56 in the `except` list of `::/0`. Until then, the pods can reach the GUA of the other nodes as `world`, past the host firewall ([cluster](../cluster/README.md#network-policies)).
 - [ ] **Deployment.** Commit and push, then:
 
   ```sh
   flux reconcile kustomization cilium-networking -n kube-system --with-source
+  flux reconcile kustomization cilium-policies -n kube-system
   ```
 
 - [ ] **Pool and Services.** Check that the pool is not `CONFLICTING` and that the external Services got a new IPv6 address from the new prefix:

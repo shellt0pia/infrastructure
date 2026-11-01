@@ -1,0 +1,17 @@
+---
+# Cluster DNS, from every pod and node (hostNetwork pods with ClusterFirstWithHostNet).
+# Here and not next to CoreDNS, unlike the other exceptions: it must be applied with the baseline.
+# Flux reaches its source-controller through a Service name: without DNS, it could not apply a
+# policy that is missing.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: coredns
+spec:
+  endpointSelector:
+    matchLabels:
+      io.kubernetes.pod.namespace: kube-system
+      k8s-app: kube-dns
+  ingress:
+    - fromEntities:
+        - cluster

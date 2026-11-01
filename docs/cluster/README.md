@@ -1,11 +1,11 @@
 # Cluster: Kubernetes, Cilium and Flux
 
-How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap helmfile, Cilium, CoreDNS, External Secrets and Flux, which then deploys everything in `kubernetes/apps`, and the cluster-wide tools (Spegel, Reloader). The nodes are in [nodes](../nodes/README.md), the network around the cluster in [network](../network/README.md). The decisions are [below](#decisions).
+How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap helmfile, Cilium and its network policies, CoreDNS, External Secrets and Flux, which then deploys everything in `kubernetes/apps`, and the cluster-wide tools (Spegel, Reloader). The nodes are in [nodes](../nodes/README.md), the network around the cluster in [network](../network/README.md). The decisions are [below](#decisions).
 
 | Document | Content |
 | --- | --- |
-| [bootstrap.md](bootstrap.md) | First deployment: cluster ranges, Git repository, dry checks, `just bootstrap cluster`, checks of the cluster. |
-| [runbook.md](runbook.md) | Day-to-day: the `just kube` recipes, the upgrades by hand, diagnosing Flux, recovering it on the wrong branch. |
+| [bootstrap.md](bootstrap.md) | First deployment: cluster ranges, Git repository, dry checks, `just bootstrap cluster`, checks of the cluster, rollout of the network policies. |
+| [runbook.md](runbook.md) | Day-to-day: the `just kube` recipes, the upgrades by hand, diagnosing Flux, diagnosing a flow dropped by the network policies, recovering Flux on the wrong branch. |
 | [evaluations.md](evaluations.md) | The choices considered, and the points to check or watch. |
 
 ## Status
@@ -15,6 +15,7 @@ How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap he
 | Bootstrap (`bootstrap/`, `just bootstrap cluster`) | `talosctl`, helmfile | Done: Cilium (+ BGP and LB pools), CoreDNS, External Secrets, Flux |
 | GitOps (`kubernetes/apps`) | Flux, Kustomize, Renovate | In use, Renovate and the upgrades by tuppr [to deploy](../roadmap.md#upgrades) |
 | CNI, kube-proxy replacement | Cilium | In use ([below](#cilium)) |
+| Network policies, Hubble Relay | Cilium | Deployed in audit mode, nothing dropped: [checks](bootstrap.md#network-policies) not run yet ([below](#network-policies)) |
 | Cluster DNS | CoreDNS | In use ([below](#coredns)) |
 | GPU | Intel device plugin | In use on kube-01 ([below](#gpu)) |
 | Registry mirror between the nodes | Spegel | Deployed by the bootstrap and Flux, [checks](bootstrap.md#spegel) not run yet ([below](#spegel)) |
@@ -72,12 +73,27 @@ These ranges are **permanent**: they cannot be changed once the cluster is creat
 - kube-proxy replacement through KubePrism.
 - **iptables masquerading**, not `bpf.masquerade`: its IPv6 support is beta and always uses the GUA as source, even towards ULA destinations ([evaluations](../network/evaluations.md#rejected-options)). A pod reaching an IPv6 ULA destination is masqueraded behind the ULA address of its node.
 - The BGP control plane advertises the LoadBalancer IPs to OPNsense, from the `internal` and `external` pools ([network](../network/README.md#bgp)).
-- Cilium network policies are to come, to replace the Talos ingress firewall that was dropped ([roadmap](../roadmap.md#security)).
+- Cilium network policies, with the host firewall, replace the Talos ingress firewall that was dropped ([below](#network-policies)).
 - Cilium Gateway API stays disabled: Envoy Gateway is used ([ingress](../ingress/evaluations.md#rejected-options)).
 
 ## CoreDNS
 
 The CoreDNS of Talos is disabled, replaced by the Helm chart: 2 replicas, forwarding to the Talos host DNS. The service is dual-stack, with the cluster DNS addresses given to the kubelet (the 10th address of each service subnet): `10.96.0.10` then `fd1b:654d:9afe:200::a`.
+
+## Network policies
+
+Cilium policies, fail-closed: every pod is in default deny, and every flow it needs is allowed explicitly. The manifests are in `kubernetes/apps/kube-system/cilium/policies` (clusterwide), `kubernetes/components/network-policies` (per namespace) and next to the applications (exceptions).
+
+- **How Cilium evaluates them**: a pod selected by a policy drops, in that direction (ingress or egress), whatever no policy allows. The policies only add allowed flows, there is no deny rule here. A flow between two pods must be allowed on both sides: egress of the client, ingress of the server.
+- **Identities, not addresses**: the rules select pods by their labels, and the rest by *entities*: `host` (the local node), `remote-node` (the other nodes), `kube-apiserver`, `world` (outside of the cluster), `cluster` (all of the above except `world`). The Services and LoadBalancer addresses are translated to the pods before the policies apply.
+- **Host firewall** (`hostFirewall`, `host.yaml`): the policies with a `nodeSelector` apply to the nodes themselves: the Talos services, and the `hostNetwork` pods (Cilium agent, LINSTOR satellites, CSI node plugin). Ingress only, by port: everything from outside (OPNsense filters it) and between the nodes, but from the pods only the API server (6443), the Talos host DNS (53), the LINSTOR satellites (3366, from the controller) and the Hubble server (4244, from Relay). The Talos API, the kubelet and etcd are out of reach of the pods. Ports in [reference](../reference.md#ports).
+- **Baseline of the pods** (`baseline.yaml`): selects every pod. Ingress from the local kubelet (probes), the API server (webhooks) and the Envoy proxies of the Gateways (any backend). Egress to the whole cluster and to the internet, but not to the private networks (RFC 1918, ULA) nor the public IPv6 prefix of the LAN: a pod reaches neither the NAS, OPNsense nor the other LAN devices. The pods leave through the GUA of their node (masquerading), so without the GUA prefix in the list, the GUA of the other nodes would be `world` and bypass the host firewall. This prefix is a manual step of the [prefix change](../network/runbook.md#2-repository-external-lb-pool).
+- **Same namespace** (`kubernetes/components/network-policies`, included by every namespace): the pods of a namespace reach each other. A clusterwide policy cannot express it (an empty selector there means the whole cluster), hence a namespaced policy in each one.
+- **Exceptions**: a `ciliumnetworkpolicy.yaml` next to the application, which selects the peers (entities or labels), not the ports ([conventions](../conventions.md#network-policies)). Today: the Envoy proxies and k8s-gateway (from `world` and `cluster`), Spegel (from `remote-node`: containerd of another node through the NodePort), the LINSTOR controller (from `remote-node`: the CSI node plugin is `hostNetwork`). CoreDNS (from `cluster`) is with the baseline, in `cilium/policies`: Flux reaches its source-controller through a Service name, so a baseline applied without DNS would block Flux before it applies the missing policy.
+- **No exemption**: `kube-system`, `piraeus-datastore` and `flux-system` are covered like the others. The NetworkPolicies of Flux are disabled (`cluster.networkPolicy: false` in flux-instance): their `allow-egress` would open every egress of the namespace. No Kubernetes `NetworkPolicy` is used.
+- **Audit mode** (`policyAuditMode`) to roll out or to diagnose: the denied flows are reported by Hubble with the verdict `AUDIT`, nothing is dropped. It applies to the whole cluster ([runbook](runbook.md#network-policies)).
+- **Hubble Relay** collects the flows of every node for the `hubble` CLI (`mise.toml`), through a port-forward. No UI for now. Its certificates are regenerated every 4 months by a CronJob (`hubble.tls.auto.method: cronJob`): with the default `helm` method, Helm reuses them and they expire after a year.
+- **Bootstrap**: `just bootstrap apps` installs Cilium without the policies, Flux applies them later (`cilium-policies` Kustomization). Until then, nothing is filtered.
 
 ## GPU
 

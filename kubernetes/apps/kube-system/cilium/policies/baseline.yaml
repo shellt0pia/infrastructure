@@ -1,0 +1,51 @@
+---
+# Baseline of every pod (not the hostNetwork ones, see host.yaml), see
+# docs/cluster/README.md#network-policies. Selecting a pod puts it in default deny, ingress and
+# egress: everything not allowed here or by another policy is dropped. The other policies only
+# add allowed flows:
+# - the same namespace: the network-policies component (kubernetes/components), included by the
+#   kustomization.yaml of each namespace; a clusterwide policy cannot express it;
+# - the other exceptions: a ciliumnetworkpolicy.yaml next to the application.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: baseline
+spec:
+  # Every pod (they all have a namespace), but not the endpoints of the nodes and of the Cilium
+  # health checks.
+  endpointSelector:
+    matchExpressions:
+      - key: io.kubernetes.pod.namespace
+        operator: Exists
+  ingress:
+    # The kubelet of the node (probes) and the API server (admission webhooks, aggregated APIs).
+    - fromEntities:
+        - host
+        - kube-apiserver
+    # The Envoy proxies of the Gateways reach the backends of their routes, in any namespace.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: envoy-gateway-system
+          matchExpressions:
+            - key: gateway.envoyproxy.io/owning-gateway-name
+              operator: Exists
+  egress:
+    # The whole cluster: pods, Services, nodes (API server, host DNS). The policies of the
+    # destination decide.
+    - toEntities:
+        - cluster
+    # The internet, but not the private networks (LAN, NAS, OPNsense, VPN). The LoadBalancer
+    # addresses of the cluster stay reachable: Cilium translates them to the pods first.
+    # The public IPv6 prefix of the LAN (the delegated /56, also in docs/network/runbook.md) is
+    # excluded too: the pods leave through the GUA of their node, so the GUA of the other nodes
+    # would be `world` and bypass the host firewall.
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+        - cidr: ::/0
+          except:
+            - fc00::/7
+            - 2a02:8434:f003:d100::/56

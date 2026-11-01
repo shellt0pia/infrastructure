@@ -1,0 +1,14 @@
+---
+# Network policies of a namespace, see docs/cluster/README.md#network-policies. Every pod is in
+# default deny (the clusterwide baseline in kubernetes/apps/kube-system/cilium/policies): this
+# component allows the traffic between the pods of the namespace.
+#
+# Usage, in the kustomization.yaml of each namespace (kubernetes/apps/<namespace>), which sets
+# the namespace of the policy:
+#
+#   components:
+#     - ../../components/network-policies
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - ./ciliumnetworkpolicy.yaml

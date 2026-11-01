@@ -10,7 +10,7 @@ The choices considered and set aside, the studies still to do, and what is still
 | Omni, Cluster API, a Terraform provider for Talos | Not used: the machine configs are plain documents templated with minijinja, driven by the `just talos` recipes. |
 | topf | Not adopted for now, see [secrets](../secrets/evaluations.md#replacing-the-talos-recipes-with-topf). |
 | The Microsoft Secure Boot certificates | Enrolling only the Sidero Labs keys means the machine only boots images signed by Sidero Labs. The onboard devices are part of the firmware and need no option ROM ([Secure Boot](README.md#secure-boot-and-encryption)). |
-| A Talos ingress firewall | OPNsense filters everything entering the nodes subnet, see [network](../network/evaluations.md#rejected-options). |
+| A Talos ingress firewall | OPNsense filters everything entering the nodes subnet, and the Cilium host firewall the traffic of the pods, see [network](../network/evaluations.md#rejected-options). |
 
 ## Disk selectors
 

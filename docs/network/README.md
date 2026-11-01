@@ -38,7 +38,7 @@ The nodes get their addresses from OPNsense and open the BGP sessions towards it
 - **The GUA prefix may change**: it is never used in the configs, except in the `external` LB pool and the matching OPNsense prefix list. Everything else uses the ULA prefix ([prefix change](runbook.md#ipv6-prefix-change)).
 - Node names have **AAAA records only** (ULA): hosts must use IPv6 ULA to reach them. No A record is needed.
 - Cluster endpoint: DNS round-robin `kube-cluster01.shelltopia.net` (one AAAA per node).
-- OPNsense filters everything entering the nodes subnet: no Talos ingress firewall ([nodes](../nodes/README.md#decisions)).
+- OPNsense filters everything entering the nodes subnet: no Talos ingress firewall ([nodes](../nodes/README.md#decisions)). The traffic of the pods to the nodes and to the LAN is filtered by the Cilium network policies ([cluster](../cluster/README.md#network-policies)).
 
 ## Nodes subnet
 

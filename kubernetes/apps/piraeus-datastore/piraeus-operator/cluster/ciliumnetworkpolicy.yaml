@@ -1,0 +1,15 @@
+---
+# The CSI node plugin runs in the host network and calls the API of the LINSTOR controller: the
+# local node is allowed by the baseline, the other nodes are allowed here.
+# Next to the LinstorCluster, which defines the controller.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: linstor-controller
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: linstor-controller
+  ingress:
+    - fromEntities:
+        - remote-node

@@ -43,12 +43,16 @@ BGP: OPNsense is AS `64512`, the nodes share AS `64513` ([network](network/READM
 | TCP 80 and 443, UDP 443 (internal Gateway only) | Clients → Gateways | [ingress](ingress/README.md#overview) |
 | TCP 8080 and 8443 | HAProxy → external Gateway (PROXY protocol, until `home` is migrated) | [ingress](ingress/README.md#ipv4-from-the-internet) |
 | TCP and UDP 53 | Unbound → k8s-gateway | [dns](dns/README.md#internal-k8s-gateway) |
-| TCP 3366 (LINSTOR satellite), 7000-7999 (DRBD), 9942 (drbd-reactor metrics) | Between the nodes | [storage](storage/evaluations.md#open-points) |
+| TCP 3366 (LINSTOR satellite), 7000-7999 (DRBD), 9942 (drbd-reactor metrics) | Between the nodes | [storage](storage/README.md#decisions) |
 | TCP 30020 (NodePort), TCP and UDP 5001 (libp2p) | Node → local Spegel, Spegel → Spegel | [cluster](cluster/README.md#spegel) |
+| TCP 6443, TCP and UDP 53 (Talos host DNS) | Pods → nodes, the only node ports open to every pod (host firewall) | [cluster](cluster/README.md#network-policies) |
+| TCP 3366 | LINSTOR controller pod → satellites (host network) | [cluster](cluster/README.md#network-policies) |
+| TCP 4244 | Hubble Relay → Hubble server of each Cilium agent | [cluster](cluster/README.md#network-policies) |
+| TCP 4245 | Workstation → Hubble Relay, through `kubectl port-forward` (`hubble -P`) | [cluster](cluster/runbook.md#network-policies) |
 
 ## Namespaces
 
-Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: disabled`, so that a refactoring never deletes it with its content ([conventions](conventions.md#namespaces)). `kube-system` is created by Kubernetes and not managed there.
+Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: disabled`, so that a refactoring never deletes it with its content, and includes the `network-policies` component, which allows the traffic between its pods ([conventions](conventions.md#namespaces)). `kube-system` is created by Kubernetes and not managed there.
 
 | Namespace | Content | Described in |
 | --- | --- | --- |

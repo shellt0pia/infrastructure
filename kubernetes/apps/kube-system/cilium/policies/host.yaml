@@ -1,0 +1,51 @@
+---
+# Host firewall of every node (hostFirewall in ../app/helmrelease.yaml), see
+# docs/cluster/README.md#network-policies. Ingress only: the egress of the nodes is not filtered.
+# It replaces the Talos ingress firewall, and mainly protects the ports of the nodes (Talos API,
+# kubelet, etcd) from the pods. It also covers the hostNetwork pods (Cilium agent, LINSTOR
+# satellites, CSI node plugin).
+#
+# The traffic of the pods is filtered by port here, unlike the pod policies: the ports of the
+# nodes are fixed by Talos and Kubernetes. Port list in docs/reference.md#ports.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: host
+spec:
+  nodeSelector: {}
+  ingress:
+    # Outside of the cluster (OPNsense filters it), the node itself and the other nodes (etcd,
+    # kubelet, Talos API, DRBD, LINSTOR, Spegel through containerd, BGP, the Cilium health checks).
+    - fromEntities:
+        - world
+        - host
+        - remote-node
+        - health
+    # Every pod: the API server (the `kubernetes` Service) and the Talos host DNS, where CoreDNS
+    # forwards (forwardKubeDNSToHost).
+    - fromEntities:
+        - cluster
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+            - port: "53"
+              protocol: ANY
+    # The LINSTOR controller manages the satellites, which run in the host network.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: piraeus-datastore
+            app.kubernetes.io/component: linstor-controller
+      toPorts:
+        - ports:
+            - port: "3366"
+              protocol: TCP
+    # Hubble Relay collects the flows from the Hubble server of each Cilium agent.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: hubble-relay
+      toPorts:
+        - ports:
+            - port: "4244"
+              protocol: TCP

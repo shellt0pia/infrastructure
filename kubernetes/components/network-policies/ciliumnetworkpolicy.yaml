@@ -1,0 +1,11 @@
+---
+# In a namespaced policy, an empty selector only selects the pods of its namespace.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: same-namespace
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - {}

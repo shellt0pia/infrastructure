@@ -26,7 +26,9 @@ spec:
         - helm-controller
         - notification-controller
       cluster:
-        networkPolicy: true
+        # No NetworkPolicies of Flux: its `allow-egress` policy would allow every egress of the
+        # namespace, over the Cilium baseline (docs/cluster/README.md#network-policies).
+        networkPolicy: false
       sync:
         kind: GitRepository
         # TODO: final repository URL and branch.

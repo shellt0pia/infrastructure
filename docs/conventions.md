@@ -9,7 +9,7 @@ How the repository is organised and the habits that the manifests, the Talos con
 | `talos/` | The machine configs of the nodes, [render layers](../talos/README.md#render-layers) |
 | `bootstrap/` | `just bootstrap cluster`: the stages up to Flux, [cluster](cluster/README.md#overview) |
 | `kubernetes/apps/` | Everything Flux deploys, one folder per namespace |
-| `kubernetes/components/` | Kustomize components shared by the applications, such as `volsync` |
+| `kubernetes/components/` | Kustomize components shared by the applications, such as `volsync` and `network-policies` |
 | `kubernetes/mod.just` | The `just kube` recipes of the workstation |
 | `tofu/` | OpenTofu stacks: `cloudflare` and `backblaze`, [tofu/README.md](../tofu/README.md) |
 | `docs/` | This documentation, [format](README.md#format) |
@@ -22,7 +22,7 @@ Flux follows `kubernetes/apps` (`sync.path` of the `flux-instance` HelmRelease).
 
 ```text
 kubernetes/apps/<namespace>/
-├── kustomization.yaml        # namespace.yaml and the ks.yaml of every application
+├── kustomization.yaml        # namespace.yaml, the ks.yaml of every application, the network-policies component
 ├── namespace.yaml
 └── <app>/
     ├── ks.yaml               # the Flux Kustomization(s) of the application
@@ -30,7 +30,8 @@ kubernetes/apps/<namespace>/
         ├── kustomization.yaml
         ├── ocirepository.yaml
         ├── helmrelease.yaml
-        └── externalsecret.yaml
+        ├── externalsecret.yaml
+        └── ciliumnetworkpolicy.yaml
 ```
 
 `kustomization.yaml` of the namespace sets `namespace:`, and each `ks.yaml` sets `targetNamespace`: the manifests of `app/` never repeat it.
@@ -54,8 +55,37 @@ kubernetes/apps/<namespace>/
 
 - `kustomize.toolkit.fluxcd.io/prune: disabled` on every namespace created by the repository: a refactoring that drops a Kustomization must never delete a namespace and its volumes.
 - `kube-system` is created by Kubernetes and not managed.
+- The `kustomization.yaml` of every namespace, `kube-system` included, has `components: [../../components/network-policies]`: the pods of the namespace reach each other ([network policies](#network-policies)).
 - A namespace whose pods need it carries the Pod Security labels (`piraeus-datastore`: privileged).
 - A namespace whose applications are exposed on the internet carries `shelltopia.net/gateway-external: "true"` ([ingress](ingress/runbook.md#exposing-an-application)).
+
+### Network policies
+
+Every pod is in default deny ([cluster](cluster/README.md#network-policies)). Without anything more, an application reaches the cluster and the internet, and receives traffic from its namespace, its kubelet, the API server and the Gateways (its routes).
+
+- Anything else it needs is a `CiliumNetworkPolicy` in `ciliumnetworkpolicy.yaml`, next to the application (in `app/`), with a comment that says which flow it allows and why.
+- Select the peers, not the ports: `fromEntities` (`world`, `cluster`, `remote-node`...) or `fromEndpoints` with labels, and no `toPorts`. A port that changes with an upgrade then breaks nothing, and a pod only exposes the ports it listens on. Only the host firewall (`cilium/policies/host.yaml`) filters by port, the ports of the nodes being fixed.
+- Labels that stay stable across upgrades (`app.kubernetes.io/name`, the labels set by the repository), and `io.kubernetes.pod.namespace` to select a pod of another namespace.
+- An egress to a private address outside of the cluster (NAS, LAN device) is a `toCIDR` rule on the application that needs it, the only rule with addresses.
+- A policy for pods created by an operator goes next to the resource that defines them (`linstor-controller` next to the `LinstorCluster`).
+
+```yaml
+---
+# <client> (namespace <namespace>) calls the API of <app>.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: <app>
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: <app>
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: <namespace>
+            app.kubernetes.io/name: <client>
+```
 
 ### Secrets
 
