@@ -107,6 +107,14 @@ How they work: [README](README.md#network-policies). A flow denied by a policy t
 
   A line gives the source and destination (pod, or identity such as `world`, `host`, `remote-node`), the port, and `Policy denied` with its direction (`INGRESS` on the side of the server, `EGRESS` on the side of the client). In audit mode, the same flows have the verdict `AUDIT`.
 
+  Hubble only keeps the last 4095 flows of each node in memory. For an older drop, read the export of each node (the logs, once the observability stack runs):
+
+  ```sh
+  for pod in $(kubectl -n kube-system get pods -l k8s-app=cilium -o name); do
+    kubectl -n kube-system exec "$pod" -c cilium-agent -- sh -c 'cat /var/run/cilium/hubble/events*.log'
+  done | hubble observe --input-file - --namespace <namespace>
+  ```
+
 - [ ] **Allow it**, in Git, at the narrowest place:
 
   | Flow | Where |

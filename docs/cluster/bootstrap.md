@@ -337,9 +337,9 @@ Spegel is installed by `just bootstrap apps` (after CoreDNS) and by Flux ([READM
 
 ### Network policies
 
-Not tested yet. The policies are first deployed in audit mode (`policyAuditMode: true` in `kubernetes/apps/kube-system/cilium/app/helmrelease.yaml`): the denied flows are reported, nothing is dropped. Enforce them once the flows are understood ([README](README.md#network-policies)).
+Not tested yet. The policies are first deployed in audit mode (`policyAuditMode: true` in `kubernetes/apps/kube-system/cilium/app/helmrelease.yaml`): the denied flows are reported, nothing is dropped. Enforce them once the flows are understood and the observability stack can show the drops ([README](README.md#network-policies)).
 
-- [ ] **Deployment:**
+- [x] **Deployment:**
 
   ```sh
   flux -n kube-system get ks cilium-policies
@@ -352,7 +352,7 @@ Not tested yet. The policies are first deployed in audit mode (`policyAuditMode:
 
   Expected: the Kustomization is `Ready`. The clusterwide policies `host`, `baseline` and `coredns`; `same-namespace` in each namespace of `kubernetes/apps`, plus `envoy-proxies`, `k8s-gateway`, `spegel` and `linstor-controller`. `true true`, and the host firewall `Enabled` on the devices of the node. No Kubernetes NetworkPolicy in the cluster (a chart that creates one opens its pods over the baseline: disable it in its values).
 
-- [ ] **Hubble Relay:**
+- [x] **Hubble Relay:**
 
   ```sh
   kubectl -n kube-system get pods -l k8s-app=hubble-relay
@@ -362,16 +362,17 @@ Not tested yet. The policies are first deployed in audit mode (`policyAuditMode:
 
   Expected: the Relay pod is `Running`, the CronJob exists. `hubble status` reports every node as connected (`-P` forwards the port of the Relay through the Kubernetes API).
 
-- [ ] **Audited flows.** Over a few days, so that the nightly backups, a Flux reconciliation of each Kustomization and a certificate renewal check run at least once:
+- [ ] **Audited flows.** Over a few weeks, so that the nightly backups, a Flux reconciliation of each Kustomization and a certificate renewal run at least once. Hubble only keeps the last flows of each node in memory: read the [export](README.md#network-policies) of each node, then, once the observability stack runs, query the logs instead:
 
   ```sh
-  hubble observe -P --verdict AUDIT --last 1000
-  hubble observe -P --verdict AUDIT -f
+  for pod in $(kubectl -n kube-system get pods -l k8s-app=cilium -o name); do
+    kubectl -n kube-system exec "$pod" -c cilium-agent -- sh -c 'cat /var/run/cilium/hubble/events*.log'
+  done | hubble observe --input-file - --verdict AUDIT
   ```
 
   Expected: none, except the tests below. Each other flow is either needed (add an exception, [runbook](runbook.md#network-policies)) or must be denied (note why).
 
-- [ ] **Denied flows.** From a test pod on kube-01, towards the ports of another node (kubelet over IPv4, Talos API over ULA), the GUA of another node, and a private address outside of the cluster (the NAS):
+- [x] **Denied flows.** From a test pod on kube-01, towards the ports of another node (kubelet over IPv4, Talos API over ULA and GUA), and a private address outside of the cluster (the NAS, over ULA):
 
   ```sh
   kubectl run np-test --image=docker.io/library/busybox --restart=Never \
@@ -380,16 +381,18 @@ Not tested yet. The policies are first deployed in audit mode (`policyAuditMode:
   kubectl exec np-test -- nc -zv -w 3 192.168.15.13 10250
   kubectl exec np-test -- nc -zv -w 3 <ULA of kube-03> 50000
   kubectl exec np-test -- nc -zv -w 3 <GUA of kube-03> 50000
-  kubectl exec np-test -- nc -zv -w 3 <IPv4 of the NAS> 443
+  kubectl exec np-test -- nc -zv -w 3 nas-01-dmz.shelltopia.net 443
   kubectl exec np-test -- nslookup github.com
-  kubectl exec np-test -- wget -q --spider https://github.com
+  kubectl exec np-test -- wget -q --no-check-certificate --spider https://github.com
   hubble observe -P --verdict AUDIT --pod default/np-test
   kubectl delete pod np-test
   ```
 
-  Expected: the connections still succeed (audit mode), and each of the four first ones shows up as `AUDIT`, with `default/np-test` as source. For the two node addresses, this confirms that the masquerading keeps the pod address towards the nodes (inferred, not verified: Cilium excludes the node addresses from it), otherwise the source would be `remote-node` and the host firewall would allow it. DNS and HTTPS are not audited.
+  `--no-check-certificate`: the busybox image has no CA certificates, only the egress is tested.
 
-- [ ] **Enforce.** Set `policyAuditMode: false` in `kubernetes/apps/kube-system/cilium/app/helmrelease.yaml`, commit and push. Once the Cilium pods are restarted:
+  Expected: the connections still succeed (audit mode), and each of the four first ones shows up as `AUDITED`, with `default/np-test` and its identity as source. The two node ports are audited on `INGRESS` by the host firewall: the masquerading keeps the pod address towards the nodes (otherwise the source would be `remote-node`, allowed). The NAS and the GUA are audited on `EGRESS` by the baseline. DNS and HTTPS are not audited. Done: as expected.
+
+- [ ] **Enforce**, once the observability stack runs (the denied flows in the logs, the alert on the drops). Set `policyAuditMode: false` in `kubernetes/apps/kube-system/cilium/app/helmrelease.yaml`, commit and push. Once the Cilium pods are restarted:
 
   ```sh
   kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.policy-audit-mode}{"\n"}'

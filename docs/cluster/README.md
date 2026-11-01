@@ -15,7 +15,7 @@ How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap he
 | Bootstrap (`bootstrap/`, `just bootstrap cluster`) | `talosctl`, helmfile | Done: Cilium (+ BGP and LB pools), CoreDNS, External Secrets, Flux |
 | GitOps (`kubernetes/apps`) | Flux, Kustomize, Renovate | In use, Renovate and the upgrades by tuppr [to deploy](../roadmap.md#upgrades) |
 | CNI, kube-proxy replacement | Cilium | In use ([below](#cilium)) |
-| Network policies, Hubble Relay | Cilium | Deployed in audit mode, nothing dropped: [checks](bootstrap.md#network-policies) not run yet ([below](#network-policies)) |
+| Network policies, Hubble Relay | Cilium | Deployed in audit mode, nothing dropped: enforced after the observability stack, [checks](bootstrap.md#network-policies) in progress ([below](#network-policies)) |
 | Cluster DNS | CoreDNS | In use ([below](#coredns)) |
 | GPU | Intel device plugin | In use on kube-01 ([below](#gpu)) |
 | Registry mirror between the nodes | Spegel | Deployed by the bootstrap and Flux, [checks](bootstrap.md#spegel) not run yet ([below](#spegel)) |
@@ -93,6 +93,7 @@ Cilium policies, fail-closed: every pod is in default deny, and every flow it ne
 - **No exemption**: `kube-system`, `piraeus-datastore` and `flux-system` are covered like the others. The NetworkPolicies of Flux are disabled (`cluster.networkPolicy: false` in flux-instance, `web.networkPolicy.create: false` in flux-operator): Cilium adds the Kubernetes NetworkPolicies to its own, so their `allow-egress` and the one of the web UI would open the namespace over the baseline. No Kubernetes `NetworkPolicy` is used: disable the ones a chart creates.
 - **Audit mode** (`policyAuditMode`) to roll out or to diagnose: the denied flows are reported by Hubble with the verdict `AUDIT`, nothing is dropped. It applies to the whole cluster ([runbook](runbook.md#network-policies)).
 - **Hubble Relay** collects the flows of every node for the `hubble` CLI (`mise.toml`), through a port-forward. No UI for now. Its certificates are regenerated every 4 months by a CronJob (`hubble.tls.auto.method: cronJob`): with the default `helm` method, Helm reuses them and they expire after a year.
+- **Export of the denied flows**: Hubble only keeps the last 4095 flows of each node in memory, minutes on a busy node. The flows `AUDIT` and `DROPPED` are also written as JSON lines to `/var/run/cilium/hubble/events.log` on each node (`hubble.export.static`, 5 rotated files of 10 MB, in tmpfs on Talos so lost at reboot), for the log collector of the [observability stack](../roadmap.md#observability), and read by hand until then ([runbook](runbook.md#network-policies)).
 - **Bootstrap**: `just bootstrap apps` installs Cilium without the policies, Flux applies them later (`cilium-policies` Kustomization). Until then, nothing is filtered.
 
 ## GPU
