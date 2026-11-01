@@ -87,10 +87,10 @@ If the ISP changes the delegated prefix, follow the [runbook](runbook.md#ipv6-pr
 
 To run once the cluster is bootstrapped ([cluster/bootstrap.md](../cluster/bootstrap.md#3-bootstrap)).
 
-- [x] **DNS and egress from a pod.** The first command opens a shell in the pod, run the next ones in it:
+- [x] **DNS and egress from a pod.** The first command opens a shell in the pod (in the privileged [`debug` namespace](../cluster/README.md#pod-security)), run the next ones in it:
 
   ```sh
-  kubectl run nettest --rm -it --restart=Never --image=docker.io/nicolaka/netshoot -- bash
+  kubectl -n debug run nettest --rm -it --restart=Never --image=docker.io/nicolaka/netshoot -- bash
   dig kubernetes.default.svc.cluster.local A +short    # 10.96.0.1
   dig ntp-01.shelltopia.net AAAA +short                # resolved by OPNsense through CoreDNS and the Talos host DNS
   curl -6 https://ifconfig.co                          # GUA address of the node (Internet destination)
@@ -119,8 +119,8 @@ To run once the cluster is bootstrapped ([cluster/bootstrap.md](../cluster/boots
 - [x] **LoadBalancer Service:**
 
   ```sh
-  kubectl create deployment lbtest --image=docker.io/traefik/whoami --replicas=2
-  kubectl apply -f - <<'EOF'
+  kubectl -n debug create deployment lbtest --image=docker.io/traefik/whoami --replicas=2
+  kubectl -n debug apply -f - <<'EOF'
   apiVersion: v1
   kind: Service
   metadata:
@@ -133,7 +133,7 @@ To run once the cluster is bootstrapped ([cluster/bootstrap.md](../cluster/boots
     ports:
       - port: 80
   EOF
-  kubectl get svc lbtest    # one IPv4 address from 192.168.19.0/25, one from fd38:4c4d:8f66:13::/64
+  kubectl -n debug get svc lbtest    # one IPv4 address from 192.168.19.0/25, one from fd38:4c4d:8f66:13::/64
   ```
 
   On OPNsense:
@@ -158,9 +158,9 @@ To run once the cluster is bootstrapped ([cluster/bootstrap.md](../cluster/boots
 - [x] **External pool**, then cleanup:
 
   ```sh
-  kubectl label svc lbtest lbipam.shelltopia.net/pool=external
-  kubectl get svc lbtest
-  kubectl delete svc,deployment lbtest
+  kubectl -n debug label svc lbtest lbipam.shelltopia.net/pool=external
+  kubectl -n debug get svc lbtest
+  kubectl -n debug delete svc,deployment lbtest
   ```
 
   Expected: the addresses move to `192.168.19.128/25` and `2a02:8434:f003:d113::/64`.

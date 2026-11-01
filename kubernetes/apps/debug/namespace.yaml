@@ -1,0 +1,15 @@
+---
+# Throwaway test pods (the `kubectl run` of the docs) and node debugging
+# (`kubectl debug node/<node> --profile=sysadmin`), which need privileged pods. Nothing
+# permanent runs here: delete the pods after use.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: debug
+  annotations:
+    # Never delete a namespace (and everything in it) because of a refactoring.
+    kustomize.toolkit.fluxcd.io/prune: disabled
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged

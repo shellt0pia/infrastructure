@@ -9,7 +9,9 @@ The choices considered and set aside, and what is still to check or watch. The r
 | Mayastor | Hugepages, dedicated CPU cores, NVMe-oF. Piraeus/LINSTOR replicates in the kernel, is light on CPU and RAM, offers CSI snapshots on LVM thin and automatic failover with the HA controller. |
 | 3 replicas for the `replicated` class | Losing 2 nodes means a restore anyway, and every write would cross the single 1 Gb/s NIC twice. |
 | TopoLVM | Only if the `local` class does not work out. |
-| Volumes for the bulk data | Media, Immich library, Nextcloud data and mail/calendar archives stay on the NAS, mounted with native `nfs` pod volumes (NFS 4.2, no csi-driver-nfs). |
+| Volumes for the bulk data | Media, Immich library, Nextcloud data and mail/calendar archives stay on the NAS, mounted through static NFS PersistentVolumes (NFS 4.2, no csi-driver-nfs). |
+| Inline `nfs` pod volumes | Forbidden by the `restricted` Pod Security profile ([cluster](../cluster/README.md#pod-security)). A static PersistentVolume per share and per namespace instead ([runbook](runbook.md#mounting-a-nas-share)). |
+| csi-driver-nfs | One more component to run for shares that already exist: it provisions a directory per volume, the static PersistentVolumes mount the existing shares as they are. |
 | A dedicated VLAN for DRBD, DRBD and LINSTOR TLS | The nodes subnet is trusted, DRBD runs over the node ULA addresses. |
 | Piraeus module loader | Removed (`talos-loader-override`): the DRBD module comes from the `siderolabs/drbd` extension and is loaded by Talos. |
 

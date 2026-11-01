@@ -9,7 +9,7 @@ Day-to-day operations on the cluster. Architecture: [README.md](README.md).
 Recipes planned, with ideas taken from [onedr0p/home-ops](https://github.com/onedr0p/home-ops/blob/main/kubernetes/mod.just):
 
 - `sync <hr|ks|gitrepo|ocirepo|es>`: force the reconciliation of every resource of a kind (`reconcile.fluxcd.io/requestedAt` annotation).
-- `debug-node <node>`: `kubectl debug node --profile=sysadmin`, removing the debug pod on exit. The only way to get a shell on a Talos node.
+- `debug-node <node>`: `kubectl -n debug debug node/<node> --profile=sysadmin`, removing the debug pod on exit. The only way to get a shell on a Talos node. In the `debug` namespace: the pod is privileged, [Pod Security](README.md#pod-security) refuses it anywhere else.
 - `prune-pods`: delete the Failed, Succeeded and Pending pods.
 - `browse-pvc` and `view-secret`: need the `browse-pvc` and `view-secret` kubectl plugins.
 - `apply-ks` / `delete-ks`: apply a Flux Kustomization from the working copy, with `flate` or `flux build ks`.
@@ -60,6 +60,14 @@ The version and the image come from the repository: `talos_version` in `talos/va
   ```
 
   Expected: the nodes `Ready` on the new version.
+
+- [ ] **Pod Security**, after a minor upgrade only (1.37 to 1.38, for instance). The profiles follow the version of the API server ([README](README.md#pod-security)): before merging, read in the release notes what the new version changes in the [Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/). After the upgrade, check the running pods against the new profiles:
+
+  ```sh
+  kubectl label --dry-run=server --overwrite ns --all pod-security.kubernetes.io/enforce=restricted
+  ```
+
+  Expected: warnings only for the namespaces below `restricted` (`piraeus-datastore`, `debug`, those of the applications at `baseline`). Run it again on each of these with its own level (`--overwrite ns <namespace> pod-security.kubernetes.io/enforce=baseline`): no warning. A pod listed otherwise would be refused at its next restart: [fix it](#pod-security) before.
 
 ## Diagnosing Flux
 
@@ -136,6 +144,37 @@ How they work: [README](README.md#network-policies). A flow denied by a policy t
   ```
 
   Once the fix is pushed, `flux -n kube-system resume ks cilium-policies` recreates it.
+
+## Pod Security
+
+How it works: [README](README.md#pod-security). A refused pod never exists: `kubectl get pods` shows nothing, the workload stays without ready replica and its HelmRelease or Kustomization fails at the end of its timeout.
+
+- [ ] **Find the refusal:**
+
+  ```sh
+  kubectl get events -A --field-selector reason=FailedCreate
+  kubectl -n <namespace> describe rs <name>    # or sts, ds, job
+  ```
+
+  The message `violates PodSecurity "restricted:latest"` lists every missing setting (`allowPrivilegeEscalation != false`, `unrestricted capabilities`, `runAsNonRoot != true`, `seccompProfile`, `restricted volume types`...).
+
+- [ ] **Check a manifest before pushing.** The `warn` mode also checks the pod templates of the workloads: a server dry run returns the same list, without creating anything:
+
+  ```sh
+  kubectl -n <namespace> apply --dry-run=server -f <manifest>
+  helm template <release> <chart> -n <namespace> -f <values> | kubectl -n <namespace> apply --dry-run=server -f -
+  ```
+
+- [ ] **Fix it**, in this order:
+
+  1. The security context, in the manifest or the values of the chart (most charts have `podSecurityContext` and `securityContext`): [conventions](../conventions.md#pod-security).
+  2. Another image of the application, that runs as non-root.
+  3. `hostUsers: false`, if the application only needs root inside its container, without NFS volume ([README](README.md#pod-security)).
+  4. Otherwise, a namespace at a lower level, `baseline` before `privileged`: the `enforce`, `audit` and `warn` labels in its `namespace.yaml`, with a comment naming the pods and the reason ([conventions](../conventions.md#namespaces)). Applications at the same level can share it.
+
+  The controller retries the creation of the pods by itself, with a growing delay; `kubectl -n <namespace> rollout restart` makes it immediate.
+
+- [ ] **Debugging a pod.** The ephemeral containers of `kubectl debug` are checked like the others: in a `restricted` namespace, use `--profile=restricted`, with an image that runs as non-root (or a `runAsUser` given with `--custom`). The test pods (`kubectl run`) go in the `debug` namespace, and are deleted after use.
 
 ## Recovering Flux on the wrong branch
 

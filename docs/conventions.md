@@ -54,9 +54,10 @@ kubernetes/apps/<namespace>/
 ### Namespaces
 
 - `kustomize.toolkit.fluxcd.io/prune: disabled` on every namespace created by the repository: a refactoring that drops a Kustomization must never delete a namespace and its volumes.
-- `kube-system` is created by Kubernetes and not managed.
+- `kube-system` is created by Kubernetes and not managed. It is exempt from Pod Security ([cluster](cluster/README.md#pod-security)).
+- An application goes in its own namespace, or in one shared with the applications that need the same Pod Security level; never in `default`.
 - The `kustomization.yaml` of every namespace, `kube-system` included, has `components: [../../components/network-policies]`: the pods of the namespace reach each other ([network policies](#network-policies)).
-- A namespace whose pods need it carries the Pod Security labels (`piraeus-datastore`: privileged).
+- A namespace is `restricted` by default ([cluster](cluster/README.md#pod-security)), without Pod Security labels. If its pods cannot run so, it gets the lowest level that works (`baseline` before `privileged`): `pod-security.kubernetes.io/enforce`, `audit` and `warn` set to it, without `-version` (`latest`), and a comment naming the pods and the reason (`piraeus-datastore` and `debug`: privileged).
 - A namespace whose applications are exposed on the internet carries `shelltopia.net/gateway-external: "true"` ([ingress](ingress/runbook.md#exposing-an-application)).
 
 ### Network policies
@@ -86,6 +87,34 @@ spec:
         - matchLabels:
             io.kubernetes.pod.namespace: <namespace>
             app.kubernetes.io/name: <client>
+```
+
+### Pod security
+
+A namespace is `restricted` unless stated otherwise ([cluster](cluster/README.md#pod-security)), and Pod Security refuses a pod that does not meet it.
+
+- Prefer an image that runs as non-root. The UID and GID of the application are set in the manifest, and its data on the NAS or in a restored volume belongs to them (`chown` once at the migration).
+- The security context below, in the manifest or the values of the chart. `readOnlyRootFilesystem` is not required by `restricted`, but set whenever the application allows it, with an `emptyDir` for the paths it writes (`/tmp`).
+- A NAS share goes through a static PersistentVolume and its PersistentVolumeClaim, never an inline `nfs` volume ([storage](storage/runbook.md#mounting-a-nas-share)).
+- An application that cannot run `restricted`: try `hostUsers: false` first, then a namespace at `baseline` ([runbook](cluster/runbook.md#pod-security)).
+- The test pods (`kubectl run`) go in the `debug` namespace, and are deleted after use.
+
+```yaml
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: <app>
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
 ```
 
 ### Secrets

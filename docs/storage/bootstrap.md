@@ -87,10 +87,10 @@ Only for a cluster bootstrapped before the storage was added: the nodes need the
 
   Expected: `replicated (default)`, `local` and `linstor`.
 
-- [x] **A volume of each class, a snapshot and a restore:**
+- [x] **A volume of each class, a snapshot and a restore**, in the [`debug` namespace](../cluster/README.md#pod-security) (busybox runs as root):
 
   ```sh
-  kubectl apply -f - <<'EOF'
+  kubectl -n debug apply -f - <<'EOF'
   apiVersion: v1
   kind: PersistentVolumeClaim
   metadata:
@@ -134,11 +134,11 @@ Only for a cluster bootstrapped before the storage was added: the nodes need the
         persistentVolumeClaim:
           claimName: pvctest-local
   EOF
-  kubectl wait --for=condition=Ready pod/pvctest
+  kubectl -n debug wait --for=condition=Ready pod/pvctest
   kubectl linstor resource list
   # replicated volume: UpToDate on 2 nodes (the node of the pod and another one); with 3 nodes,
   # a third TieBreaker (diskless) resource. local volume: a single resource without DRBD.
-  kubectl apply -f - <<'EOF'
+  kubectl -n debug apply -f - <<'EOF'
   apiVersion: snapshot.storage.k8s.io/v1
   kind: VolumeSnapshot
   metadata:
@@ -179,11 +179,11 @@ Only for a cluster bootstrapped before the storage was added: the nodes need the
         persistentVolumeClaim:
           claimName: pvctest-restore
   EOF
-  kubectl wait --for=jsonpath='{.status.readyToUse}'=true volumesnapshot/pvctest --timeout=5m
+  kubectl -n debug wait --for=jsonpath='{.status.readyToUse}'=true volumesnapshot/pvctest --timeout=5m
   # The restore PVC fails ("snapshot pvctest not bound") until the snapshot is ready, then the
   # provisioner retries with a growing delay (up to 5 minutes).
-  kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/pvctest-restore --timeout=10m
-  kubectl logs pvctest-restore          # hello
+  kubectl -n debug wait --for=jsonpath='{.status.phase}'=Succeeded pod/pvctest-restore --timeout=10m
+  kubectl -n debug logs pvctest-restore          # hello
   ```
 
   Expected: the restore pod prints `hello`.
@@ -191,9 +191,9 @@ Only for a cluster bootstrapped before the storage was added: the nodes need the
   Clean up. The classes use `reclaimPolicy: Retain`: the PVs stay `Released`, delete them, then their LINSTOR resources ([orphan volumes](runbook.md#orphan-volumes)):
 
   ```sh
-  kubectl delete pod pvctest pvctest-restore
-  kubectl delete volumesnapshot pvctest
-  kubectl delete pvc pvctest-replicated pvctest-local pvctest-restore
+  kubectl -n debug delete pod pvctest pvctest-restore
+  kubectl -n debug delete volumesnapshot pvctest
+  kubectl -n debug delete pvc pvctest-replicated pvctest-local pvctest-restore
   kubectl delete pv <name>
   kubectl linstor resource-definition delete <pv name>
   ```

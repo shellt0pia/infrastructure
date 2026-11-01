@@ -12,7 +12,7 @@ The machines of the cluster: hardware, BIOS, Secure Boot, disk encryption and th
 
 | Part | Status |
 | --- | --- |
-| Talos machine configs | Done: Secure Boot, TPM disk encryption, disks and NIC selectors, dynamic network, NTP, NUT, watchdog, i915, DRBD, image verification |
+| Talos machine configs | Done: Secure Boot, TPM disk encryption, disks and NIC selectors, dynamic network, NTP, NUT, watchdog, i915, DRBD, image verification. Pod Security default (`restricted`), not applied yet ([cluster](../cluster/README.md#pod-security)) |
 | kube-01, kube-03 | Installed, first bootstrap in progress with these two nodes only ([test phase](#test-phase-2-nodes)) |
 | kube-02 | Still the `home` host managed by Ansible, [to add](runbook.md#adding-kube-02) once it is migrated |
 | Secure Boot, watchdog | [To check](bootstrap.md#1-hardware-and-bios) on each node |

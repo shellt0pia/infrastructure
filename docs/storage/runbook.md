@@ -100,3 +100,58 @@ LINSTOR allows overcommitting the thin pool by default: the volumes can be bigge
   Expected: only the snapshot of each ReplicationDestination ([backups](../backups/README.md)).
 
 - [ ] **Limit the overcommit**, to stop volumes from being provisioned past what the disk can hold: set `MaxOversubscriptionRatio` on the `LinstorCluster` in `kubernetes/apps/piraeus-datastore`.
+
+## Mounting a NAS share
+
+The shares of the NAS already exist, with their data: a static PersistentVolume points to one, nothing is provisioned. The inline `nfs` pod volumes are forbidden by [Pod Security](../cluster/README.md#pod-security). A PV binds a single PVC: one PV per share and per namespace that mounts it, named `<namespace>-<share>`, next to the application (in `app/`).
+
+```yaml
+---
+# The <share> share of the NAS, for <namespace>. Deleting the PV never touches the data
+# (Retain, no provisioner).
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: <namespace>-<share>
+spec:
+  capacity:
+    storage: 1Ti # required, not enforced on NFS
+  accessModes: ["ReadWriteMany"]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions:
+    - nfsvers=4.2
+  nfs:
+    server: <NAS>
+    path: <export path>
+  claimRef:
+    namespace: <namespace>
+    name: <share>
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: <share>
+spec:
+  accessModes: ["ReadWriteMany"]
+  storageClassName: "" # otherwise the default class (replicated) provisions a LINSTOR volume
+  volumeName: <namespace>-<share>
+  resources:
+    requests:
+      storage: 1Ti
+```
+
+- **Binding**: `volumeName` on the PVC and `claimRef` on the PV, so that neither binds to anything else.
+- **Read-only**: `readOnly: true` on the `volumeMount` of the pod (Plex, Navidrome).
+- **Permissions**: the exports use `mapall=<uid>`, every access is done as that UID on the NAS, whatever the UID of the pod. `fsGroup` does not apply to NFS volumes. An application that checks the owner of its files runs with the same UID (`runAsUser`).
+- **Network**: the kubelet of the node mounts the share, not the pod: the network policies do not apply, the exports must allow the nodes subnet.
+- **User namespaces**: a pod with an NFS volume cannot use `hostUsers: false` (no idmapped mounts on NFS).
+
+- [ ] **Check:**
+
+  ```sh
+  kubectl -n <namespace> get pvc <share>
+  kubectl -n <namespace> exec <pod> -- grep nfs /proc/mounts
+  ```
+
+  Expected: the PVC is `Bound` to `<namespace>-<share>`, the mount shows `vers=4.2`.

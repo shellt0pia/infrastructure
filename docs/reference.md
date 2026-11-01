@@ -52,18 +52,19 @@ BGP: OPNsense is AS `64512`, the nodes share AS `64513` ([network](network/READM
 
 ## Namespaces
 
-Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: disabled`, so that a refactoring never deletes it with its content, and includes the `network-policies` component, which allows the traffic between its pods ([conventions](conventions.md#namespaces)). `kube-system` is created by Kubernetes and not managed there.
+Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: disabled`, so that a refactoring never deletes it with its content, and includes the `network-policies` component, which allows the traffic between its pods ([conventions](conventions.md#namespaces)). `kube-system` is created by Kubernetes and not managed there. [Pod Security](cluster/README.md#pod-security) is `restricted` by default: only the namespaces at a lower level carry labels.
 
-| Namespace | Content | Described in |
-| --- | --- | --- |
-| `flux-system` | flux-operator, flux-instance | [cluster](cluster/README.md#decisions) |
-| `external-secrets` | External Secrets Operator, the `onepassword` ClusterSecretStore | [secrets](secrets/README.md#in-the-cluster-external-secrets) |
-| `cert-manager` | cert-manager, the `ClusterIssuer`s | [ingress](ingress/README.md#certificate) |
-| `envoy-gateway-system` | Envoy Gateway | [ingress](ingress/README.md#envoy-gateway) |
-| `network` | The Gateways, the wildcard certificate, k8s-gateway, external-dns, cloudflare-ddns | [ingress](ingress/README.md), [dns](dns/README.md) |
-| `piraeus-datastore` | Piraeus/LINSTOR (privileged) | [storage](storage/README.md#decisions) |
-| `backups` | VolSync, `volsync-monitor` | [backups](backups/README.md) |
-| `kube-system` | Cilium, CoreDNS, Intel device plugin, Reloader, snapshot-controller, Spegel | [cluster](cluster/README.md) |
+| Namespace | Content | Pod Security | Described in |
+| --- | --- | --- | --- |
+| `flux-system` | flux-operator, flux-instance | `restricted` | [cluster](cluster/README.md#decisions) |
+| `external-secrets` | External Secrets Operator, the `onepassword` ClusterSecretStore | `restricted` | [secrets](secrets/README.md#in-the-cluster-external-secrets) |
+| `cert-manager` | cert-manager, the `ClusterIssuer`s | `restricted` | [ingress](ingress/README.md#certificate) |
+| `envoy-gateway-system` | Envoy Gateway | `restricted` | [ingress](ingress/README.md#envoy-gateway) |
+| `network` | The Gateways, the wildcard certificate, k8s-gateway, external-dns, cloudflare-ddns | `restricted` | [ingress](ingress/README.md), [dns](dns/README.md) |
+| `piraeus-datastore` | Piraeus/LINSTOR | `privileged` | [storage](storage/README.md#decisions) |
+| `backups` | VolSync, `volsync-monitor` | `restricted` | [backups](backups/README.md) |
+| `debug` | Throwaway test pods, `kubectl debug node` | `privileged` | [cluster](cluster/README.md#pod-security) |
+| `kube-system` | Cilium, CoreDNS, Intel device plugin, Reloader, snapshot-controller, Spegel | exempt | [cluster](cluster/README.md) |
 
 A namespace whose applications are exposed on the internet carries the label `shelltopia.net/gateway-external: "true"` ([ingress](ingress/runbook.md#exposing-an-application)).
 

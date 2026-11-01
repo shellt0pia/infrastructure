@@ -6,7 +6,7 @@ What is left to build on the Kubernetes cluster, and the questions still open. T
 
 | Area | Status |
 | --- | --- |
-| Talos machine configs (`talos/`) | Done: Secure Boot, TPM disk encryption, disks and NIC selectors, dynamic network, NTP, NUT, watchdog, i915, DRBD, image verification. |
+| Talos machine configs (`talos/`) | Done: Secure Boot, TPM disk encryption, disks and NIC selectors, dynamic network, NTP, NUT, watchdog, i915, DRBD, image verification. Pod Security `restricted` by default, not applied yet ([checks](cluster/bootstrap.md#pod-security)). |
 | Bootstrap (`bootstrap/`, `just bootstrap cluster`) | Done: Cilium (+ BGP and LB pools), CoreDNS, External Secrets, Flux. Spegel added, not run yet. |
 | GitOps (`kubernetes/apps`) | In use: Flux, External Secrets, Cilium, CoreDNS, cert-manager, Envoy Gateway and the Gateways, the application DNS, the storage, the backups and Reloader. Spegel added, [checks](cluster/bootstrap.md#spegel) not run yet. Cilium network policies deployed in audit mode. The status of each is in its [topic](README.md#list). |
 | OpenTofu (`tofu/`) | States in B2 (encrypted, no locking). `backblaze`: buckets and keys of the backups, applied, keys pushed to 1Password. `cloudflare`: records not managed from the cluster (mail, CAA, PikaPods), SSL settings and DNSSEC, applied. |
@@ -18,7 +18,7 @@ The sections of [To implement](#to-implement) are by topic, in the order they ar
 
 1. **Platform, before the applications move.** Everything that is cheap to do on an empty cluster and painful to retrofit on 30 applications:
    - [Observability](#observability): metrics, Flux notifications, alerting, logs.
-   - [Security](#security): network policies enforced, Pod Security Admission.
+   - [Security](#security): network policies enforced.
    - [Cluster tools](#cluster-tools): resource and priority conventions, kubelet certificates and metrics-server, Headlamp, the Flux web UI and OIDC.
    - [Backups](#backups): NAS data (independent of the cluster, can be done at any time) and PostgreSQL.
    - [Storage](#storage): NFS access to the NAS.
@@ -38,7 +38,6 @@ The sections of [To implement](#to-implement) are by topic, in the order they ar
 ### Security
 
 - [ ] Cilium network policies: enforce them once the [observability](#observability) stack runs (the denied flows in the logs, the alert on the drops). Until then, they stay in audit mode: run the [checks](cluster/bootstrap.md#network-policies) and read the audited flows (exported on each node, then in the logs), then set `policyAuditMode: false`. The host firewall, the baseline of the pods, the exceptions and Hubble Relay are deployed ([cluster](cluster/README.md#network-policies)).
-- [ ] Pod Security Admission: Talos enforces `baseline` on every namespace by default (and `restricted` for audit and warn). Set `pod-security.kubernetes.io/enforce: restricted` on the namespaces of the applications that support it, keep the exceptions explicit (`piraeus-datastore` is `privileged`), and add the labels to the conventions ([namespaces](conventions.md#namespaces)).
 - [ ] Optional: Hubble UI, on the `internal` Gateway (Relay and the `hubble` CLI are in place).
 
 ### Cluster tools
@@ -79,13 +78,15 @@ Architecture and status: [backups/README.md](backups/README.md#status). Order: v
 
 ### Storage
 
-- [ ] NFS access to the NAS: the exports must allow the nodes subnet, then the [read-ahead check](nodes/runbook.md#checking-the-nfs-read-ahead).
+- [ ] NFS access to the NAS, through static PersistentVolumes ([runbook](storage/runbook.md#mounting-a-nas-share)): the exports must allow the nodes subnet, then the [read-ahead check](nodes/runbook.md#checking-the-nfs-read-ahead).
 - [ ] Once kube-02 joins: the tie-breakers of the existing volumes, then the [failover test](storage/bootstrap.md#3-failover-test) ([status](storage/README.md#status)).
 
 ### Migration
 
 - [ ] Move the services of `home`, then turn it into kube-02 ([procedure](nodes/runbook.md#adding-kube-02)). Until then, the 2-node etcd has no fault tolerance. For each migrated name: HAProxy rules to the external Gateway and DNS records ([ingress/runbook.md](ingress/runbook.md#migrating-a-name-from-home)). Per-route needs: basic authentication (`SecurityPolicy` on the route), Plex over HTTPS to its backend (or *Secure connections: Preferred*).
 - [ ] Move the services of the Hetzner VM, then delete the VM.
+- [ ] For each application, [Pod Security](cluster/README.md#pod-security) `restricted` ([conventions](conventions.md#pod-security)): an image that runs as non-root, its UID and GID in the manifest, its data `chown`ed to them when copied to its volume (the Podman containers ran as root), the NAS shares through static PersistentVolumes. Otherwise a namespace at `baseline`, with the reason in a comment.
+- [ ] Evaluate user namespaces (`hostUsers: false`) per application: root in the container is mapped to an unprivileged UID of the node, so an image that starts as root could stay as is ([cluster](cluster/README.md#pod-security)). First test a real pod with a LINSTOR volume ([open point](cluster/evaluations.md#open-points)). Not for the pods that mount a NAS share (no idmapped mounts on NFS) nor the `hostNetwork` ones; the s6-overlay and linuxserver.io images still need `baseline` (capabilities `CHOWN`, `SETUID`, `SETGID`).
 - [ ] Replace calibre (KasmVNC) with another application.
 - [ ] Rewrite `README.md` once Ansible is gone (it still describes the Fedora CoreOS setup).
 

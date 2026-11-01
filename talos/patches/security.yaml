@@ -17,3 +17,27 @@ rules:
     keyless:
       issuer: https://accounts.google.com
       subject: image-factory-signing@talos-production.iam.gserviceaccount.com
+---
+# Pod Security Admission, see docs/cluster/README.md#pod-security. Every namespace without its
+# own labels gets the `restricted` profile: only the exceptions carry labels.
+#
+# The patch is deep-merged into the Talos default, which already exempts the kube-system
+# namespace (Cilium, Spegel and the GPU plugin need privileged pods; the namespace is not
+# managed by the repository). The exemptions are not repeated here: Talos appends lists, the
+# namespace would be listed twice.
+#
+# The profiles follow the version of the API server (`latest`): a Kubernetes minor can make
+# them stricter, see docs/cluster/runbook.md#upgrading-kubernetes-by-hand.
+apiVersion: v1alpha1
+kind: KubeAdmissionControlConfig
+name: PodSecurity
+configuration:
+  apiVersion: pod-security.admission.config.k8s.io/v1
+  kind: PodSecurityConfiguration
+  defaults:
+    enforce: restricted
+    enforce-version: latest
+    audit: restricted
+    audit-version: latest
+    warn: restricted
+    warn-version: latest

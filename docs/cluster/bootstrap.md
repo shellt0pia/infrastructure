@@ -1,6 +1,6 @@
 # Cluster: first deployment
 
-The Git repository, the checks before the bootstrap, `just bootstrap cluster` and the checks of the cluster and of the network policies. Architecture: [README.md](README.md). The order of the whole bootstrap is in [first-bootstrap.md](../first-bootstrap.md).
+The Git repository, the checks before the bootstrap, `just bootstrap cluster` and the checks of the cluster, of the network policies and of Pod Security. Architecture: [README.md](README.md). The order of the whole bootstrap is in [first-bootstrap.md](../first-bootstrap.md).
 
 Create every prerequisite of a step before starting it, then follow the steps in order. The statuses and checkboxes track `kube-cluster01`.
 
@@ -187,10 +187,10 @@ Checks on the cluster:
 
   Expected: `gpu.intel.com/i915` is `3`. kube-03 has no `gpu.intel.com/*` resource.
 
-- [x] **Render node.** A non-root pod requesting the GPU sees the render node, owned by its user (`device_ownership_from_security_context` in `talos/patches/containerd.yaml.j2`):
+- [x] **Render node.** A non-root pod requesting the GPU sees the render node, owned by its user (`device_ownership_from_security_context` in `talos/patches/containerd.yaml.j2`). The test pods of this page run in the privileged [`debug` namespace](README.md#pod-security):
 
   ```sh
-  kubectl apply -f - <<'EOF'
+  kubectl -n debug apply -f - <<'EOF'
   apiVersion: v1
   kind: Pod
   metadata:
@@ -209,10 +209,10 @@ Checks on the cluster:
           limits:
             gpu.intel.com/i915: 1
   EOF
-  kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/gputest
-  kubectl get pod gputest -o wide    # scheduled on kube-01
-  kubectl logs gputest               # renderD128 (and card0) owned by 1000:1000
-  kubectl delete pod gputest
+  kubectl -n debug wait --for=jsonpath='{.status.phase}'=Succeeded pod/gputest
+  kubectl -n debug get pod gputest -o wide    # scheduled on kube-01
+  kubectl -n debug logs gputest               # renderD128 (and card0) owned by 1000:1000
+  kubectl -n debug delete pod gputest
   ```
 
 ### Reloader
@@ -229,8 +229,8 @@ Checks on the cluster:
 - [x] **Reload on change.** A test Deployment that reads a ConfigMap as an env var is restarted when the ConfigMap changes:
 
   ```sh
-  kubectl create configmap reloader-test --from-literal=VALUE=1
-  kubectl apply -f - <<'EOF'
+  kubectl -n debug create configmap reloader-test --from-literal=VALUE=1
+  kubectl -n debug apply -f - <<'EOF'
   apiVersion: apps/v1
   kind: Deployment
   metadata:
@@ -254,14 +254,14 @@ Checks on the cluster:
               - configMapRef:
                   name: reloader-test
   EOF
-  kubectl rollout status deploy/reloader-test
-  kubectl create configmap reloader-test --from-literal=VALUE=2 --dry-run=client -o yaml | kubectl apply -f -
+  kubectl -n debug rollout status deploy/reloader-test
+  kubectl -n debug create configmap reloader-test --from-literal=VALUE=2 --dry-run=client -o yaml | kubectl -n debug apply -f -
   sleep 10
-  kubectl rollout status deploy/reloader-test
-  kubectl logs deploy/reloader-test
-  kubectl get deploy reloader-test -o jsonpath='{.spec.template.metadata.annotations}'
+  kubectl -n debug rollout status deploy/reloader-test
+  kubectl -n debug logs deploy/reloader-test
+  kubectl -n debug get deploy reloader-test -o jsonpath='{.spec.template.metadata.annotations}'
   kubectl -n kube-system logs deploy/reloader | grep reloader-test
-  kubectl delete deploy/reloader-test configmap/reloader-test
+  kubectl -n debug delete deploy/reloader-test configmap/reloader-test
   ```
 
   Expected: a new pod, whose log shows `VALUE=2`. The pod template carries `reloader.stakater.com/last-reloaded-from` and the log of Reloader reports the change of the ConfigMap. The containers have no `STAKATER_*` env var (`annotations` strategy).
@@ -301,18 +301,18 @@ Spegel is installed by `just bootstrap apps` (after CoreDNS) and by Flux ([READM
 
   ```sh
   for node in kube-01 kube-03; do
-    kubectl run spegel-test-$node --image=docker.io/library/alpine:3.22 --restart=Never \
+    kubectl -n debug run spegel-test-$node --image=docker.io/library/alpine:3.22 --restart=Never \
       --overrides='{"spec":{"nodeName":"'$node'"}}' --command -- true
-    kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/spegel-test-$node
+    kubectl -n debug wait --for=jsonpath='{.status.phase}'=Succeeded pod/spegel-test-$node
   done
-  kubectl get events --field-selector involvedObject.name=spegel-test-kube-03 | grep Pulled
+  kubectl -n debug get events --field-selector involvedObject.name=spegel-test-kube-03 | grep Pulled
   kubectl -n kube-system port-forward "$(kubectl -n kube-system get pods -l app.kubernetes.io/name=spegel --field-selector spec.nodeName=kube-03 -o name)" 9090
   ```
 
   Then open `http://localhost:9090/debug/web`, and delete the pods:
 
   ```sh
-  kubectl delete pod spegel-test-kube-01 spegel-test-kube-03
+  kubectl -n debug delete pod spegel-test-kube-01 spegel-test-kube-03
   ```
 
   Expected: on the debug page of the Spegel of kube-03, `Last Mirror Success` shows a duration (not `Pending`). The pull on kube-03 is much shorter than the one on kube-01 in the `Pulled` events.
@@ -321,12 +321,12 @@ Spegel is installed by `just bootstrap apps` (after CoreDNS) and by Flux ([READM
 
   ```sh
   for node in kube-01 kube-03; do
-    kubectl run spegel-verify-$node --image=registry.k8s.io/kube-proxy:v1.37.1 --restart=Never \
+    kubectl -n debug run spegel-verify-$node --image=registry.k8s.io/kube-proxy:v1.37.1 --restart=Never \
       --overrides='{"spec":{"nodeName":"'$node'"}}' --command -- kube-proxy --version
-    kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/spegel-verify-$node
+    kubectl -n debug wait --for=jsonpath='{.status.phase}'=Succeeded pod/spegel-verify-$node
   done
-  kubectl logs spegel-verify-kube-03
-  kubectl delete pod spegel-verify-kube-01 spegel-verify-kube-03
+  kubectl -n debug logs spegel-verify-kube-03
+  kubectl -n debug delete pod spegel-verify-kube-01 spegel-verify-kube-03
   ```
 
   Expected: both pods succeed and print the version, `Last Mirror Success` of kube-03 is updated. A verification failure shows up as `ErrImagePull` in the events of the pod.
@@ -375,22 +375,22 @@ Not tested yet. The policies are first deployed in audit mode (`policyAuditMode:
 - [x] **Denied flows.** From a test pod on kube-01, towards the ports of another node (kubelet over IPv4, Talos API over ULA and GUA), and a private address outside of the cluster (the NAS, over ULA):
 
   ```sh
-  kubectl run np-test --image=docker.io/library/busybox --restart=Never \
+  kubectl -n debug run np-test --image=docker.io/library/busybox --restart=Never \
     --overrides='{"spec":{"nodeName":"kube-01"}}' --command -- sleep 600
-  kubectl wait --for=condition=Ready pod/np-test
-  kubectl exec np-test -- nc -zv -w 3 192.168.15.13 10250
-  kubectl exec np-test -- nc -zv -w 3 <ULA of kube-03> 50000
-  kubectl exec np-test -- nc -zv -w 3 <GUA of kube-03> 50000
-  kubectl exec np-test -- nc -zv -w 3 nas-01-dmz.shelltopia.net 443
-  kubectl exec np-test -- nslookup github.com
-  kubectl exec np-test -- wget -q --no-check-certificate --spider https://github.com
-  hubble observe -P --verdict AUDIT --pod default/np-test
-  kubectl delete pod np-test
+  kubectl -n debug wait --for=condition=Ready pod/np-test
+  kubectl -n debug exec np-test -- nc -zv -w 3 192.168.15.13 10250
+  kubectl -n debug exec np-test -- nc -zv -w 3 <ULA of kube-03> 50000
+  kubectl -n debug exec np-test -- nc -zv -w 3 <GUA of kube-03> 50000
+  kubectl -n debug exec np-test -- nc -zv -w 3 nas-01-dmz.shelltopia.net 443
+  kubectl -n debug exec np-test -- nslookup github.com
+  kubectl -n debug exec np-test -- wget -q --no-check-certificate --spider https://github.com
+  hubble observe -P --verdict AUDIT --pod debug/np-test
+  kubectl -n debug delete pod np-test
   ```
 
   `--no-check-certificate`: the busybox image has no CA certificates, only the egress is tested.
 
-  Expected: the connections still succeed (audit mode), and each of the four first ones shows up as `AUDITED`, with `default/np-test` and its identity as source. The two node ports are audited on `INGRESS` by the host firewall: the masquerading keeps the pod address towards the nodes (otherwise the source would be `remote-node`, allowed). The NAS and the GUA are audited on `EGRESS` by the baseline. DNS and HTTPS are not audited. Done: as expected.
+  Expected: the connections still succeed (audit mode), and each of the four first ones shows up as `AUDITED`, with `debug/np-test` and its identity as source. The two node ports are audited on `INGRESS` by the host firewall: the masquerading keeps the pod address towards the nodes (otherwise the source would be `remote-node`, allowed). The NAS and the GUA are audited on `EGRESS` by the baseline. DNS and HTTPS are not audited. Done: as expected.
 
 - [ ] **Enforce**, once the observability stack runs (the denied flows in the logs, the alert on the drops). Set `policyAuditMode: false` in `kubernetes/apps/kube-system/cilium/app/helmrelease.yaml`, commit and push. Once the Cilium pods are restarted:
 
@@ -403,3 +403,65 @@ Not tested yet. The policies are first deployed in audit mode (`policyAuditMode:
   Then run the test pod above again, and check the Gateways from the LAN, the internal DNS ([dns/bootstrap.md](../dns/bootstrap.md#1-deploy-and-check)) and a volume attached on another node than its LINSTOR controller.
 
   Expected: `false`. The four connections of the test pod time out, DNS and HTTPS work. No other `DROPPED` flow with `Policy denied`, and every Kustomization stays `Ready`. Then update the status in the [README](README.md#status) and the [roadmap](../roadmap.md#security).
+
+### Pod Security
+
+Not applied yet. The `restricted` profile is the default of the cluster (`talos/patches/security.yaml`) and only the exceptions carry labels ([README](README.md#pod-security)). Pod Security only checks the pods when they are created: the running pods are never evicted, a rejected one only shows up at its next restart.
+
+- [x] **Dry run**, before pushing. The API server checks the running pods against `restricted`, without changing anything:
+
+  ```sh
+  kubectl label --dry-run=server --overwrite ns --all pod-security.kubernetes.io/enforce=restricted
+  ```
+
+  Expected: warnings only for `piraeus-datastore` (it stays `privileged`) and for the test pods left in `default` or `debug`, if any. Nothing for `kube-system` (exempt). Done: as expected, only `piraeus-datastore`; the audit log of the API server only showed the test pods of the docs, then in `default`.
+
+- [x] **Namespace labels.** Push, then once Flux has reconciled:
+
+  ```sh
+  flux get ks -A
+  kubectl get ns -L pod-security.kubernetes.io/enforce,pod-security.kubernetes.io/audit,pod-security.kubernetes.io/warn
+  ```
+
+  Expected: every Kustomization is `Ready`. `privileged` on the three modes of `piraeus-datastore` and `debug`. No label on the other namespaces, except `warn: restricted` on `flux-system` (set by flux-operator).
+
+- [x] **Cluster default.** Check the diff, then apply node by node, waiting for the node to be back before the next one:
+
+  ```sh
+  just talos diff
+  just talos apply-node kube-0X
+  talosctl -n kube-0X.shelltopia.net get admissioncontrolconfigs.kubernetes.talos.dev admission-control -o yaml
+  ```
+
+  Expected: the diff only changes the `PodSecurity` admission plugin: its `apiVersion` (`v1alpha1` to `v1`) and `enforce` (`baseline` to `restricted`; `audit` and `warn` were already `restricted`, every version stays `latest`). The configuration is applied without a reboot, the API server of the node restarts. The resource lists the `PodSecurity` plugin with these defaults and `kube-system` as the only exempted namespace.
+
+- [x] **Rejection and exception.** A busybox pod runs as root, without a security context:
+
+  ```sh
+  kubectl run psa-test --image=docker.io/library/busybox --restart=Never --command -- true
+  kubectl -n debug run psa-test --image=docker.io/library/busybox --restart=Never --command -- true
+  kubectl -n debug delete pod psa-test
+  ```
+
+  Expected: the first one is refused, `violates PodSecurity "restricted:latest"` with the list of the missing settings. The second one is created.
+
+- [x] **No rejected workload**, after the next restarts (node reboots, rollouts, Flux upgrades):
+
+  ```sh
+  kubectl get events -A --field-selector reason=FailedCreate
+  flux get hr -A
+  ```
+
+  Expected: no `FailedCreate` event mentioning `PodSecurity`, every HelmRelease `Ready`. A rejected pod only shows up as such an event on its ReplicaSet, StatefulSet, DaemonSet or Job ([runbook](runbook.md#pod-security)).
+
+- [ ] **Jobs and CronJobs**, after their next run: `volsync-monitor` in `backups`.
+
+  ```sh
+  kubectl -n backups get jobs
+  ```
+
+  Expected: the last Job `Complete`.
+
+- [ ] **VolSync movers.** Not tested yet: they run in the namespace of the application, at its level. At the first application backed up (or with the [test application](../backups/bootstrap.md#test-application)), check that the backup and the restore movers start ([open point](evaluations.md#open-points)).
+
+  Expected: `just kube volsync-backup <app>` succeeds, no `FailedCreate` event in the namespace. Then update the status in the [README](README.md#status) and the [roadmap](../roadmap.md#current-state).
