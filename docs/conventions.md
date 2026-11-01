@@ -68,6 +68,7 @@ Every pod is in default deny ([cluster](cluster/README.md#network-policies)). Wi
 - Labels that stay stable across upgrades (`app.kubernetes.io/name`, the labels set by the repository), and `io.kubernetes.pod.namespace` to select a pod of another namespace.
 - An egress to a private address outside of the cluster (NAS, LAN device) is a `toCIDR` rule on the application that needs it, the only rule with addresses.
 - A policy for pods created by an operator goes next to the resource that defines them (`linstor-controller` next to the `LinstorCluster`).
+- No Kubernetes `NetworkPolicy`: Cilium applies them too, and a flow allowed by one of them passes over the baseline. Disable the ones a chart creates in its values (as `flux-operator` and `flux-instance`).
 
 ```yaml
 ---

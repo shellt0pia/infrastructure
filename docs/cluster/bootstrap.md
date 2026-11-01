@@ -347,10 +347,10 @@ Not tested yet. The policies are first deployed in audit mode (`policyAuditMode:
   kubectl get ciliumnetworkpolicies -A
   kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.enable-host-firewall} {.data.policy-audit-mode}{"\n"}'
   kubectl -n kube-system exec ds/cilium -- cilium-dbg status | grep -i firewall
-  kubectl -n flux-system get networkpolicies
+  kubectl get networkpolicies -A
   ```
 
-  Expected: the Kustomization is `Ready`. The clusterwide policies `host`, `baseline` and `coredns`; `same-namespace` in each namespace of `kubernetes/apps`, plus `envoy-proxies`, `k8s-gateway`, `spegel` and `linstor-controller`. `true true`, and the host firewall `Enabled` on the devices of the node. No NetworkPolicy left in `flux-system`.
+  Expected: the Kustomization is `Ready`. The clusterwide policies `host`, `baseline` and `coredns`; `same-namespace` in each namespace of `kubernetes/apps`, plus `envoy-proxies`, `k8s-gateway`, `spegel` and `linstor-controller`. `true true`, and the host firewall `Enabled` on the devices of the node. No Kubernetes NetworkPolicy in the cluster (a chart that creates one opens its pods over the baseline: disable it in its values).
 
 - [ ] **Hubble Relay:**
 

@@ -18,3 +18,8 @@ spec:
   values:
     serviceMonitor:
       create: false
+    web:
+      # No NetworkPolicy: it would open the web UI (9080) to every namespace, over the Cilium
+      # baseline (docs/cluster/README.md#network-policies).
+      networkPolicy:
+        create: false
