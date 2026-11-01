@@ -272,3 +272,64 @@ Checks on the cluster:
   ```
 
   Expected: `true` for both. The restart itself is checked at the next token rotation ([secrets runbook](../secrets/runbook.md#replacing-a-token-synced-to-the-cluster)).
+
+### Spegel
+
+Spegel is installed by `just bootstrap apps` (after CoreDNS) and by Flux ([README](README.md#spegel)). On a running cluster, Flux deploys it alone.
+
+- [x] **Deployment:**
+
+  ```sh
+  flux -n kube-system get hr spegel
+  kubectl -n kube-system get pods -l app.kubernetes.io/name=spegel -o wide
+  kubectl -n kube-system logs ds/spegel -c registry | grep -i error
+  ```
+
+  Expected: the HelmRelease is `Ready`, one pod `Running` and ready per node, no error in the log. A pod that exits at startup reports the containerd setting it refuses (registry config path, `discard_unpacked_layers`).
+
+- [x] **Mirror configuration on the nodes:**
+
+  ```sh
+  talosctl -n kube-01.shelltopia.net ls /etc/cri/conf.d/hosts
+  talosctl -n kube-01.shelltopia.net read /etc/cri/conf.d/hosts/_default/hosts.toml
+  ```
+
+  Expected: `_default` and `_backup` (what was there before Spegel). `hosts.toml` has no `server` line (the upstream registry is implicit) and a single host `http://<IPv4 of the node>:30020` with the `pull` and `resolve` capabilities.
+
+- [x] **Pull through a peer.** Pull an image absent from the cluster on kube-01, then on kube-03:
+
+  ```sh
+  for node in kube-01 kube-03; do
+    kubectl run spegel-test-$node --image=docker.io/library/alpine:3.22 --restart=Never \
+      --overrides='{"spec":{"nodeName":"'$node'"}}' --command -- true
+    kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/spegel-test-$node
+  done
+  kubectl get events --field-selector involvedObject.name=spegel-test-kube-03 | grep Pulled
+  kubectl -n kube-system port-forward "$(kubectl -n kube-system get pods -l app.kubernetes.io/name=spegel --field-selector spec.nodeName=kube-03 -o name)" 9090
+  ```
+
+  Then open `http://localhost:9090/debug/web`, and delete the pods:
+
+  ```sh
+  kubectl delete pod spegel-test-kube-01 spegel-test-kube-03
+  ```
+
+  Expected: on the debug page of the Spegel of kube-03, `Last Mirror Success` shows a duration (not `Pending`). The pull on kube-03 is much shorter than the one on kube-01 in the `Pulled` events.
+
+- [x] **Verified images.** An image checked by the `ImageVerificationConfig` of Talos (`talos/patches/security.yaml`) still pulls through Spegel. kube-proxy is disabled, its image (at the Kubernetes version of `talos/vars.yaml`) is on no node:
+
+  ```sh
+  for node in kube-01 kube-03; do
+    kubectl run spegel-verify-$node --image=registry.k8s.io/kube-proxy:v1.37.1 --restart=Never \
+      --overrides='{"spec":{"nodeName":"'$node'"}}' --command -- kube-proxy --version
+    kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/spegel-verify-$node
+  done
+  kubectl logs spegel-verify-kube-03
+  kubectl delete pod spegel-verify-kube-01 spegel-verify-kube-03
+  ```
+
+  Expected: both pods succeed and print the version, `Last Mirror Success` of kube-03 is updated. A verification failure shows up as `ErrImagePull` in the events of the pod.
+
+- [ ] **Mirror kept after a Talos change.** After the next `just talos apply-node` that changes the machine config of a node, and after the next Talos upgrade, read `_default/hosts.toml` again as above ([open point](evaluations.md#open-points)).
+
+  Expected: the `http://<IPv4 of the node>:30020` host is still there. If not, restart the DaemonSet (`kubectl -n kube-system rollout restart ds/spegel`) and record it in the [runbook](runbook.md).

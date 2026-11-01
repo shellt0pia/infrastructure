@@ -44,6 +44,7 @@ BGP: OPNsense is AS `64512`, the nodes share AS `64513` ([network](network/READM
 | TCP 8080 and 8443 | HAProxy → external Gateway (PROXY protocol, until `home` is migrated) | [ingress](ingress/README.md#ipv4-from-the-internet) |
 | TCP and UDP 53 | Unbound → k8s-gateway | [dns](dns/README.md#internal-k8s-gateway) |
 | TCP 3366 (LINSTOR satellite), 7000-7999 (DRBD), 9942 (drbd-reactor metrics) | Between the nodes | [storage](storage/evaluations.md#open-points) |
+| TCP 30020 (NodePort), TCP and UDP 5001 (libp2p) | Node → local Spegel, Spegel → Spegel | [cluster](cluster/README.md#spegel) |
 
 ## Namespaces
 
@@ -58,7 +59,7 @@ Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: dis
 | `network` | The Gateways, the wildcard certificate, k8s-gateway, external-dns, cloudflare-ddns | [ingress](ingress/README.md), [dns](dns/README.md) |
 | `piraeus-datastore` | Piraeus/LINSTOR (privileged) | [storage](storage/README.md#decisions) |
 | `backups` | VolSync, `volsync-monitor` | [backups](backups/README.md) |
-| `kube-system` | Cilium, CoreDNS, Intel device plugin, Reloader, snapshot-controller | [cluster](cluster/README.md) |
+| `kube-system` | Cilium, CoreDNS, Intel device plugin, Reloader, snapshot-controller, Spegel | [cluster](cluster/README.md) |
 
 A namespace whose applications are exposed on the internet carries the label `shelltopia.net/gateway-external: "true"` ([ingress](ingress/runbook.md#exposing-an-application)).
 

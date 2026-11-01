@@ -7,8 +7,8 @@ What is left to build on the Kubernetes cluster, and the questions still open. T
 | Area | Status |
 | --- | --- |
 | Talos machine configs (`talos/`) | Done: Secure Boot, TPM disk encryption, disks and NIC selectors, dynamic network, NTP, NUT, watchdog, i915, DRBD, image verification. |
-| Bootstrap (`bootstrap/`, `just bootstrap cluster`) | Done: Cilium (+ BGP and LB pools), CoreDNS, External Secrets, Flux. |
-| GitOps (`kubernetes/apps`) | In use: Flux, External Secrets, Cilium, CoreDNS, cert-manager, Envoy Gateway and the Gateways, the application DNS, the storage, the backups and Reloader. The status of each is in its [topic](README.md#list). |
+| Bootstrap (`bootstrap/`, `just bootstrap cluster`) | Done: Cilium (+ BGP and LB pools), CoreDNS, External Secrets, Flux. Spegel added, not run yet. |
+| GitOps (`kubernetes/apps`) | In use: Flux, External Secrets, Cilium, CoreDNS, cert-manager, Envoy Gateway and the Gateways, the application DNS, the storage, the backups and Reloader. Spegel added, [checks](cluster/bootstrap.md#spegel) not run yet. The status of each is in its [topic](README.md#list). |
 | OpenTofu (`tofu/`) | States in B2 (encrypted, no locking). `backblaze`: buckets and keys of the backups, applied, keys pushed to 1Password. `cloudflare`: records not managed from the cluster (mail, CAA, PikaPods), SSL settings and DNSSEC, applied. |
 | First bootstrap | In progress, with kube-01 and kube-03 only. |
 
@@ -19,7 +19,7 @@ The sections of [To implement](#to-implement) are by topic, in the order they ar
 1. **Platform, before the applications move.** Everything that is cheap to do on an empty cluster and painful to retrofit on 30 applications:
    - [Observability](#observability): metrics, Flux notifications, alerting, logs.
    - [Security](#security): network policies, Pod Security Admission.
-   - [Cluster tools](#cluster-tools): resource and priority conventions, Spegel, kubelet certificates and metrics-server, Headlamp and OIDC.
+   - [Cluster tools](#cluster-tools): resource and priority conventions, kubelet certificates and metrics-server, Headlamp and OIDC.
    - [Backups](#backups): NAS data (independent of the cluster, can be done at any time) and PostgreSQL.
    - [Storage](#storage): NFS access to the NAS.
 2. **[Migration](#migration).** `home` first (it becomes kube-02, and the 2-node etcd has no fault tolerance until then), then the Hetzner VM.
@@ -30,22 +30,21 @@ The sections of [To implement](#to-implement) are by topic, in the order they ar
 
 ### Observability
 
-- [ ] Metrics stack, then enable the `ServiceMonitor`/`PodMonitor` already prepared: Cilium, Cilium operator, CoreDNS, cert-manager, External Secrets, Flux. Control plane metrics are already exposed (etcd `:2381`, scheduler and controller-manager bound to `0.0.0.0`).
+- [ ] Metrics stack, then enable the `ServiceMonitor`/`PodMonitor` already prepared: Cilium, Cilium operator, CoreDNS, cert-manager, External Secrets, Flux, Spegel. Control plane metrics are already exposed (etcd `:2381`, scheduler and controller-manager bound to `0.0.0.0`).
 - [ ] Flux notifications: a `Provider` and an `Alert` of the notification controller for the failed reconciliations (same channel as the alerting below). It does not need the metrics stack and can be done before it.
 - [ ] Alerting: Alertmanager and a notification channel (Pushover), with a dead man's switch (an always firing alert pinged to healthchecks.io, so that a silent Alertmanager is noticed). Rules for the failures specific to this cluster: certificates close to expiry, `volsync_volume_out_of_sync` and missing or failed snapshots ([backups](backups/README.md#status)), DRBD and LINSTOR resources not `UpToDate`, Flux resources not `Ready`, LINSTOR thin pool or node disks filling up. The healthchecks.io checks of the backups may then be dropped.
 - [ ] Logs: VictoriaLogs or Loki, a collector in the cluster, and the Talos service and kernel logs sent to it (`machine.logging` / `KmsgLogConfig`) through an FQDN.
 
 ### Security
 
-- [ ] Cilium network policies (replaces the Talos ingress firewall that was dropped), at least to protect the node ports (Talos API, kubelet, etcd) from the pods. The host policies must keep the storage ports open between the nodes: LINSTOR satellite TCP 3366 (from the controller pod), DRBD TCP 7000-7999 (`TcpPortAutoRange`), drbd-reactor metrics TCP 9942.
+- [ ] Cilium network policies (replaces the Talos ingress firewall that was dropped), at least to protect the node ports (Talos API, kubelet, etcd) from the pods. The host policies must keep the storage ports open between the nodes: LINSTOR satellite TCP 3366 (from the controller pod), DRBD TCP 7000-7999 (`TcpPortAutoRange`), drbd-reactor metrics TCP 9942. Spegel needs the NodePort TCP 30020 from the host of each node (containerd) and TCP and UDP 5001 between its pods ([cluster](cluster/README.md#spegel)).
 - [ ] Pod Security Admission: Talos enforces `baseline` on every namespace by default (and `restricted` for audit and warn). Set `pod-security.kubernetes.io/enforce: restricted` on the namespaces of the applications that support it, keep the exceptions explicit (`piraeus-datastore` is `privileged`), and add the labels to the conventions ([namespaces](conventions.md#namespaces)).
 - [ ] Optional: Hubble for flow visibility.
 
 ### Cluster tools
 
 - [ ] Resource requests and limits on every workload, and `PriorityClass`es so that the storage (LINSTOR, DRBD) and network (Cilium, CoreDNS, Envoy) components win against the applications under memory pressure. Nodes have 16 GiB with `systemReserved` and `kubeReserved` already set. Write the convention in [conventions.md](conventions.md) first, then size the requests from the real usage once the metrics stack runs (a VPA in recommendation mode or Goldilocks can help).
-
-- [ ] Spegel (registry mirror between the nodes): the Talos side is done (`CRICustomizationConfig` keeping the unpacked layers in `talos/patches/containerd.yaml.j2`, `ImageLocality` disabled in the scheduler), but there is no Spegel deployment in `kubernetes/apps` yet. Deploy it (namespace, HelmRelease, ServiceMonitor with the metrics stack), then document it in [cluster/](cluster/README.md).
+- [ ] Spegel: run the [checks](cluster/bootstrap.md#spegel) (the deployment is in `kubernetes/apps/kube-system/spegel` and the bootstrap helmfile), including whether a Talos config change keeps its mirror configuration.
 - [ ] kubelet serving certificates and metrics-server. The kubelets use self-signed serving certificates (no `serverTLSBootstrap` in `KubeletConfig`), which nothing verifies today.
   - Set `serverTLSBootstrap: true` in `KubeletConfig` and deploy `kubelet-serving-cert-approver`, otherwise the serving CSRs stay `Pending`. Deploy the approver first, then change the Talos config, so that no node is left without a valid certificate.
   - Deploy metrics-server (`kubectl top`, resource usage in Headlamp, and the real utilization for the descheduler). It is not a source for the monitoring stack: that one scrapes the kubelet `/metrics/resource` endpoint and cAdvisor itself, with the verified TLS.

@@ -1,0 +1,42 @@
+---
+# Spegel: each node serves the image layers it already has to the other nodes, through the
+# containerd registry mirrors. A pull that no node can serve falls back to the upstream registry.
+# Talos side: talos/patches/containerd.yaml.j2 keeps the unpacked layers, and the scheduler no
+# longer scores ImageLocality (talos/patches/kubernetes.yaml.j2). See docs/cluster/README.md#spegel.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: spegel
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: spegel
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    spegel:
+      # Registry config path of the CRI containerd of Talos (not /etc/containerd/certs.d). The
+      # init container moves what is there to _backup, then writes _default/hosts.toml: the local
+      # Spegel (http://<node IP>:30020) first, then the upstream registry.
+      containerdRegistryConfigPath: /etc/cri/conf.d/hosts
+      # mirroredRegistries left empty: every registry is mirrored (the _default host config).
+      # Tags are resolved by the other nodes (resolveTags, default), so that a pod can start
+      # while its registry is down. A reused tag would stay on the first digest present in the
+      # cluster: `latest` is always resolved upstream.
+      registryFilters:
+        - ":latest$"
+    resources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
+      limits:
+        memory: 128Mi
+    serviceMonitor:
+      # Enable once the Prometheus Operator CRDs are installed.
+      enabled: false

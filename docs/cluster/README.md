@@ -1,6 +1,6 @@
 # Cluster: Kubernetes, Cilium and Flux
 
-How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap helmfile, Cilium, CoreDNS, External Secrets and Flux, which then deploys everything in `kubernetes/apps`, and the cluster-wide tools (Reloader). The nodes are in [nodes](../nodes/README.md), the network around the cluster in [network](../network/README.md). The decisions are [below](#decisions).
+How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap helmfile, Cilium, CoreDNS, External Secrets and Flux, which then deploys everything in `kubernetes/apps`, and the cluster-wide tools (Spegel, Reloader). The nodes are in [nodes](../nodes/README.md), the network around the cluster in [network](../network/README.md). The decisions are [below](#decisions).
 
 | Document | Content |
 | --- | --- |
@@ -17,6 +17,7 @@ How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap he
 | CNI, kube-proxy replacement | Cilium | In use ([below](#cilium)) |
 | Cluster DNS | CoreDNS | In use ([below](#coredns)) |
 | GPU | Intel device plugin | In use on kube-01 ([below](#gpu)) |
+| Registry mirror between the nodes | Spegel | Deployed by the bootstrap and Flux, [checks](bootstrap.md#spegel) not run yet ([below](#spegel)) |
 | Restart on configuration change | Reloader | Deployed by Flux, [checks](bootstrap.md#reloader) not run yet ([below](#reloader)) |
 | First bootstrap | | In progress, with kube-01 and kube-03 only ([test phase](../nodes/README.md#test-phase-2-nodes)) |
 
@@ -40,8 +41,9 @@ The `apps` stage installs, in this order, the minimum needed for Flux to take ov
 
 1. **Cilium**, then its BGP sessions and LoadBalancer pools (`kubernetes/apps/kube-system/cilium/networking`). The nodes stay `NotReady` until the CNI runs: Flannel, kube-proxy and the CoreDNS of Talos are disabled in the Talos configuration.
 2. **CoreDNS**.
-3. **External Secrets** and the `onepassword` ClusterSecretStore ([secrets](../secrets/README.md)).
-4. **flux-operator** and **flux-instance**.
+3. **Spegel**, in parallel with External Secrets and before Flux, so that the images pulled by Flux already go through it ([below](#spegel)).
+4. **External Secrets** and the `onepassword` ClusterSecretStore ([secrets](../secrets/README.md)).
+5. **flux-operator** and **flux-instance**.
 
 The chart source and version of each release come from its `OCIRepository`, and the values from its `HelmRelease`, in `kubernetes/apps/<namespace>/<release>/app`: `kubernetes/apps` stays the single source of truth, and the only place Renovate updates. Everything else (cert-manager, the Intel GPU device plugin, Reloader, Envoy Gateway, the DNS tools, the storage, the backups) is deployed by Flux once it has taken over.
 
@@ -51,7 +53,7 @@ The chart source and version of each release come from its `OCIRepository`, and 
 - Updates: Renovate, run from the cluster. Talos and Kubernetes upgrades: tuppr (both [to deploy](../roadmap.md#upgrades)).
 - Tools pinned in `mise.toml` (kubectl and talosctl follow the cluster versions).
 - Secrets: External Secrets Operator with a read-only service account on the `kubernetes` vault ([secrets](../secrets/README.md)).
-- No registry cache: Docker Hub credentials in containerd avoid the rate limit.
+- No registry cache: Docker Hub credentials in containerd avoid the rate limit. Spegel shares the images already on the nodes between them, it is not a cache ([below](#spegel)).
 
 ## Cluster ranges
 
@@ -80,6 +82,19 @@ The CoreDNS of Talos is disabled, replaced by the Helm chart: 2 replicas, forwar
 ## GPU
 
 The Intel device plugin is deployed through the operator, with `sharedDevNum: 3` (Plex, Immich), on the nodes labeled `shelltopia.net/intel-gpu` (kube-01 and kube-02, [nodes](../nodes/README.md#decisions)). Containerd sets `device_ownership_from_security_context` (`talos/patches/containerd.yaml.j2`) so that a non-root pod owns the render node. DRA is rejected for now ([evaluations](evaluations.md#intel-dra-driver)).
+
+## Spegel
+
+[Spegel](https://spegel.dev) (`kube-system/spegel`) is a registry mirror between the nodes: a node pulls the layers of an image from another node that already has it, and falls back to the upstream registry when no node has it. Pulls are faster after a reschedule (drain, reboot, upgrade), and the upstream registries see fewer of them. It is not a pull-through cache: it only serves what the nodes already hold, and stores nothing of its own.
+
+- **Talos side**: containerd keeps the unpacked layers (`discard_unpacked_layers = false` in `talos/patches/containerd.yaml.j2`), otherwise a node could not serve them. The scheduler no longer scores `ImageLocality` (`talos/patches/kubernetes.yaml.j2`): with Spegel, a pull is cheap, there is no reason to pile up pods on the nodes that already have their images.
+- **Mirror configuration**: an init container of the DaemonSet moves the content of `/etc/cri/conf.d/hosts` (the registry config path of the CRI containerd of Talos) to `_backup`, then writes `_default/hosts.toml`: **every registry** is mirrored, through the local Spegel first (`http://<node IP>:30020`, a NodePort with `trafficDistribution: PreferSameNode`), then the upstream registry. The upstream pulls keep the Docker Hub credentials of containerd; the requests to a mirror carry none.
+- **Tags resolved by the peers** (`resolveTags`, the default): a pod can start while its registry is down, as long as a node has the image. The flip side: a reused tag stays on the first digest present in the cluster. The images of the repository are pinned to a version (Renovate), and the `latest` tags are always resolved upstream (`registryFilters: [":latest$"]`).
+- **In `kube-system`**: it mounts the containerd socket, its content store, the registry config path and `/var/lib/spegel` (P2P identity kept across restarts) from the host, which the `baseline` profile of Talos forbids; `kube-system` is exempt. `system-node-critical` priority (chart default), on every node.
+- **Installed at bootstrap** after CoreDNS (the peers find each other through the headless Service `spegel-bootstrap`) and before Flux, then adopted by Flux.
+- **Ports**: NodePort TCP 30020 (containerd → local Spegel), TCP 5000 (registry), TCP and UDP 5001 (libp2p router, between the Spegel pods), TCP 9090 (metrics, ServiceMonitor ready, to enable with the metrics stack).
+- **Not for Talos itself**: the installer and system images are pulled by the containerd of Talos, which does not use these mirrors.
+- **Multi-tenancy**: any pod can get an image held by a node without credentials. Acceptable in a single-tenant cluster, to keep in mind for a private image.
 
 ## Reloader
 

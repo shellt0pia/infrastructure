@@ -62,6 +62,16 @@ releases:
     needs:
       - kube-system/cilium
 
+  # Registry mirror between the nodes, before Flux pulls the images of the rest of the cluster.
+  # The peers find each other through the cluster DNS.
+  - name: spegel
+    namespace: kube-system
+    {{- template "chart" (dict "name" "spegel" "namespace" "kube-system") }}
+    inherit:
+      - template: default
+    needs:
+      - kube-system/coredns
+
   - name: external-secrets
     namespace: external-secrets
     {{- template "chart" (dict "name" "external-secrets" "namespace" "external-secrets") }}
@@ -87,6 +97,7 @@ releases:
       - template: default
     needs:
       - external-secrets/external-secrets
+      - kube-system/spegel
 
   - name: flux-instance
     namespace: flux-system

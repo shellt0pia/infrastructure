@@ -1,0 +1,19 @@
+---
+# Spegel: registry mirror between the nodes, each node serves the images it already has to the
+# others. Also installed by the bootstrap helmfile, Flux adopts the release. Lives in kube-system
+# (exempt from the Pod Security Admission of Talos): it needs host paths. Details:
+# docs/cluster/README.md#spegel.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: spegel
+spec:
+  interval: 1h
+  path: ./kubernetes/apps/kube-system/spegel/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: kube-system
+  wait: true
