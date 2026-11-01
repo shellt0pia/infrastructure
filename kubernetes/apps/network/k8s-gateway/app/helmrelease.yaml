@@ -2,7 +2,8 @@
 # Internal DNS of shelltopia.org: k8s-gateway (CoreDNS with the k8s_gateway plugin) answers with
 # the addresses of the `internal` Gateway for every hostname of the HTTPRoutes attached to it.
 # Unbound (OPNsense) forwards shelltopia.org to the LoadBalancer addresses of this release, see
-# docs/dns/README.md. Authoritative only: no forward plugin, a name without route gets NXDOMAIN.
+# docs/dns/README.md. A name without route (mail, SPF, CNAMEs to cloud services, public-only
+# applications) falls through to the public zone, through the Cloudflare resolvers.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -71,12 +72,25 @@ spec:
           - name: ready
           # Only the HTTPRoutes, and only their parents of the `internal` class: a route
           # attached to both Gateways resolves to the internal addresses (IPv4 and ULA).
-          # No cache plugin: the answers come from the informers, a change is visible at once.
+          # No cache plugin: the answers come from the informers, a change is visible at once,
+          # and Unbound caches the forwarded answers.
+          # fallthrough: a name that matches no route goes to `forward`, whatever the query
+          # type. A name that has a route only answers A and AAAA (NODATA otherwise): never
+          # give a route the apex hostname, its MX and SPF records would disappear on the LAN.
           - name: k8s_gateway
             parameters: shelltopia.org
             configBlock: |-
               resources HTTPRoute
               gatewayClasses internal
+              fallthrough
+          # The public zone, through the Cloudflare resolvers (DNS over TLS): Cloudflare already
+          # hosts the zone, no new third party sees the names. Never Unbound: it forwards
+          # shelltopia.org here, the query would loop (and the baseline network policy blocks
+          # the private networks anyway).
+          - name: forward
+            parameters: . tls://2606:4700:4700::1111 tls://2606:4700:4700::1001 tls://1.1.1.1 tls://1.0.0.1
+            configBlock: |-
+              tls_servername cloudflare-dns.com
           - name: prometheus
             parameters: 0.0.0.0:9153
           - name: reload

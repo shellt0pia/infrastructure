@@ -39,9 +39,10 @@ Create every prerequisite of a step before starting it, then follow the steps in
   ```sh
   dig +short app.shelltopia.org @192.168.19.53
   dig +short +tcp AAAA app.shelltopia.org @fd38:4c4d:8f66:13::53
+  dig +short MX shelltopia.org @192.168.19.53
   ```
 
-  Expected: the addresses of the `internal` Gateway. A name without route: `NXDOMAIN`. Then the same queries through Unbound (its address instead of the k8s-gateway ones).
+  Expected: the addresses of the `internal` Gateway, then the MX records of the public zone (fallthrough to the Cloudflare resolvers). A name that exists nowhere: `NXDOMAIN`, with the SOA of Cloudflare. Then the same queries through Unbound (its address instead of the k8s-gateway ones).
 
 - [x] **external-dns, dry run.** On the first deployment, to see what it would do without changing anything, add `dry-run: true` to its `extraArgs`, then:
 

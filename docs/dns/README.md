@@ -30,6 +30,7 @@ flowchart TD
     R[HTTPRoutes - hostnames] --> KG[k8s-gateway - routes of the internal Gateway]
     R --> ED[external-dns - routes of the external Gateway]
     KG -->|A and AAAA of the internal Gateway| UB[Unbound - forward of shelltopia.org]
+    KG -->|names without route - forward to 1.1.1.1| CF
     UB --> LAN[LAN and VPN clients]
     ED -->|CNAME to the entry name| CF[Cloudflare]
     ED -->|entry name AAAA - IPv6 of the external Gateway| CF
@@ -43,10 +44,10 @@ flowchart TD
 | `<app>.shelltopia.org`, public (Cloudflare) | `CNAME` → `gateway-external.kube-cluster01.shelltopia.net` | external-dns, from the routes attached to the `external` Gateway |
 | `gateway-external.kube-cluster01.shelltopia.net` (Cloudflare) | `A` → WAN IPv4 (HAProxy, then port forwarding) | cloudflare-ddns |
 | | `AAAA` → IPv6 of the `external` Gateway | external-dns, from the Envoy Service (hostname annotation in `envoyproxy-external.yaml`) |
-| Everything else in `shelltopia.net` and `shelltopia.org` (Cloudflare): mail, CAA, applications hosted by PikaPods | | OpenTofu (`tofu/cloudflare`, [README](../../tofu/README.md#cloudflare)) |
+| Everything else in `shelltopia.net` and `shelltopia.org` (Cloudflare): mail, CAA, applications hosted by PikaPods | | OpenTofu (`tofu/cloudflare`, [README](../../tofu/README.md#cloudflare)). Resolved on the LAN too: k8s-gateway forwards the names without route to Cloudflare |
 | `A` and `AAAA` of `shelltopia.net` (hosts, firewall, WireGuard endpoints), historical CNAMEs of `shelltopia.org` to the Ansible hosts (Cloudflare) | | ddns-updater or by hand; the historical CNAMEs are removed during the migration |
 
-A public route is attached to both Gateways: Unbound never asks Cloudflare for `shelltopia.org`, so the LAN clients get the internal Gateway and the internet gets the external one. An internal-only route never shows up in Cloudflare.
+A public route is attached to both Gateways: k8s-gateway answers for every route of the `internal` Gateway without asking Cloudflare, so the LAN clients get the internal Gateway and the internet gets the external one. An internal-only route never shows up in Cloudflare. A route attached to the `external` Gateway only resolves on the LAN to its public CNAME, hence the WAN IPv4 (HAProxy) or the IPv6 of the `external` Gateway.
 
 Rules:
 
@@ -58,7 +59,8 @@ Rules:
 
 ## Internal: k8s-gateway
 
-- Release `k8s-gateway` in `network`: CoreDNS with the k8s_gateway plugin, 2 replicas. Authoritative for `shelltopia.org` only, from the HTTPRoutes whose parent Gateway has the `internal` class, TTL 60 s. No recursion: a name without route gets `NXDOMAIN`.
+- Release `k8s-gateway` in `network`: CoreDNS with the k8s_gateway plugin, 2 replicas. Serves `shelltopia.org` only, from the HTTPRoutes whose parent Gateway has the `internal` class, TTL 60 s.
+- **Fallthrough to the public zone.** A name that matches no route (MX and SPF of the apex, CNAMEs to cloud services, public-only applications, a typo) goes to the `forward` plugin, whatever the query type: the Cloudflare resolvers over DNS over TLS, IPv6 addresses listed first. Never Unbound as upstream: it forwards the zone to k8s-gateway, the query would loop. A name that has a route only answers `A` and `AAAA` (`NODATA` for the other types): no route may use the apex `shelltopia.org` as hostname, its MX and SPF records would disappear on the LAN.
 - LoadBalancer Service in the `internal` pool with **pinned addresses** `192.168.19.53` and `fd38:4c4d:8f66:13::53` (`lbipam.cilium.io/ips`), TCP and UDP 53. An exception to the "everything dynamic" rule: Unbound only accepts addresses as forward targets. To change them: the annotation in `kubernetes/apps/network/k8s-gateway/app/helmrelease.yaml`, then the Unbound query forwarding.
 - When the cluster is down, `shelltopia.org` no longer resolves on the LAN (`SERVFAIL`). Accepted: everything in this zone is served by the cluster, except the names still on `home`, which are host overrides ([Unbound](bootstrap.md#2-opnsense-unbound)).
 - No external-dns webhook for OPNsense/Unbound.

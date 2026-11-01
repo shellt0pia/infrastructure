@@ -53,13 +53,14 @@ Start from where the client is: the LAN gets the internal Gateway through Unboun
    ```
 
    - **It answers, Unbound does not.** The forward of `shelltopia.org` is missing or points to other addresses ([Unbound](bootstrap.md#2-opnsense-unbound)), or a host override of the name is left in Unbound: the host overrides win over the forward.
-   - **`NXDOMAIN`.** k8s-gateway ignores a route without `hostnames`, and a route whose parent Gateway is not the `internal` one. Check the route:
+   - **`NXDOMAIN`, or the public answer (CNAME to `gateway-external...`).** No route of the `internal` Gateway matches: k8s-gateway passes the name to the Cloudflare resolvers. It ignores a route without `hostnames`, and a route whose parent Gateway is not the `internal` one. Check the route:
 
      ```sh
      kubectl get httproute -A
      kubectl get httproute app -o yaml
      ```
 
+   - **`SERVFAIL` for a name without route** (MX, SPF, cloud services) while the routes resolve: the forward to the Cloudflare resolvers fails. Look for errors in `kubectl -n network logs deploy/k8s-gateway`, and for dropped flows to `world` on port 853 in Hubble.
    - **No answer at all.** Check the Service and the pods; without an address, another Service holds one of the pinned addresses:
 
      ```sh
