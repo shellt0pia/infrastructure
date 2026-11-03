@@ -60,6 +60,24 @@ Why Vector: Talos cannot be received by `vlagent` as far as the documentation sa
 
 Vector runs as two releases of the same chart: the agent (role `Agent`, DaemonSet) and the aggregator (role `Aggregator`, StatefulSet, two replicas). A single DaemonSet receiving the Talos logs and the syslog too was not kept: the receivers would move with the nodes, and the LoadBalancer Service would spread the devices over every node.
 
+## Memory of Vector
+
+At the first deployment (2026-11-03), the agents were OOM killed about a minute after each start, at the 256 Mi limit: `anon-rss` of 254 MB in `dmesg`, a working set up to 571 MB with a 1 Gi limit. The peak only shows during a catch-up (the history of the pod logs, a disk buffer to read again); an agent up to date stays at 40 to 65 MB. After the peak, the allocator keeps the memory and gives it back slowly.
+
+Measured locally with Vector 0.61.0: a `file` source reading 300k JSON lines (318 MB), a `remap`, the `elasticsearch` sink with a 512 MiB disk buffer, towards a fake `_bulk` answering in 50 ms. Peak RSS, two runs each:
+
+| Variant | Peak RSS | Time to send |
+| --- | --- | --- |
+| Default (batches of 10 MiB) | 629 to 644 MiB | 3 to 4 s |
+| `batch.max_events: 1000` | 378 to 397 MiB | 5 s |
+| `batch.max_bytes: 1048576` (kept) | 322 to 340 MiB | 7 s |
+| `batch.max_bytes: 524288` | 273 to 302 MiB | 10 s |
+| 1 MiB and `request.concurrency: 2` | 270 to 279 MiB | 25 s |
+| A `blackhole` sink, memory buffer / disk buffer | 136 / 240 MiB | |
+| Drain of a full disk buffer only (the aggregator), default / 1 MiB | 495 / 264 MiB | 4 / 7 s |
+
+The disk buffer itself costs about 100 MiB during a catch-up, the batches the rest: 1 MiB comes close to that floor, smaller batches or a fixed concurrency slow the catch-up for little. About 40k events per second at 1 MiB, against 1 to 3 per second per node in normal use. Hence 1 MiB batches on every sink, and a 512 Mi limit for the agent and the aggregator.
+
 ## Rejected and alternative options
 
 From general knowledge and the documentation, not tested here.
@@ -94,16 +112,17 @@ Check before relying on it, then move the result to the [README](README.md) and 
 - [ ] **RouterOS 7 syslog.** The logging actions support the BSD syslog and CEF formats, the UDP, TCP and TLS protocols, and the BSD and ISO 8601 timestamps; the remote address accepts an IPv4 or IPv6 address and *text*, so possibly a FQDN. Test `syslog.kube-cluster01.shelltopia.net`, and TCP towards the aggregator.
 - [ ] **`snmp_exporter`.** A module for RouterOS (the generator and the MikroTik MIB) and for the Grandstream (IF-MIB is enough for the interfaces, the Wi-Fi statistics may need the Grandstream MIB). SNMP v3 on both.
 - [ ] **OPNsense 26.7.8.** The `os-node_exporter` plugin is available and what it exposes (pf, gateways, interfaces), remote syslog with TCP, the logs of the firewall rules.
-- [ ] **Talos destinations.** `machine.logging.destinations` and `KmsgLogConfig` with an FQDN, over TCP, on the Talos patches (`talos/patches/`, [conventions](../conventions.md#talos)), and the network policy exception from `remote-node` (and `host`).
+- [ ] **Talos destinations.** Written in `talos/patches/logging.yaml.j2`, valid for `talosctl validate --mode metal --strict` (v1.14.4): `machine.logging.destinations` stays in the v1alpha1 document (no multi-doc kind for it), `KmsgLogConfig` only takes `name` and `url`, no tags. Hence the PTR lookup for the node of the kernel logs (the `A` records of the nodes with their PTR, created on 2026-11-03, the ULA ones existed). Checked locally with Vector 0.61.0 (the version of the chart): the `host_key` of the `socket` source is the address only (the port goes to `port`, dropped by the transforms), and `[::]` takes IPv4 too, as `::ffff:a.b.c.d`. Left, at the apply: the logs arriving through the FQDN over TCP, and the address the aggregator sees for the node running the replica that takes the connection: the Cilium socket LB connects the host straight to the pod, from the node address or the `cilium_host` one (a `10.244.x` address, no PTR: `node` would then be that address for the kernel logs).
 - [ ] **Cilium and FQDN egress.** `toFQDNs` towards the devices (private addresses answered by Unbound): the egress rule to CoreDNS with the DNS rules that Cilium needs to learn the addresses.
-- [ ] **Source address of the receivers.** `externalTrafficPolicy: Local` or not on the syslog Service: whether the source address (`remote_ip`) of a device is preserved, with the BGP advertisements ([network](../network/README.md#bgp)).
-- [ ] **Charts.** Vector, snmp-exporter, blackbox-exporter: the OCI artefact (convention) or only a Helm repository, and the current versions. Done for `victoria-metrics-k8s-stack` (`oci://ghcr.io/victoriametrics/helm-charts`), `prometheus-operator-crds` (`oci://ghcr.io/prometheus-community/charts`) and Grafana (`oci://ghcr.io/grafana-community/helm-charts`).
+- [ ] **Source address of the receivers.** `externalTrafficPolicy: Local` set on the Service of the aggregator, so that the address of a device (`source_ip`) is kept: only the nodes running a replica announce the addresses ([network](../network/README.md#bgp)). To test at the deployment ([bootstrap](bootstrap.md#3-logs), `logger` from the workstation), and to reconsider if a node without a replica keeps announcing them.
+- [ ] **Vector agent as root without capabilities.** The pod logs (`/var/log/pods`) and the Hubble files belong to root: no `DAC_READ_SEARCH` needed, all capabilities dropped. To confirm at the deployment (no permission error in the logs of the agent).
+- [ ] **Charts.** snmp-exporter, blackbox-exporter: the OCI artefact (convention) or only a Helm repository, and the current versions. Done for `victoria-metrics-k8s-stack` (`oci://ghcr.io/victoriametrics/helm-charts`), `prometheus-operator-crds` (`oci://ghcr.io/prometheus-community/charts`), Grafana (`oci://ghcr.io/grafana-community/helm-charts`) and Vector (`oci://ghcr.io/vectordotdev/helm-charts/vector`, 0.61.0 on 2026-11-03, one chart for the agent and the aggregator).
 - [ ] **The Job of the rules and dashboards.** Its security context is set in the values and passes `restricted` (server dry-run, 2026-11-02). Left, at the deployment: its egress to `raw.githubusercontent.com` (allowed by the baseline), what it creates (`kubectl get vmrules,cm -n observability`), and the behaviour of the HelmRelease when the download fails.
 - [ ] **etcd and the control plane on Talos.** Checked on the cluster (2026-11-02): the static pods carry `component: kube-scheduler` and `component: kube-controller-manager` (the default selectors of the chart), the nodes `node-role.kubernetes.io/control-plane`, and the etcd rules select `job=~".*etcd.*"`. Left, at the deployment: the targets `up`, and the self-signed certificates of the scheduler and the controller-manager (not reachable from the workstation, `insecureSkipVerify` set).
 - [ ] **node-exporter in `observability-agents`.** Checked on the render: `namespaceOverride` moves the DaemonSet and its Service, and the `VMServiceScrape` needs a `namespaceSelector` (set in the values). Left: the targets `up` at the deployment.
 - [ ] **Alertmanager secrets as files.** `user_key_file` and `token_file` of `pushover_configs`, `url_file` of `webhook_configs` in the Alertmanager version of the chart, with the Secrets mounted through `spec.secrets` of the `VMAlertmanager` (`/etc/vm/secrets/<secret>/`).
 - [ ] **Data sources and dashboards without the Grafana subchart.** Checked on the render: the ConfigMap of the data sources (`grafana_datasource: "1"`, `VMSingle` and the Alertmanager with their Service URLs) and the labels of the dashboards (`grafana_dashboard: "1"`) match the sidecars of the Grafana release. Left: the dashboards created by the Job, read by Grafana.
-- [ ] **Grafana plugin for VictoriaLogs.** The plugin `victoriametrics-logs-datasource`, downloaded by the pod at startup (egress to grafana.com, allowed by the baseline), and the data source provisioned by the stack (only rendered when `grafana.plugins` of the values of the stack lists the plugin).
+- [ ] **Grafana plugin for VictoriaLogs.** The plugin `victoriametrics-logs-datasource`, downloaded by the pod at startup (egress to grafana.com, allowed by the baseline), and the data source provisioned by the stack. Checked on the render: with `grafana.plugins` listing the plugin in the values of the stack, the ConfigMap of the data sources gets *VictoriaLogs* (uid `VictoriaLogs`, port 9428). Left: the data source working in Grafana at the deployment.
 - [ ] **Grafana and the Pocket ID.** The `groups` claim is confirmed in both the ID token and the userinfo, so `groups_attribute_path = groups` works, and the endpoints are read from `.well-known/openid-configuration` (PKCE `S256` supported). Left to verify: the confidential client and its secret (`pocket-id-grafana`), the behaviour of Grafana with `disable_initial_admin_creation` on a new database, and the way back to a database with a login form ([Grafana](README.md#grafana)).
 
 ## Open points
@@ -114,6 +133,7 @@ Check before relying on it, then move the result to the [README](README.md) and 
 | Noise of the alerts | A tuning pass after two weeks: rules disabled or their thresholds changed in the values, `warning` alerts that should be `info`. |
 | Overcommit rules | `KubeCPUOvercommit` and `KubeMemoryOvercommit` disabled until kube-02 joins, then enabled again. |
 | Receiver names | Static host overrides in Unbound for now. An external-dns webhook for OPNsense/Unbound could publish them from the Services; to look at later. |
+| Syslog over TLS | Port 6514 on the aggregator, server authentication only: a cert-manager certificate (Let's Encrypt, DNS-01) for `syslog.kube-cluster01.shelltopia.net`, Vector restarted by Reloader at the renewal. To revisit at stage 5, per device (RouterOS supports TLS). Mutual TLS rejected: a client certificate per device, renewed by hand. Talos cannot send over TLS: its logs stay on plain TCP, inside the nodes subnet. |
 | UPS metrics | The NUT server on the NAS could be scraped (UPS state and load): optional. |
 | Backup of the metrics | `vmbackup` to B2 or none ([backups](../backups/evaluations.md#open-points)). Probably none for the logs. |
 | Hubble UI | Optional, after the metrics ([roadmap](../roadmap.md#security)). |

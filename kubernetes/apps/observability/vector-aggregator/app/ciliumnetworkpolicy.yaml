@@ -1,0 +1,27 @@
+---
+# The devices (OPNsense filters their VLANs, `world`) and Talos: the nodes reach the
+# LoadBalancer address from the host, `remote-node` for a node without a replica (`host`, the
+# node of the pod, is already allowed by the baseline). Only the receivers: VMAgent scrapes the
+# metrics port through the baseline.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vector-aggregator
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: vector-aggregator
+  ingress:
+    - fromEntities:
+        - world
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "5514"
+              protocol: TCP
+            - port: "5514"
+              protocol: UDP
+            - port: "6050"
+              protocol: TCP
+            - port: "6051"
+              protocol: TCP

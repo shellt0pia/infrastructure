@@ -171,7 +171,7 @@ spec:
 - The addresses are allocated in the [reference](reference.md#pinned-loadbalancer-addresses), updated in the same commit. The same host part in both families (`192.168.19.2` and `fd38:4c4d:8f66:13::2`). Check that a new address is free first: `kubectl get svc -A --field-selector spec.type=LoadBalancer -o wide`.
 - A comment next to the annotation says what depends on the addresses, to update with them.
 - The name of a receiver of the infrastructure (the devices send to it) is `<service>.kube-cluster01.shelltopia.net`, `A` and `AAAA` host overrides in Unbound, created by hand and kept in sync with the addresses ([dns](dns/runbook.md#where-to-create-a-record)). The names of the applications stay in `shelltopia.org`, served from the routes.
-- The GUA addresses of the `external` pool are pinned too: they change with the pool when the ISP prefix changes ([network](network/runbook.md#ipv6-prefix-change)).
+- The GUA addresses of the `external` pool are pinned too. They are in the stable Milkywan /48 and do not change with the ISP prefix ([network](network/milkywan.md)).
 
 ## Talos
 

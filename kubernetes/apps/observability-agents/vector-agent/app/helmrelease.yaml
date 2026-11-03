@@ -1,0 +1,201 @@
+---
+# The Vector agent, on every node (docs/observability/README.md#logs): the pod logs and the
+# Hubble flows exported by Cilium (AUDIT and DROPPED, kubernetes/apps/kube-system/cilium), to
+# VictoriaLogs. In `observability-agents` (privileged): it reads the node through hostPath.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: vector-agent
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: vector-agent
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    role: Agent
+    nameOverride: vector-agent
+
+    # Nothing connects to the agent: VMAgent scrapes its pods (podMonitor below).
+    service:
+      enabled: false
+    serviceHeadless:
+      enabled: false
+    podMonitor:
+      enabled: true
+
+    # Every node, even tainted: its logs matter most then.
+    tolerations:
+      - effect: NoSchedule
+        operator: Exists
+
+    # Root: the pod logs and the Hubble files belong to root, and no capability is needed to read
+    # files one owns. Nothing else: no capability, read-only root filesystem, the node paths
+    # mounted read-only except the data directory.
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      privileged: false
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: ["ALL"]
+    # To resize from the metrics. The limit is for the catch-up (a backlog of pod logs, or the disk
+    # buffers after an outage of VictoriaLogs): about 340 MiB at the peak with 1 MiB batches, 640
+    # MiB with the default ones (docs/observability/evaluations.md#memory-of-vector). Idle: 40 to
+    # 65 MB, up to 150 MB kept by the allocator after a catch-up.
+    resources:
+      requests:
+        cpu: 20m
+        memory: 128Mi
+      limits:
+        memory: 512Mi
+
+    # The default also mounts /var/lib, /proc and /sys of the node, for the host_metrics source
+    # (node-exporter covers it): only the pod logs.
+    defaultVolumes:
+      - name: var-log
+        hostPath:
+          path: /var/log/
+    defaultVolumeMounts:
+      - name: var-log
+        mountPath: /var/log/
+        readOnly: true
+    # The Hubble export (tmpfs, rotated by Cilium).
+    extraVolumes:
+      - name: hubble
+        hostPath:
+          path: /var/run/cilium/hubble
+          type: Directory
+    extraVolumeMounts:
+      - name: hubble
+        mountPath: /var/run/cilium/hubble
+        readOnly: true
+    # The checkpoints of the files and the disk buffers, kept across restarts: hostPath
+    # /var/lib/vector (EPHEMERAL partition of Talos), mounted on data_dir.
+    persistence:
+      hostPath:
+        enabled: true
+        path: /var/lib/vector
+
+    customConfig:
+      data_dir: /vector-data-dir
+      sources:
+        pods:
+          type: kubernetes_logs
+          # The annotations and the namespace and node labels on every line: too heavy for what
+          # they bring. The pod labels stay.
+          pod_annotation_fields:
+            pod_annotations: ""
+          namespace_annotation_fields:
+            namespace_labels: ""
+          node_annotation_fields:
+            node_labels: ""
+        hubble:
+          type: file
+          include:
+            - /var/run/cilium/hubble/events*.log
+        internal_metrics:
+          type: internal_metrics
+
+      transforms:
+        pods_normalized:
+          type: remap
+          inputs: [pods]
+          source: |
+            .log_source = "pods"
+            .node = get_env_var!("VECTOR_SELF_NODE_NAME")
+            del(.file)
+        # One JSON flow per line ({"flow": {...}, "node_name": ..., "time": ...}): the fields
+        # under `flow.` (flow.source.namespace, flow.verdict...), and a short message.
+        hubble_parsed:
+          type: remap
+          inputs: [hubble]
+          source: |
+            .log_source = "hubble"
+            .node = get_env_var!("VECTOR_SELF_NODE_NAME")
+            del(.file)
+            event, err = parse_json(string!(.message))
+            if err == null && is_object(event) {
+              del(.message)
+              . = merge(., object!(event))
+              .timestamp = parse_timestamp(.time, "%+") ?? .timestamp
+              del(.time)
+              del(.node_name)
+              src = to_string(.flow.source.pod_name) ?? ""
+              if src == "" {
+                src = to_string(.flow.IP.source) ?? ""
+              } else {
+                src = (to_string(.flow.source.namespace) ?? "") + "/" + src
+              }
+              dst = to_string(.flow.destination.pod_name) ?? ""
+              if dst == "" {
+                dst = to_string(.flow.IP.destination) ?? ""
+              } else {
+                dst = (to_string(.flow.destination.namespace) ?? "") + "/" + dst
+              }
+              .message = join!(compact([
+                to_string(.flow.verdict) ?? "",
+                to_string(.flow.traffic_direction) ?? "",
+                src + " -> " + dst,
+                to_string(.flow.drop_reason_desc) ?? "",
+                to_string(.flow.Summary) ?? ""
+              ]), " ")
+            }
+
+      # The Elasticsearch API of VictoriaLogs: `_msg_field`, `_time_field` and `_stream_fields`
+      # the events to its fields. One sink per stream layout. Disk buffers (min 256 MiB
+      # each, 1 GiB per node in all): they block the sources when full, the files are read
+      # again from their checkpoints. Batches of 1 MiB instead of 10: they bound the memory of
+      # a catch-up (see the resources).
+      sinks:
+        vlsingle_pods:
+          type: elasticsearch
+          inputs: [pods_normalized]
+          endpoints:
+            - http://vlsingle-victoria-metrics-k8s-stack.observability.svc.cluster.local.:9428/insert/elasticsearch/
+          api_version: v8
+          compression: gzip
+          healthcheck:
+            enabled: false
+          query:
+            _msg_field: message
+            _time_field: timestamp
+            _stream_fields: log_source,kubernetes.pod_namespace,kubernetes.pod_name,kubernetes.container_name
+          batch:
+            max_bytes: 1048576
+          buffer:
+            type: disk
+            max_size: 536870912
+            when_full: block
+        vlsingle_hubble:
+          type: elasticsearch
+          inputs: [hubble_parsed]
+          endpoints:
+            - http://vlsingle-victoria-metrics-k8s-stack.observability.svc.cluster.local.:9428/insert/elasticsearch/
+          api_version: v8
+          compression: gzip
+          healthcheck:
+            enabled: false
+          query:
+            _msg_field: message
+            _time_field: timestamp
+            _stream_fields: log_source,node
+          batch:
+            max_bytes: 1048576
+          buffer:
+            type: disk
+            max_size: 536870912
+            when_full: block
+        # Its port is the `prom-exporter` port of the pod, scraped by the podMonitor.
+        prom_exporter:
+          type: prometheus_exporter
+          inputs: [internal_metrics]
+          address: 0.0.0.0:9090

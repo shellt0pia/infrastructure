@@ -1,0 +1,21 @@
+---
+# Talos service logs to the Vector aggregator of the cluster (docs/observability/README.md#logs):
+# a LoadBalancer Service behind `syslog.kube-cluster01.shelltopia.net` (Unbound host override).
+# The `node` tag names the node, the aggregator reads it as is. Nothing is sent before the
+# aggregator runs (cluster bootstrap): `talosctl logs` stays the reference then.
+# The destinations only exist in the v1alpha1 document (no multi-doc equivalent).
+version: v1alpha1
+machine:
+  logging:
+    destinations:
+      - endpoint: tcp://syslog.kube-cluster01.shelltopia.net:6051/
+        format: json_lines
+        extraTags:
+          node: '{{ node }}'
+---
+# Kernel logs to the same aggregator, on their own port. This document takes no tag: the
+# aggregator names the node from the PTR record of the peer address.
+apiVersion: v1alpha1
+kind: KmsgLogConfig
+name: remote-log
+url: tcp://syslog.kube-cluster01.shelltopia.net:6050/

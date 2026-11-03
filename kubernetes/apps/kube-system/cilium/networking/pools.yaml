@@ -3,8 +3,8 @@
 #
 # Without the `lbipam.cilium.io/ips` annotation, a Service only gets one address per family, so
 # a pool cannot give it both a ULA and a GUA address: hence one pool per IPv6 prefix. Whether a
-# Service is reachable from the Internet is still decided by OPNsense (port forwarding for IPv4,
-# WAN rules for IPv6), the pools only make these rules simple.
+# Service is reachable from the Internet is still decided by OPNsense (HAProxy for IPv4, firewall
+# rules for IPv6), the pools only make these rules simple.
 #
 # The pools must not overlap: the second one would be marked as conflicting and stay unused.
 # Changing a pool may reassign the addresses of the existing Services.
@@ -29,13 +29,15 @@ kind: CiliumLoadBalancerIPPool
 metadata:
   name: external
 spec:
-  # Services labeled `lbipam.shelltopia.net/pool: external`: the IPv4 address is the target of a
-  # port forwarding of the public IPv4 address, the IPv6 address is a public one (GUA).
-  # The GUA prefix is a /64 of the prefix delegated by the ISP: update it if the ISP changes it.
+  # Services labeled `lbipam.shelltopia.net/pool: external`: the IPv4 address is the target of
+  # HAProxy on the routed public IPv4 address (Milkywan tunnel), the IPv6 address is a public one
+  # (GUA).
+  # The GUA prefix is a /64 of the /48 routed by Milkywan (docs/network/milkywan.md): it does not
+  # follow the prefix delegated by the ISP.
   serviceSelector:
     matchLabels:
       lbipam.shelltopia.net/pool: external
   allowFirstLastIPs: "No"
   blocks:
     - cidr: 192.168.19.128/25
-    - cidr: 2a02:8434:f003:d113::/64
+    - cidr: 2a0e:e701:2132:13::/64

@@ -8,7 +8,7 @@ The names, addresses, ports, namespaces, items and schedules scattered in the to
 | --- | --- | --- |
 | `shelltopia.org` | The services: every application name, served by the wildcard certificate `*.shelltopia.org` | [ingress](ingress/README.md#certificate) |
 | `shelltopia.net` | The infrastructure: nodes, firewall, NAS, NTP, UPS | [network](network/README.md#nodes-subnet) |
-| `kube-01`, `kube-02`, `kube-03` (`.shelltopia.net`) | The nodes, AAAA records only (ULA addresses) | [network](network/README.md#names) |
+| `kube-01`, `kube-02`, `kube-03` (`.shelltopia.net`) | The nodes, A and AAAA records (IPv4 and ULA addresses) with their PTR | [network](network/README.md#names) |
 | `kube-cluster01.shelltopia.net` | The cluster endpoint: DNS round-robin, one AAAA per node, API on port 6443 | [network](network/README.md#principles) |
 | `gateway-external.kube-cluster01.shelltopia.net` | Entry name of the external Gateway, target of the public CNAMEs | [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
 | `syslog.kube-cluster01.shelltopia.net` | The Vector aggregator: Talos logs and syslog of the devices. Unbound host overrides, `A` and `AAAA` to its pinned addresses | [observability](observability/README.md#logs) |
@@ -19,16 +19,17 @@ The names, addresses, ports, namespaces, items and schedules scattered in the to
 
 | What | IPv4 | IPv6 | Described in |
 | --- | --- | --- | --- |
-| Nodes subnet | `192.168.15.0/24` | `fd38:4c4d:8f66:f::/64` (ULA), `2a02:8434:f003:d10f::/64` (GUA, may change) | [network](network/README.md#nodes-subnet) |
+| Nodes subnet | `192.168.15.0/24` | `fd38:4c4d:8f66:f::/64` (ULA), `2a0e:e701:2132:f::/64` (GUA, Milkywan /48) | [network](network/README.md#nodes-subnet) |
 | `kube-01`, `kube-02`, `kube-03` | `192.168.15.11`, `.12`, `.13` | EUI-64 ULA addresses, in the table of the nodes subnet | [network](network/README.md#nodes-subnet) |
 | `internal` LB pool | `192.168.19.0/25` | `fd38:4c4d:8f66:13::/64` | [network](network/README.md#bgp) |
-| `external` LB pool | `192.168.19.128/25` | `2a02:8434:f003:d113::/64` (GUA, from the delegated /56) | [network](network/README.md#bgp) |
+| `external` LB pool | `192.168.19.128/25` | `2a0e:e701:2132:13::/64` (GUA, Milkywan /48) | [network](network/README.md#bgp) |
+| Milkywan WireGuard tunnel (`wg2`) | `10.1.6.20/30`, routed `45.13.104.160` | `2a0b:cbc0:7:1::c/126`, routed `2a0e:e701:2132::/48` | [network](network/milkywan.md) |
 | Pods | `10.244.0.0/16` | `fd1b:654d:9afe:100::/56` | [cluster](cluster/README.md#cluster-ranges) |
 | Services | `10.96.0.0/12` | `fd1b:654d:9afe:200::/112` | [cluster](cluster/README.md#cluster-ranges) |
 | Cluster DNS | `10.96.0.10` | `fd1b:654d:9afe:200::a` | [cluster](cluster/README.md#coredns) |
 | NAS main interface | `192.168.14.0/24` | | [network](network/README.md#nas-no-asymmetric-path) |
 
-The cluster ranges are permanent, and the GUA prefix may change: [what to update](network/runbook.md#ipv6-prefix-change).
+The cluster ranges and the Milkywan /48 are permanent, the ISP GUA prefix of the LAN may change: [what to update](network/runbook.md#ipv6-prefix-change).
 
 BGP: OPNsense is AS `64512`, the nodes share AS `64513` ([network](network/README.md#bgp)).
 
@@ -42,7 +43,7 @@ Every LoadBalancer Service pins its addresses (`lbipam.cilium.io/ips`), allocate
 | Vector aggregator (`syslog`) | `internal` | `192.168.19.2` | `fd38:4c4d:8f66:13::2` | Host overrides `syslog.kube-cluster01.shelltopia.net`, the OPNsense rules of the device VLANs | [observability](observability/README.md#logs) |
 | Graphite of `VMAgent` | `internal` | `192.168.19.3` | `fd38:4c4d:8f66:13::3` | Host overrides `graphite.kube-cluster01.shelltopia.net`, the TrueNAS exporter (by IP), the OPNsense rules | [observability](observability/README.md#metrics) |
 | k8s-gateway | `internal` | `192.168.19.53` | `fd38:4c4d:8f66:13::53` | The Unbound query forwarding of `shelltopia.org` | [dns](dns/README.md#internal-k8s-gateway) |
-| Envoy, `external` Gateway | `external` | `192.168.19.129` | `2a02:8434:f003:d113::1` (GUA, changes with the prefix) | The port forwarding of the WAN IPv4, the WAN rules of OPNsense. Still dynamic (current addresses checked on 2026-11-02), [to pin](roadmap.md#ingress) | [ingress](ingress/README.md#overview) |
+| Envoy, `external` Gateway | `external` | `192.168.19.129` | `2a0e:e701:2132:13::1` (GUA, expected, to check once the pool is applied) | The HAProxy backends, the `wg2` rules of OPNsense. Still dynamic (IPv4 checked on 2026-11-02), [to pin](roadmap.md#ingress) | [ingress](ingress/README.md#overview) |
 
 ## Ports
 
@@ -63,7 +64,8 @@ Every LoadBalancer Service pins its addresses (`lbipam.cilium.io/ips`), allocate
 | TCP 4244 | Hubble Relay → Hubble server of each Cilium agent | [cluster](cluster/README.md#network-policies) |
 | TCP 4245 | Workstation → Hubble Relay, through `kubectl port-forward` (`hubble -P`) | [cluster](cluster/runbook.md#network-policies) |
 | TCP 10250 (kubelet), 2381 (etcd), 10259 (scheduler), 10257 (controller-manager), 9100 (node-exporter), 9962 (Cilium agent), 9963 (Cilium operator), 9965 (Hubble), 9942 (drbd-reactor) | `VMAgent` → nodes (host firewall) | [observability](observability/README.md#network-and-pod-security) |
-| The ports of the receivers (syslog, Talos logs, Graphite), chosen at their deployment | Devices and nodes → Vector aggregator, `VMAgent` | [observability](observability/README.md#network-and-pod-security) |
+| TCP and UDP 514 (to the pod port 5514): syslog. TCP 6050: Talos kernel logs. TCP 6051: Talos service logs | Devices and nodes → Vector aggregator (`syslog.kube-cluster01.shelltopia.net`) | [observability](observability/README.md#logs) |
+| Graphite, chosen at stage 5 | TrueNAS → `VMAgent` (`graphite.kube-cluster01.shelltopia.net`) | [observability](observability/README.md#metrics) |
 
 ## Namespaces
 
@@ -79,7 +81,7 @@ Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: dis
 | `piraeus-datastore` | Piraeus/LINSTOR | `privileged` | [storage](storage/README.md#decisions) |
 | `backups` | VolSync, `volsync-monitor` | `restricted` | [backups](backups/README.md) |
 | `observability` | `victoria-metrics-k8s-stack` (operator, `VMSingle`, `VLSingle`, `VMAgent`, `VMAlert`, `VMAlertmanager`, kube-state-metrics), Grafana, `prometheus-operator-crds`, the Vector aggregator. Deployed by stage ([status](observability/README.md#status)) | `restricted` | [observability](observability/README.md#network-and-pod-security) |
-| `observability-agents` | node-exporter (from the stack, stage 2), the Vector agent (stage 3) | `privileged` | [observability](observability/README.md#network-and-pod-security) |
+| `observability-agents` | node-exporter (from the stack), the Vector agent | `privileged` | [observability](observability/README.md#network-and-pod-security) |
 | `debug` | Throwaway test pods, `kubectl debug node` | `privileged` | [cluster](cluster/README.md#pod-security) |
 | `kube-system` | Cilium, CoreDNS, Intel device plugin, Reloader, snapshot-controller, Spegel | exempt | [cluster](cluster/README.md) |
 
