@@ -53,7 +53,7 @@ Order matters: let OPNsense accept the new routes **before** the cluster adverti
 #### 2. Repository: `external` LB pool
 
 - [ ] **Pool.** In `kubernetes/apps/kube-system/cilium/networking/pools.yaml`, replace the GUA block of the `external` pool.
-- [ ] **Pinned addresses.** If a Service pins its address with the `lbipam.cilium.io/ips` annotation (e.g. a Gateway), update it too:
+- [ ] **Pinned addresses.** Every LoadBalancer Service pins its addresses with the `lbipam.cilium.io/ips` annotation ([conventions](../conventions.md#loadbalancer-addresses)): update the GUA ones of the `external` pool (the external Gateway), and the [reference](../reference.md#pinned-loadbalancer-addresses):
 
   ```sh
   git grep 'lbipam.cilium.io/ips'
@@ -145,5 +145,5 @@ Order matters: let OPNsense accept the new routes **before** the cluster adverti
 ### Reducing the work
 
 - Use a single OPNsense *Network* alias for the `external` pool in every rule: one place to change instead of every rule.
-- Do not pin GUA addresses on Services (`lbipam.cilium.io/ips`) unless needed.
+- The GUA addresses pinned on the Services (`lbipam.cilium.io/ips`) are in the [reference](../reference.md#pinned-loadbalancer-addresses): only the external Gateway has some.
 - Once the Milkywan tunnel is in place, the `external` pool moves to its stable prefix and this procedure no longer applies to it.

@@ -20,7 +20,8 @@ What was decided against or accepted, and what is still pending. The resulting a
 | --- | --- |
 | Zone lost on the LAN while the cluster is down | `shelltopia.org` no longer resolves (`SERVFAIL`). Everything in this zone is served by the cluster, except the names still on `home` (host overrides). |
 | Public names visible in the zone | The CNAMEs of the public applications are listed in the Cloudflare zone. The application names stay out of the Certificate Transparency logs thanks to the [wildcard certificate](../ingress/README.md#certificate). |
-| Pinned addresses of k8s-gateway | An exception to the "everything dynamic" rule: Unbound only accepts addresses as forward targets. |
+| Pinned addresses of k8s-gateway | Unbound only accepts addresses as forward targets. Every LoadBalancer address is pinned anyway ([conventions](../conventions.md#loadbalancer-addresses)). |
+| Receiver names by hand | `syslog` and `graphite` `.kube-cluster01.shelltopia.net` are Unbound host overrides kept in sync with the pinned addresses by hand, until an external-dns webhook for OPNsense/Unbound is evaluated. |
 | Fallthrough through the Cloudflare resolvers | The names of `shelltopia.org` without route (mail, SPF, cloud services) resolve on the LAN through 1.1.1.1 rather than through the recursion of Unbound. Cloudflare already hosts the zone: no new third party sees the names. |
 | Public-only routes on the LAN | A route attached to the `external` Gateway only resolves on the LAN to its public CNAME: the WAN IPv4 (HAProxy, then port forwarding, from the LAN) or the IPv6 of the `external` Gateway. Attach the route to both Gateways to stay on the internal one. |
 

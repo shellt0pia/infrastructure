@@ -92,6 +92,7 @@ Architecture and status: [backups/README.md](backups/README.md#status). Order: v
 
 ### Ingress
 
+- [ ] Pin the addresses of the Envoy Services of both Gateways (`lbipam.cilium.io/ips`, [conventions](conventions.md#loadbalancer-addresses)) to the ones they have today, checked first: `.1` of the `internal` pool, the first address of the `external` pool. Before the receivers of the observability stack take their pinned addresses.
 - [ ] Once `home` is migrated (see [Migration](#migration)): IPv4 port forwarding 80/443 to the external Gateway instead of HAProxy, and removal of the PROXY protocol listeners ([procedure](ingress/runbook.md#removing-haproxy)).
 
 ### Upgrades
@@ -119,7 +120,7 @@ All of it waits for kube-02: rebooting one of the two etcd members loses the quo
 | Talos/Kubernetes version source | `talos/vars.yaml` (+ mise) or tuppr resources | Renovate should bump both in the same PR, or one should reference the other. |
 | Metrics / logs | Prometheus or VictoriaMetrics / VictoriaLogs or Loki | |
 | Renovate in the cluster | Renovate operator, plain CronJob | GitHub App or fine-grained token. |
-| Cluster endpoint | DNS round-robin (current) | `kubectl` may wait for a timeout when a node is down. A VIP would need a fixed address, against the "dynamic" rule. |
+| Cluster endpoint | DNS round-robin (current) | `kubectl` may wait for a timeout when a node is down. A VIP would need a fixed address in the nodes subnet, against the "dynamic" rule of the network. |
 
 ## To check or watch
 

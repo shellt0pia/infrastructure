@@ -11,6 +11,8 @@ The names, addresses, ports, namespaces, items and schedules scattered in the to
 | `kube-01`, `kube-02`, `kube-03` (`.shelltopia.net`) | The nodes, AAAA records only (ULA addresses) | [network](network/README.md#names) |
 | `kube-cluster01.shelltopia.net` | The cluster endpoint: DNS round-robin, one AAAA per node, API on port 6443 | [network](network/README.md#principles) |
 | `gateway-external.kube-cluster01.shelltopia.net` | Entry name of the external Gateway, target of the public CNAMEs | [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
+| `syslog.kube-cluster01.shelltopia.net` | The Vector aggregator: Talos logs and syslog of the devices. Unbound host overrides, `A` and `AAAA` to its pinned addresses | [observability](observability/README.md#logs) |
+| `graphite.kube-cluster01.shelltopia.net` | The Graphite listener of `VMAgent` (reserved: the TrueNAS exporter takes an IP only). Unbound host overrides, `A` and `AAAA` to its pinned addresses | [observability](observability/README.md#metrics) |
 | `ntp-01.shelltopia.net`, `ups-01-dmz.shelltopia.net` | NTP (OPNsense) and NUT server (the NAS) of the nodes | [network](network/README.md#principles) |
 
 ## Addresses
@@ -21,7 +23,6 @@ The names, addresses, ports, namespaces, items and schedules scattered in the to
 | `kube-01`, `kube-02`, `kube-03` | `192.168.15.11`, `.12`, `.13` | EUI-64 ULA addresses, in the table of the nodes subnet | [network](network/README.md#nodes-subnet) |
 | `internal` LB pool | `192.168.19.0/25` | `fd38:4c4d:8f66:13::/64` | [network](network/README.md#bgp) |
 | `external` LB pool | `192.168.19.128/25` | `2a02:8434:f003:d113::/64` (GUA, from the delegated /56) | [network](network/README.md#bgp) |
-| k8s-gateway (pinned) | `192.168.19.53` | `fd38:4c4d:8f66:13::53` | [dns](dns/README.md#internal-k8s-gateway) |
 | Pods | `10.244.0.0/16` | `fd1b:654d:9afe:100::/56` | [cluster](cluster/README.md#cluster-ranges) |
 | Services | `10.96.0.0/12` | `fd1b:654d:9afe:200::/112` | [cluster](cluster/README.md#cluster-ranges) |
 | Cluster DNS | `10.96.0.10` | `fd1b:654d:9afe:200::a` | [cluster](cluster/README.md#coredns) |
@@ -30,6 +31,18 @@ The names, addresses, ports, namespaces, items and schedules scattered in the to
 The cluster ranges are permanent, and the GUA prefix may change: [what to update](network/runbook.md#ipv6-prefix-change).
 
 BGP: OPNsense is AS `64512`, the nodes share AS `64513` ([network](network/README.md#bgp)).
+
+### Pinned LoadBalancer addresses
+
+Every LoadBalancer Service pins its addresses (`lbipam.cilium.io/ips`), allocated here first ([conventions](conventions.md#loadbalancer-addresses)). The same host part in both families.
+
+| Service | Pool | IPv4 | IPv6 | Depends on it | Described in |
+| --- | --- | --- | --- | --- | --- |
+| Envoy, `internal` Gateway | `internal` | `192.168.19.1` | `fd38:4c4d:8f66:13::1` | The names of the applications (k8s-gateway), the OPNsense rules of the clients. Still dynamic, [to pin](roadmap.md#ingress) | [ingress](ingress/README.md#overview) |
+| Vector aggregator (`syslog`) | `internal` | `192.168.19.2` | `fd38:4c4d:8f66:13::2` | Host overrides `syslog.kube-cluster01.shelltopia.net`, the OPNsense rules of the device VLANs | [observability](observability/README.md#logs) |
+| Graphite of `VMAgent` | `internal` | `192.168.19.3` | `fd38:4c4d:8f66:13::3` | Host overrides `graphite.kube-cluster01.shelltopia.net`, the TrueNAS exporter (by IP), the OPNsense rules | [observability](observability/README.md#metrics) |
+| k8s-gateway | `internal` | `192.168.19.53` | `fd38:4c4d:8f66:13::53` | The Unbound query forwarding of `shelltopia.org` | [dns](dns/README.md#internal-k8s-gateway) |
+| Envoy, `external` Gateway | `external` | `192.168.19.129` | `2a02:8434:f003:d113::1` (GUA, changes with the prefix) | The port forwarding of the WAN IPv4, the WAN rules of OPNsense. Still dynamic (current addresses checked on 2026-11-02), [to pin](roadmap.md#ingress) | [ingress](ingress/README.md#overview) |
 
 ## Ports
 

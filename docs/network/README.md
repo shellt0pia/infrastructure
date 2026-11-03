@@ -34,7 +34,7 @@ The nodes get their addresses from OPNsense and open the BGP sessions towards it
 
 ## Principles
 
-- **Everything dynamic, FQDN wherever possible**: DHCPv4 static mappings, SLAAC with EUI-64 addresses, `ntp-01.shelltopia.net`, `ups-01-dmz.shelltopia.net`. The only exception is the addresses of the internal DNS of the applications (k8s-gateway, `192.168.19.53` and `fd38:4c4d:8f66:13::53`), because Unbound only forwards to addresses ([dns](../dns/README.md#internal-k8s-gateway)).
+- **Everything dynamic, FQDN wherever possible**: DHCPv4 static mappings, SLAAC with EUI-64 addresses, `ntp-01.shelltopia.net`, `ups-01-dmz.shelltopia.net`. The only exception is the LoadBalancer addresses of the cluster, all pinned and listed in the [reference](../reference.md#pinned-loadbalancer-addresses): Unbound only forwards to addresses (k8s-gateway), some devices only send to an address (the TrueNAS Graphite exporter), and a Service left dynamic could take the address that another one pins ([conventions](../conventions.md#loadbalancer-addresses)).
 - **The GUA prefix may change**: it is never used in the configs, except in the `external` LB pool and the matching OPNsense prefix list. Everything else uses the ULA prefix ([prefix change](runbook.md#ipv6-prefix-change)).
 - Node names have **AAAA records only** (ULA): hosts must use IPv6 ULA to reach them. No A record is needed.
 - Cluster endpoint: DNS round-robin `kube-cluster01.shelltopia.net` (one AAAA per node).

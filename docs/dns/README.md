@@ -61,9 +61,9 @@ Rules:
 
 - Release `k8s-gateway` in `network`: CoreDNS with the k8s_gateway plugin, 2 replicas. Serves `shelltopia.org` only, from the HTTPRoutes whose parent Gateway has the `internal` class, TTL 60 s.
 - **Fallthrough to the public zone.** A name that matches no route (MX and SPF of the apex, CNAMEs to cloud services, public-only applications, a typo) goes to the `forward` plugin, whatever the query type: the Cloudflare resolvers over DNS over TLS, IPv6 addresses listed first. Never Unbound as upstream: it forwards the zone to k8s-gateway, the query would loop. A name that has a route only answers `A` and `AAAA` (`NODATA` for the other types): no route may use the apex `shelltopia.org` as hostname, its MX and SPF records would disappear on the LAN.
-- LoadBalancer Service in the `internal` pool with **pinned addresses** `192.168.19.53` and `fd38:4c4d:8f66:13::53` (`lbipam.cilium.io/ips`), TCP and UDP 53. An exception to the "everything dynamic" rule: Unbound only accepts addresses as forward targets. To change them: the annotation in `kubernetes/apps/network/k8s-gateway/app/helmrelease.yaml`, then the Unbound query forwarding.
+- LoadBalancer Service in the `internal` pool with **pinned addresses** `192.168.19.53` and `fd38:4c4d:8f66:13::53` (`lbipam.cilium.io/ips`), TCP and UDP 53. Pinned like every LoadBalancer address ([conventions](../conventions.md#loadbalancer-addresses)), and needed here anyway: Unbound only accepts addresses as forward targets. To change them: the annotation in `kubernetes/apps/network/k8s-gateway/app/helmrelease.yaml`, then the Unbound query forwarding.
 - When the cluster is down, `shelltopia.org` no longer resolves on the LAN (`SERVFAIL`). Accepted: everything in this zone is served by the cluster, except the names still on `home`, which are host overrides ([Unbound](bootstrap.md#2-opnsense-unbound)).
-- No external-dns webhook for OPNsense/Unbound.
+- No external-dns webhook for OPNsense/Unbound: the names of the infrastructure that point to the cluster (the receivers of the [observability](../observability/README.md#network-and-pod-security) stack) are host overrides created by hand ([runbook](runbook.md#where-to-create-a-record)). A webhook could publish them from the Services later.
 
 ## Public: external-dns and cloudflare-ddns
 
