@@ -83,7 +83,7 @@ Buckets, lifecycle rules and application keys are managed by OpenTofu (`tofu/bac
 | Bucket | Written by | 1Password item (`kubernetes` vault) |
 | --- | --- | --- |
 | `kube-cluster01-volsync-gz8j9y` | VolSync, one repository per PVC under `<bucket>/<app>` | `restic-volsync` |
-| To name (later) | CloudNativePG | `cnpg-b2` (later) |
+| To name (later) | CloudNativePG | `backblaze-b2-cnpg` (later) |
 | To name (later) | Backrest on the NAS | `restic-nas` (`infrastructure` vault: never synced to the cluster) |
 
 Fields of the `restic-*` items: `repository` (`s3:https://s3.eu-central-003.backblazeb2.com/<bucket>`), `password` (restic repository password, generated when the item is created, never managed by OpenTofu), `access-key-id` and `secret-access-key` (B2 application key restricted to the bucket). OpenTofu writes `repository` and the key.
