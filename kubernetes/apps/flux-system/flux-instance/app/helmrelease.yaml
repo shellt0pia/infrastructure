@@ -29,6 +29,18 @@ spec:
         # No NetworkPolicies of Flux: its `allow-egress` policy would allow every egress of the
         # namespace, over the Cilium baseline (docs/cluster/README.md#network-policies).
         networkPolicy: false
+      # Cancel the health checks of a Kustomization when a new revision arrives: without it, a
+      # Kustomization waiting on a broken release (wait: true, timeout = interval = 1h) ignores
+      # the commit that fixes it until the wait ends (docs/cluster/README.md#decisions).
+      kustomize:
+        patches:
+          - target:
+              kind: Deployment
+              name: kustomize-controller
+            patch: |
+              - op: add
+                path: /spec/template/spec/containers/0/args/-
+                value: --feature-gates=CancelHealthCheckOnNewRevision=true
       sync:
         kind: GitRepository
         # TODO: final repository URL and branch.

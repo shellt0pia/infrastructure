@@ -38,7 +38,7 @@ kubernetes/apps/<namespace>/
 
 ### Flux Kustomizations
 
-- `interval: 1h`, `prune: true`, `sourceRef` to `flux-system`, `wait: true`: a Kustomization is `Ready` once what it deploys is.
+- `interval: 1h`, `prune: true`, `sourceRef` to `flux-system`, `wait: true`: a Kustomization is `Ready` once what it deploys is. No `timeout`: the wait lasts up to the `interval`, and a new revision cancels it ([cluster](cluster/README.md#decisions)).
 - `dependsOn` for what the manifests need before they can be applied: the CRDs of another release, and the `ClusterSecretStore` (`external-secrets-stores` in `external-secrets`) for an `ExternalSecret`.
 - A **separate Kustomization** when the manifests need the CRDs or the webhook installed by the release of the same application: `cert-manager` and `cert-manager-issuers`, `envoy-gateway` and `gateways`. The comment of the `ks.yaml` says why.
 - Variables: `spec.postBuild.substitute`, no `$` in a manifest of a Kustomization that substitutes (it applies to every one of them, a literal `${...}` is written `$${...}`).

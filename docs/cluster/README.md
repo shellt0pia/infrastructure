@@ -52,6 +52,7 @@ The chart source and version of each release come from its `OCIRepository`, and 
 ## Decisions
 
 - GitOps with Flux (flux-operator + flux-instance), Kustomize + `HelmRelease` with charts from `OCIRepository`. The bootstrap helmfile reads the chart, version and values from `kubernetes/apps`.
+- kustomize-controller runs with the `CancelHealthCheckOnNewRevision` feature gate (a patch in the flux-instance values): a Kustomization waits for what it deploys (`wait: true`) up to its timeout, which defaults to its `interval` (1h). Without the gate, a Kustomization waiting on a broken release ignores the commit that fixes it until the wait ends; with it, a new revision cancels the wait and is applied at once. No `timeout` in the `ks.yaml`: it would not unblock a fix sooner, it would fail the slow first starts (image pulls, VolSync restores) and retry them only an `interval` later, and the failures of a `HelmRelease` are already reported by its own events.
 - Updates: Renovate, run from the cluster. Talos and Kubernetes upgrades: tuppr (both [to deploy](../roadmap.md#upgrades)).
 - Tools pinned in `mise.toml` (kubectl and talosctl follow the cluster versions).
 - Secrets: External Secrets Operator with a read-only service account on the `kubernetes` vault ([secrets](../secrets/README.md)).
