@@ -129,7 +129,7 @@ How they work: [README](README.md#network-policies). A flow denied by a policy t
   | --- | --- |
   | Between two pods of the same namespace | Already allowed: check that the namespace includes the `network-policies` component. |
   | To a pod, from another namespace, a node or outside of the cluster | `ciliumnetworkpolicy.yaml` next to the application that receives it, `ingress` ([conventions](../conventions.md#network-policies)). |
-  | From a pod to a private address outside of the cluster (NAS, OPNsense, a LAN device) | `ciliumnetworkpolicy.yaml` next to the application that sends it, `egress` with `toCIDR` (the only case with addresses). |
+  | From a pod to the internal network (NAS, OPNsense, a LAN or VLAN device) | `ciliumnetworkpolicy.yaml` next to the application that sends it, `egress` with `toFQDNs` and its DNS rule, by name and not by address ([conventions](../conventions.md#network-policies)). |
   | From a pod to a port of the nodes (Talos API, kubelet, metrics) | A rule in `kubernetes/apps/kube-system/cilium/policies/host.yaml`, from the pods that need it (`fromEndpoints`) to that port only, and the port in [reference](../reference.md#ports). |
   | From a new Gateway, or to every pod (a scraper) | `kubernetes/apps/kube-system/cilium/policies/baseline.yaml`. |
 

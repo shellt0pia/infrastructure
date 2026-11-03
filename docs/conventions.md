@@ -65,9 +65,9 @@ kubernetes/apps/<namespace>/
 Every pod is in default deny ([cluster](cluster/README.md#network-policies)). Without anything more, an application reaches the cluster and the internet, and receives traffic from its namespace, its kubelet, the API server and the Gateways (its routes).
 
 - Anything else it needs is a `CiliumNetworkPolicy` in `ciliumnetworkpolicy.yaml`, next to the application (in `app/`), with a comment that says which flow it allows and why.
-- Select the peers, not the ports: `fromEntities` (`world`, `cluster`, `remote-node`...) or `fromEndpoints` with labels, and no `toPorts`. A port that changes with an upgrade then breaks nothing, and a pod only exposes the ports it listens on. Only the host firewall (`cilium/policies/host.yaml`) filters by port, the ports of the nodes being fixed.
+- An egress from a pod to the internal network (NAS, OPNsense, a LAN or VLAN device) is filtered by name, never by address or subnet: a `toFQDNs` rule (`matchName`, or `matchPattern`) on the application that needs it, next to a DNS rule that lets Cilium learn the addresses behind the name (the example below). The names are those of the internal DNS, so every device that a pod reaches has a record. `toCIDR` only for a peer that has no name, with a comment saying why. The addresses stay out of the manifests, as everywhere else in the repository ([network](network/README.md#principles)).
+- Select the peers, not the ports: `fromEntities` (`world`, `cluster`, `remote-node`...) or `fromEndpoints` with labels, and no `toPorts`. The only `toPorts` is the DNS rule of an FQDN egress, which Cilium requires to see the answers. A port that changes with an upgrade then breaks nothing, and a pod only exposes the ports it listens on. Only the host firewall (`cilium/policies/host.yaml`) filters by port, the ports of the nodes being fixed.
 - Labels that stay stable across upgrades (`app.kubernetes.io/name`, the labels set by the repository), and `io.kubernetes.pod.namespace` to select a pod of another namespace.
-- An egress to a private address outside of the cluster (NAS, LAN device) is a `toCIDR` rule on the application that needs it, the only rule with addresses.
 - A policy for pods created by an operator goes next to the resource that defines them (`linstor-controller` next to the `LinstorCluster`).
 - No Kubernetes `NetworkPolicy`: Cilium applies them too, and a flow allowed by one of them passes over the baseline. Disable the ones a chart creates in its values (as `flux-operator` and `flux-instance`).
 
@@ -87,6 +87,36 @@ spec:
         - matchLabels:
             io.kubernetes.pod.namespace: <namespace>
             app.kubernetes.io/name: <client>
+```
+
+An egress to a device of the internal network, by name (`<device>.shelltopia.net` is a placeholder). Not tested yet:
+
+```yaml
+---
+# <app> reads <device> (internal network): by name, never by address. The DNS rule lets Cilium
+# learn the addresses of the name from the answers of CoreDNS.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: <app>-<device>
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: <app>
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchName: <device>.shelltopia.net
+    - toFQDNs:
+        - matchName: <device>.shelltopia.net
 ```
 
 ### Pod security
