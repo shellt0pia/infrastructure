@@ -17,7 +17,7 @@ spec:
       retries: 3
   values:
     serviceMonitor:
-      create: false
+      create: true
     web:
       # No NetworkPolicy: it would open the web UI (9080) to every namespace, over the Cilium
       # baseline (docs/cluster/README.md#network-policies).

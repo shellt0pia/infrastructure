@@ -10,3 +10,4 @@ resources:
   - ./storageclasses.yaml
   - ./volumesnapshotclass.yaml
   - ./ciliumnetworkpolicy.yaml
+  - ./monitors.yaml

@@ -30,3 +30,19 @@ spec:
     # Dual-stack like the rest of the cluster (metrics Service).
     service:
       ipFamilyPolicy: PreferDualStack
+  # The chart creates a ServiceMonitor as soon as its CRD exists (no value for it), without
+  # credentials. The controller serves /metrics over HTTPS (self-signed, hence the
+  # insecureSkipVerify of the chart) and checks the caller with a TokenReview and a
+  # SubjectAccessReview: VMAgent presents its ServiceAccount token, whose ClusterRole allows `get`
+  # on /metrics (docs/observability/README.md#metrics).
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              group: monitoring.coreos.com
+              kind: ServiceMonitor
+              name: volsync
+            patch: |
+              - op: add
+                path: /spec/endpoints/0/bearerTokenFile
+                value: /var/run/secrets/kubernetes.io/serviceaccount/token

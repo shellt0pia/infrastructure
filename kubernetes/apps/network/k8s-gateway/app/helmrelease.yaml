@@ -96,7 +96,10 @@ spec:
             parameters: 0.0.0.0:9153
           - name: reload
           - name: loadbalance
+    # The ServiceMonitor selects the metrics Service (the `prometheus` plugin above, :9153), which
+    # the chart only creates with `service.enabled`.
     prometheus:
+      service:
+        enabled: true
       monitor:
-        # Enable once the Prometheus Operator CRDs are installed.
-        enabled: false
+        enabled: true

@@ -1,0 +1,59 @@
+---
+# Monitors of the LINSTOR cluster, from config/extras/monitoring of piraeus-operator (v2.12.0),
+# without its PrometheusRule (docs/observability/README.md#metrics). The names are those of
+# upstream: its alert rules select the jobs `linstor-controller` and `.*/linstor-satellite`.
+# Next to the LinstorCluster, which defines the pods.
+#
+# The LINSTOR controller: /metrics on its API port (3370, plain HTTP without authentication, no
+# apiTLS on the LinstorCluster), through the Service created by the operator.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: linstor-controller
+  labels:
+    app.kubernetes.io/component: linstor-controller
+spec:
+  endpoints:
+    - port: api
+      scheme: http
+      path: /metrics
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: linstor-controller
+---
+# The affinity controller (port `metrics`, 8081).
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: linstor-affinity-controller
+  labels:
+    app.kubernetes.io/component: linstor-affinity-controller
+spec:
+  podMetricsEndpoints:
+    - port: metrics
+      scheme: http
+      path: /metrics
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: linstor-affinity-controller
+---
+# drbd-reactor in the satellite pods (port `prometheus`, 9942): the DRBD resources of each node.
+# The satellites run in the host network (satellite-network.yaml), so the port is a node port.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: linstor-satellite
+  labels:
+    app.kubernetes.io/component: linstor-satellite
+spec:
+  podMetricsEndpoints:
+    - port: prometheus
+      scheme: http
+      relabelings:
+        - action: replace
+          sourceLabels:
+            - __meta_kubernetes_pod_node_name
+          targetLabel: node
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: linstor-satellite

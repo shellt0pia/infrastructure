@@ -38,5 +38,4 @@ spec:
       limits:
         memory: 128Mi
     serviceMonitor:
-      # Enable once the Prometheus Operator CRDs are installed.
-      enabled: false
+      enabled: true

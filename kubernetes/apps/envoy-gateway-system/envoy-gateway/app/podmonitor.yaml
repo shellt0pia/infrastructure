@@ -1,0 +1,31 @@
+---
+# Metrics of the Envoy Gateway controller (port `metrics`, 19001, /metrics): the chart has no
+# monitor value (docs/observability/README.md#metrics).
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: envoy-gateway
+spec:
+  selector:
+    matchLabels:
+      control-plane: envoy-gateway
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+---
+# Metrics of the Envoy proxies of every Gateway (port `metrics`, 19001, admin endpoint
+# /stats/prometheus), from examples/kubernetes/metric/pod-monitor.yaml of Envoy Gateway. Prometheus
+# is enabled by default in the EnvoyProxy resources (telemetry.metrics.prometheus), and the
+# proxies run in this namespace.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: envoy-proxies
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: envoy
+      app.kubernetes.io/component: proxy
+  podMetricsEndpoints:
+    - port: metrics
+      path: /stats/prometheus

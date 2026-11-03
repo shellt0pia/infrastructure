@@ -115,6 +115,23 @@ spec:
           enabled: true
           allowList:
             - '{"verdict":["AUDIT","DROPPED"]}'
+      # Flow metrics, for the dashboard and the alert of the denied flows
+      # (docs/observability/README.md#metrics): `drop` counts the dropped packets by reason,
+      # `policy` the policy verdicts (`action="audit"` in audit mode). At each end: the namespace
+      # (`source_namespace`, `destination_namespace`), and in `source`/`destination` the workload,
+      # else the app label (Hubble only knows the workload of the pods of its own node), else the
+      # reserved identity (`reserved:host`, `reserved:world`...).
+      metrics:
+        enabled:
+          - drop:labelsContext=source_namespace,destination_namespace;sourceContext=workload-name|app|reserved-identity;destinationContext=workload-name|app|reserved-identity
+          - policy:labelsContext=source_namespace,destination_namespace;sourceContext=workload-name|app|reserved-identity;destinationContext=workload-name|app|reserved-identity
+        serviceMonitor:
+          enabled: true
+        # Dashboards of this chart version (docs/observability/README.md#dashboards), see
+        # `dashboards` below. The DNS and L7 HTTP ones stay empty: those metrics are not enabled.
+        dashboards:
+          enabled: true
+          namespace: observability
 
     # Restart the pods when the Cilium configuration changes.
     rollOutCiliumPods: true
@@ -122,7 +139,27 @@ spec:
       rollOutPods: true
       prometheus:
         enabled: true
+        serviceMonitor:
+          enabled: true
+      dashboards:
+        enabled: true
+        namespace: observability
 
-    # Metrics endpoints, scraped later by Prometheus (ServiceMonitors once its CRDs exist).
+    # Metrics of the agent (:9962), the operator (:9963) and Hubble (:9965), all in the host
+    # network, scraped by VMAgent through the ServiceMonitors (docs/observability/README.md#metrics).
     prometheus:
       enabled: true
+      serviceMonitor:
+        enabled: true
+        # Without it, the chart refuses to render the ServiceMonitors when the API is missing from
+        # the capabilities (an offline render). The CRDs are always applied first (`just
+        # bootstrap crds`).
+        trustCRDsExist: true
+
+    # Dashboards of the agent, the operator and Hubble, matching this chart version: ConfigMaps
+    # labeled grafana_dashboard="1", created in the namespace of Grafana for its sidecar (also at
+    # the bootstrap: the helmfile creates the namespace first). Their DS_PROMETHEUS variable
+    # picks the default Prometheus data source, VictoriaMetrics.
+    dashboards:
+      enabled: true
+      namespace: observability

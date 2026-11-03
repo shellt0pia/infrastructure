@@ -17,5 +17,7 @@ spec:
       retries: 3
   values:
     installCRDs: true
+    # One ServiceMonitor (and metrics Service) each for the controller, the webhook and the
+    # cert-controller.
     serviceMonitor:
-      enabled: false
+      enabled: true

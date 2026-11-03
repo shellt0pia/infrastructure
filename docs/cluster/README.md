@@ -41,7 +41,7 @@ flowchart TD
 
 The `apps` stage installs, in this order, the minimum needed for Flux to take over:
 
-1. **Cilium**, then its BGP sessions and LoadBalancer pools (`kubernetes/apps/kube-system/cilium/networking`). The nodes stay `NotReady` until the CNI runs: Flannel, kube-proxy and the CoreDNS of Talos are disabled in the Talos configuration.
+1. **Cilium**, then its BGP sessions and LoadBalancer pools (`kubernetes/apps/kube-system/cilium/networking`). The nodes stay `NotReady` until the CNI runs: Flannel, kube-proxy and the CoreDNS of Talos are disabled in the Talos configuration. The `observability` namespace is created just before: the chart puts its Grafana dashboards there ([observability](../observability/README.md#the-release-of-the-stack)). Flux adopts both later.
 2. **CoreDNS**.
 3. **Spegel**, in parallel with External Secrets and before Flux, so that the images pulled by Flux already go through it ([below](#spegel)).
 4. **External Secrets** and the `onepassword` ClusterSecretStore ([secrets](../secrets/README.md)).
@@ -135,7 +135,7 @@ The Intel device plugin is deployed through the operator, with `sharedDevNum: 3`
 - **Tags resolved by the peers** (`resolveTags`, the default): a pod can start while its registry is down, as long as a node has the image. The flip side: a reused tag stays on the first digest present in the cluster. The images of the repository are pinned to a version (Renovate), and the `latest` tags are always resolved upstream (`registryFilters: [":latest$"]`).
 - **In `kube-system`**: it mounts the containerd socket, its content store, the registry config path and `/var/lib/spegel` (P2P identity kept across restarts) from the host, which the `restricted` default of [Pod Security](#pod-security) forbids; `kube-system` is exempt. `system-node-critical` priority (chart default), on every node.
 - **Installed at bootstrap** after CoreDNS (the peers find each other through the headless Service `spegel-bootstrap`) and before Flux, then adopted by Flux.
-- **Ports**: NodePort TCP 30020 (containerd → local Spegel), TCP 5000 (registry), TCP and UDP 5001 (libp2p router, between the Spegel pods), TCP 9090 (metrics, ServiceMonitor ready, to enable with the metrics stack).
+- **Ports**: NodePort TCP 30020 (containerd → local Spegel), TCP 5000 (registry), TCP and UDP 5001 (libp2p router, between the Spegel pods), TCP 9090 (metrics, scraped by `VMAgent` through its ServiceMonitor).
 - **Not for Talos itself**: the installer and system images are pulled by the containerd of Talos, which does not use these mirrors.
 - **Multi-tenancy**: any pod can get an image held by a node without credentials. Acceptable in a single-tenant cluster, to keep in mind for a private image.
 

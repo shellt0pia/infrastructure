@@ -50,5 +50,4 @@ spec:
           limits:
             memory: 256Mi
       podMonitor:
-        # Enable once the Prometheus Operator CRDs are installed.
-        enabled: false
+        enabled: true

@@ -32,6 +32,16 @@ releases:
     inherit:
       - template: default
     hooks:
+      - # The chart puts the Grafana dashboards of Cilium in this namespace (its values); Flux
+        # adopts the namespace later.
+        events: ['presync']
+        command: kubectl
+        args:
+          - apply
+          - --server-side
+          - --field-manager=kustomize-controller
+          - --filename=../../kubernetes/apps/observability/namespace.yaml
+        showlogs: true
       - # The CRDs are registered by Cilium itself, not by the chart.
         events: ['postsync']
         command: kubectl

@@ -17,7 +17,7 @@ spec:
       retries: 3
   # Default Corefile of the chart (the `servers` value): cluster.local zone, everything else
   # forwarded to /etc/resolv.conf, i.e. the Talos host DNS (`forwardKubeDNSToHost`), which
-  # forwards to OPNsense. Metrics are exposed on :9153.
+  # forwards to OPNsense.
   values:
     # Same names and labels as the CoreDNS deployed by kubeadm/Talos.
     fullnameOverride: coredns
@@ -38,3 +38,10 @@ spec:
         - 10.96.0.10
         - fd1b:654d:9afe:200::a
       ipFamilyPolicy: RequireDualStack
+    # Metrics of the `prometheus` plugin (:9153) of the default Corefile. The ServiceMonitor selects
+    # the metrics Service, which the chart only creates with `service.enabled`.
+    prometheus:
+      service:
+        enabled: true
+      monitor:
+        enabled: true

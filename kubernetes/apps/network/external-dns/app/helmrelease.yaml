@@ -74,5 +74,4 @@ spec:
         - fc00::/7
       cloudflare-record-comment: managed by external-dns (kube-cluster01)
     serviceMonitor:
-      # Enable once the Prometheus Operator CRDs are installed.
-      enabled: false
+      enabled: true
