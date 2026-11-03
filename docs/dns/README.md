@@ -65,6 +65,12 @@ Rules:
 - When the cluster is down, `shelltopia.org` no longer resolves on the LAN (`SERVFAIL`). Accepted: everything in this zone is served by the cluster, except the names still on `home`, which are host overrides ([Unbound](bootstrap.md#2-opnsense-unbound)).
 - No external-dns webhook for OPNsense/Unbound: the names of the infrastructure that point to the cluster (the receivers of the [observability](../observability/README.md#network-and-pod-security) stack) are host overrides created by hand ([runbook](runbook.md#where-to-create-a-record)). A webhook could publish them from the Services later.
 
+## Search domain and musl
+
+- Cloudflare signs both zones (DNSSEC) and answers a name that does not exist with `NOERROR`, no record and an `NSEC` of type `NXNAME` (`TYPE128`), its compact denial of existence (RFC 9824), instead of `NXDOMAIN`. Unbound does not validate and passes it on.
+- The musl resolver (Alpine images) stops at such an answer when it walks the search list, where glibc and Go go on to the next candidate. With `ndots:5` and `shelltopia.net` in the search list of the pods, `grafana.com` was looked up as `grafana.com.shelltopia.net`, got this empty answer, and failed (`curl: (6) Could not resolve host`), while the pods in Go resolved it.
+- Hence no search domain on the nodes, nor in the pods ([network](../network/README.md#nodes-subnet)). To check a name from a pod: `nslookup <name>.shelltopia.net` printing nothing (no `NXDOMAIN`) is this empty answer.
+
 ## Public: external-dns and cloudflare-ddns
 
 - external-dns (`network`, Cloudflare provider, every minute) reads two sources: the HTTPRoutes attached to the `external` Gateway of `network` (`gateway-httproute`), and the LoadBalancer Services with a hostname annotation (`service`: the Envoy Service of the `external` Gateway). Its regex domain filter only lets it touch `shelltopia.org` and the entry name in `shelltopia.net`. The private addresses (RFC 1918, ULA) are never published. Records not proxied, with the comment `managed by external-dns (kube-cluster01)`.

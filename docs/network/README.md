@@ -47,6 +47,8 @@ Nodes subnet: `192.168.15.0/24`, `fd38:4c4d:8f66:f::/64` (ULA) and `2a02:8434:f0
 - DHCPv4: IPv4 address, gateway, DNS server and domain name;
 - router advertisements: SLAAC with EUI-64 addresses for the ULA and GUA prefixes, RDNSS.
 
+The nodes have **no search domain**: Talos drops the domain name of DHCP and does not derive one from its FQDN (`ResolverConfig` in `talos/patches/network.yaml.j2`). The kubelet copies the search domains of the node into every pod, and `shelltopia.net` there broke the Alpine images ([DNS](../dns/README.md#search-domain-and-musl)). Every name is used as an FQDN anyway.
+
 The nodes are reached by name (`kube-0X.shelltopia.net`, `kube-cluster01.shelltopia.net`), IPv6 only: these names have AAAA records with the ULA addresses and no A record. Inside the cluster, IPv4 is the primary family: the primary Kubernetes node IPs are the IPv4 addresses, the ULA addresses come second. etcd peers use both.
 
 | Node | MAC address | Reserved IPv4 | ULA address (EUI-64) | Interface identifier (GUA alias) |

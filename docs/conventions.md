@@ -178,6 +178,7 @@ spec:
 - Plain machine config documents. Common settings in `talos/patches/`, hardware settings in `talos/nodes/<node>.yaml`, versions and shared values in `talos/vars.yaml` with a `# renovate:` comment on the line before each version.
 - A 1Password reference (`op://...`) only in a `.yaml.j2` patch, never in a comment ([gotchas](../talos/README.md#gotchas)).
 - Everything dynamic, nothing hardcoded that the network can give: FQDN rather than address ([network](network/README.md#principles)). The LoadBalancer addresses of the cluster are the exception, all pinned ([above](#loadbalancer-addresses)).
+- No search domain on the nodes, so none in the pods: always an FQDN, never a short name ([network](network/README.md#nodes-subnet)).
 - After a refactoring that should not change anything, `just talos diff` is empty on every node ([checking a change](../talos/README.md#checking-a-change)).
 
 ## OpenTofu
