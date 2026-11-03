@@ -87,6 +87,7 @@ Architecture and status: [backups/README.md](backups/README.md#status). Order: v
 ### Storage
 
 - [ ] NFS access to the NAS, through static PersistentVolumes ([runbook](storage/runbook.md#mounting-a-nas-share)): the exports must allow the nodes subnet, then the [read-ahead check](nodes/runbook.md#checking-the-nfs-read-ahead).
+- [ ] NFS access to the NAS, through truenas-csi or democratic-csi for the storage of Nextcloud and Immich.
 - [ ] Once kube-02 joins: the tie-breakers of the existing volumes, then the [failover test](storage/bootstrap.md#3-failover-test) ([status](storage/README.md#status)).
 
 ### Migration
