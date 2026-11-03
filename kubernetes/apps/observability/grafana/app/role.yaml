@@ -1,0 +1,12 @@
+---
+# What the sidecars of Grafana read: the ConfigMaps of the data sources and the dashboards, in
+# its own namespace. Used instead of the Role of the chart, which also reads every Secret of the
+# namespace (those of the Alertmanager among them).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: grafana-sidecars
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "watch", "list"]

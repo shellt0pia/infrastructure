@@ -1,0 +1,195 @@
+# Observability
+
+What watches the cluster and the devices around it: metrics, logs, dashboards and alerts. Deployed in stages ([bootstrap.md](bootstrap.md)), tracked in the [status](#status) below.
+
+| Document | Content |
+| --- | --- |
+| [bootstrap.md](bootstrap.md) | First deployment: prerequisites, then the steps in order (not run yet). |
+| [evaluations.md](evaluations.md) | What was considered or rejected, what is still to verify, and the open points. |
+
+The manifests are in `kubernetes/apps/observability` and `kubernetes/apps/observability-agents` ([Pod Security](#network-and-pod-security)):
+
+| Folder | Content |
+| --- | --- |
+| `observability/victoria-metrics-k8s-stack` | `app/`: the release of the [stack](#the-release-of-the-stack) (the VictoriaMetrics operator and its CRDs, `VMSingle`, `VLSingle`, `VMAgent`, `VMAlert`, `VMAlertmanager`, kube-state-metrics, node-exporter deployed in `observability-agents`, the data sources of Grafana, the default rules and dashboards) and the ExternalSecret of the Alertmanager. `config/`: the second Flux Kustomization (`victoria-metrics-k8s-stack-config`), the etcd scrape and the rules of this repository. |
+| `observability/grafana` | Grafana, its own release ([Grafana](#grafana)): the OIDC login, its ExternalSecret, its route, the `volsync` component for its volume, the community dashboards and the dashboards of this repository (`app/dashboards/`). |
+| `observability/prometheus-operator-crds` | The CRDs of the Prometheus operator (`ServiceMonitor`, `PodMonitor`, `PrometheusRule`), for the monitors that the other charts create. |
+| `observability/vector-aggregator` | The Vector aggregator: the Talos logs and the syslog of the devices (stage 3). |
+| `observability-agents` | The namespace only until stage 3. node-exporter is deployed there by the release of the stack. |
+| `observability-agents/vector-agent` | The Vector agent, on every node: the pod logs and the Hubble flows (stage 3). |
+
+`prometheus-operator-crds` is also listed in `bootstrap/helmfile/crds.yaml.gotmpl`, so that the other applications can enable their monitors without `dependsOn` ([cluster](../cluster/README.md#overview)). Its CRDs are in the `templates/` of the chart: the helm-controller takes over those applied by `just bootstrap crds` (Flux leaves `install.disableTakeOwnership` to false), and `helm.sh/resource-policy: keep` keeps them if the release is ever uninstalled. The VictoriaMetrics CRDs come with the stack: the manifests of the repository that use them (etcd scrape, `VMRule`s) are in the second Kustomization, which depends on the release ([conventions](../conventions.md#flux-kustomizations)). The monitors of the other applications go next to them (the Flux controllers next to `flux-instance`, LINSTOR next to the `LinstorCluster`, Envoy Gateway next to its release).
+
+## Status
+
+| Part | Tool | Status |
+| --- | --- | --- |
+| Metrics | `victoria-metrics-k8s-stack`: operator, `VMSingle`, `VMAgent`, kube-state-metrics, node-exporter | Written (stage 2), not deployed |
+| Logs | `VLSingle` (from the stack), Vector agent and aggregator | Decided, not deployed |
+| Dashboards | Grafana (its own release): the default dashboards of the stack, community dashboards pinned by revision, the dashboards of the repository | Written (stage 2), not deployed |
+| Alerting | `VMAlert` and `VMAlertmanager` (from the stack), Pushover, dead man's switch to healthchecks.io | `VMAlertmanager` and Pushover deployed (stage 1). `VMAlert`, the rules and the dead man's switch at stage 4 |
+| Flux notifications | notification-controller, `alertmanager` provider | Deployed (stage 1) |
+| Cluster scrape targets | From the stack: kubelet, cAdvisor, API server, scheduler, controller-manager, kube-state-metrics, node-exporter. By hand: etcd (`VMNodeScrape`). Monitors of the charts: Cilium agent, Cilium operator and Hubble, CoreDNS, cert-manager, External Secrets, flux-operator, Spegel, Reloader, external-dns, k8s-gateway, VolSync. Next to the applications: the Flux controllers (`PodMonitor`), Piraeus (LINSTOR controller, satellites and drbd-reactor, affinity controller), Envoy Gateway (controller and proxies) | Written (stage 2), not deployed |
+| Talos logs, Hubble flows | Vector, `machine.logging`, `KmsgLogConfig`, `hubble.export` | Hubble export in place, Talos destinations not configured |
+| External devices | snmp_exporter, Graphite, syslog, blackbox_exporter | Decided, [to verify](evaluations.md#to-verify) per device |
+
+## Overview
+
+```mermaid
+flowchart TD
+    subgraph SRC["Sources"]
+        CLU["Cluster: monitors, kube-state-metrics, node-exporter, control plane"]
+        DEV["Devices: OPNsense, MikroTik, Wi-Fi AP, NAS"]
+        EXT["Uptime Kuma, Pocket ID (PikaPods)"]
+        LOGS["Pod logs, Hubble flows"]
+        TAL["Talos service and kernel logs"]
+    end
+    CLU -->|scrape| VA["VMAgent, 2 replicas"]
+    DEV -->|"SNMP exporter, Graphite push"| VA
+    EXT -->|"blackbox exporter"| VA
+    VA -->|remote write| VM[("VMSingle")]
+    LOGS --> VAG["Vector agent, DaemonSet"]
+    VAG --> VL[("VLSingle")]
+    TAL -->|"TCP, json_lines"| VAGG["Vector aggregator, 2 replicas"]
+    DEV -->|syslog| VAGG
+    VAGG --> VL
+    VM --> RULES["VMAlert, 2 replicas"]
+    RULES --> AM["VMAlertmanager, 2 replicas"]
+    FLUX["Flux notification-controller"] --> AM
+    AM -->|Pushover| PO["Phone"]
+    AM -->|"dead man's switch"| HC["healthchecks.io"]
+    VM --> GR["Grafana"]
+    VL --> GR
+```
+
+## Objectives
+
+- Metrics and logs of the cluster (Kubernetes, Cilium, Flux, LINSTOR and DRBD, certificates, VolSync), of the Talos nodes, and of the devices: OPNsense, the MikroTik switch, the Grandstream access point, the NAS.
+- HTTP checks of Uptime Kuma and Pocket ID, which stay hosted at PikaPods. Uptime Kuma is already an independent observer from the outside: it stays that, the cluster does not replace it.
+- The logs needed to enforce the network policies: the audited and denied flows searchable by namespace ([cluster](../cluster/README.md#network-policies)).
+- Dashboards in Git, a single notification channel: everything goes through Alertmanager to Pushover.
+- Resilience to the loss of one of the three nodes, for the monitoring as well: [level 1](#high-availability) below. Without kube-02 it cannot be tested ([nodes](../nodes/README.md#test-phase-2-nodes)).
+
+Resources are not a constraint: the current hosts use a fraction of their RAM, and the heavy workloads (Plex transcoding, Immich) run on the GPU. Each node has 16 GiB and a 1 TB NVMe shared elastically by Piraeus between `local` and `replicated`. The sizes are in [storage and retention](#storage-and-retention).
+
+## Decisions
+
+### Stack
+
+| Need | Tool | Why |
+| --- | --- | --- |
+| Metrics storage and scraping | `VMSingle` and `VMAgent` of the VictoriaMetrics operator | Frugal, single binary, reads the `ServiceMonitor`, `PodMonitor` and `PrometheusRule` objects (the operator converts them), natively ingests Graphite |
+| Logs storage | `VLSingle` (VictoriaLogs, single node) | Same family, frugal, queried from Grafana |
+| Logs collection and reception | Vector, for everything | One tool and one configuration language for pod logs, Hubble files, Talos and device syslog ([why not vlagent](evaluations.md#vector-or-vlagent)) |
+| Dashboards | Grafana, provisioned from Git | No `vmui`: Grafana is the only UI |
+| Alerts | `VMAlert` and `VMAlertmanager` | The only notification path, Pushover as the only channel |
+| Packaging | `victoria-metrics-k8s-stack`, one release, the components not needed disabled, Grafana apart | Fewer charts to follow: the operator, its resources, the scrapes of the control plane, the rules and the dashboards stay consistent with each other (the `job` labels the rules expect). [Why not separate releases](evaluations.md#victoria-metrics-k8s-stack-or-separate-releases) |
+
+Outside the stack: Grafana (its own release, [why](evaluations.md#grafana-apart-from-the-stack)) and Vector (two releases, agent and aggregator).
+
+### The release of the stack
+
+- **Enabled:** the operator, `vmsingle`, `vlsingle`, `vmagent`, `vmalert`, `alertmanager`, `kube-state-metrics`, `prometheus-node-exporter` (`namespaceOverride: observability-agents`), the scrapes of the kubelet (and cAdvisor), the API server, the scheduler and the controller-manager, the default rules and dashboards.
+- **Disabled:** `grafana` (its own release), the cluster modes and the traces (`vmcluster`, `vlcluster`, `vtsingle`...), `vlagent`, `vmauth`, every ingress, `kubeProxy` (Cilium replaces kube-proxy), `kubeDns` and `coreDns` (the CoreDNS chart has its own monitor), `kubeEtcd` (see below).
+- **For Grafana:** with its subchart disabled, the stack still creates the ConfigMap of the data sources (`grafana.forceDeployDatasource: true`, `victoria-metrics-k8s-stack-grafana-ds`) and the Job creates those of the default dashboards, with the labels that the sidecars of the Grafana release read (`grafana_datasource: "1"`, `grafana_dashboard: "1"`). Checked on the render: `VMSingle` (type `prometheus`, uid `VictoriaMetrics`, the default) and the Alertmanager. A data source of a plugin type (VictoriaLogs) is only rendered when `grafana.plugins` of the values of the stack lists it (stage 3).
+- **etcd:** Talos runs it outside any pod, and the chart only finds it through a Service selector or a list of IPs. A `VMNodeScrape` on the control plane nodes instead (`node-role.kubernetes.io/control-plane`, port 2381, no address in Git), with the label `job="kube-etcd"` (the rules and the dashboard select `job=~".*etcd.*"`). The etcd rules and dashboard follow `kubeEtcd.enabled` in the chart: their sources are enabled explicitly.
+- **Scheduler and controller-manager:** the chart scrapes them through headless Services in `kube-system` that select the Talos static pods by `component: kube-scheduler` and `component: kube-controller-manager` (the default selectors of the chart, labels checked on the cluster), not a list of IPs (ports 10259 and 10257, already bound to `0.0.0.0`). Their certificates are self-signed (Talos sets no `--tls-cert-file`): `insecureSkipVerify`.
+- **node-exporter** in `observability-agents` (`namespaceOverride`); its `VMServiceScrape` stays in `observability` with a `namespaceSelector` on `observability-agents`.
+- **The `cluster` label:** `VMAgent` adds `cluster: kube-cluster01` to every series (`externalLabels`), for the `cluster` variables of the community dashboards and the `clusterLabel` of the rules.
+- **CRDs:** shipped in the chart (`crds/`), so the HelmRelease sets `upgrade.crds: CreateReplace` for them to follow the chart. `crds.cleanup.enabled: false`: its hook would delete the CRDs, and every VictoriaMetrics resource with them, when the release is uninstalled.
+- **Images:** no tag in the values, the versions follow the chart (`global.versions`).
+- **Rules and dashboards:** the chart downloads them with a Job (Helm hook `post-install,post-upgrade`, `restricted` security context and an `emptyDir` on `/tmp` set in the values) and creates the `VMRule`s and the dashboard ConfigMaps itself, outside Helm and Flux (owner references, pruned when they leave the configuration). Its sources are the `main` or `master` branches upstream, not pinned: the content only changes with an upgrade of the chart ([why](evaluations.md#sources-of-the-rules-and-dashboards)). The default rules are only enabled at stage 4, with `vmalert`: until then, the dashboards of kube-prometheus that read their recording rules stay empty.
+- **Default rules disabled:** `KubeCPUOvercommit` and `KubeMemoryOvercommit` until kube-02 joins: with two nodes, losing one never leaves room for the requests.
+- **Rules of the repository**, `VMRule`s next to the release: those of the [alerting](#alerting), and the errors of Vector. The VictoriaMetrics, VictoriaLogs, operator and Alertmanager rules come with the stack.
+- **Dashboards:**
+  - The default ones of the stack: Kubernetes views, node-exporter, VictoriaMetrics, VictoriaLogs, operator, etcd, control plane.
+  - Those of the Cilium chart, which follow its version: agent, operator, and Hubble (metrics, network overview, DNS and L7 HTTP). The Hubble ones mostly read flow metrics that are not enabled, only their `drop` panels can show data: to decide ([open points](evaluations.md#open-points)). The chart creates them in `observability` (`dashboards.namespace` in the values of Cilium), so the bootstrap creates that namespace before installing Cilium ([cluster](../cluster/README.md#overview)). Their `DS_PROMETHEUS` variable picks the default Prometheus data source, `VMSingle`. The ones on grafana.com (16611, 16612, 16613) date from Cilium 1.12.
+  - Community dashboards by `gnetId` and `revision` in the values of the Grafana release, pinned, in the *Community* folder: cert-manager (20842), External Secrets (21640), external-dns (15038), LINSTOR and DRBD (15917), Envoy Gateway (24460) and the Envoy proxies (24459). Flux has none up to date on grafana.com: the *Flux Control Plane* dashboard of `fluxcd/flux2-monitoring-example`, by a URL pinned to a commit. Their inputs (`DS_METRICS`...) are replaced by the data source of the stack.
+  - The dashboards of the repository (the denied flows, `app/dashboards/denied-flows.json`) as JSON in Git, next to the Grafana release, a ConfigMap generated by kustomize and read by its sidecar, with `kustomize.toolkit.fluxcd.io/substitute: disabled`: the Kustomization of Grafana substitutes the variables of the `volsync` component, and Grafana uses `${...}` variables too.
+- **Upgrades:** the chart is in 0.x, its minors may break: read its changelog before each upgrade, no automerge by Renovate ([roadmap](../roadmap.md#upgrades)).
+
+### High availability
+
+Level 1: the loss of a node costs a few minutes of access, never data.
+
+- `VMSingle` and `VLSingle` run as one pod each, on `replicated` volumes: the Piraeus failover reschedules them on another node ([storage](../storage/README.md#decisions)). While they are down, the collectors buffer.
+- No gap in metrics and logs: `VMAgent` runs two replicas that both scrape every target, `VMSingle` deduplicates (`-dedup.minScrapeInterval=30s`, the scrape interval). Vector buffers on disk towards VictoriaLogs.
+- The alert path is redundant by design, since a dead monitoring must still ring: `VMAlert` with two replicas, `VMAlertmanager` with two replicas (gossip between them), and a dead man's switch.
+- Grafana: one replica with the same failover. Its configuration is in Git, its small state (SQLite) goes through the `volsync` component. Two replicas would need session affinity because of the local SQLite.
+- No S3 storage for this: B2 covers `vmbackup` if the metrics are ever backed up ([backups](../backups/README.md#what-is-backed-up)). If an S3 service is ever needed, [Garage](evaluations.md#s3-storage) is the candidate.
+- UDP syslog is lost while the receiver is down: TCP wherever the device supports it, and always for Talos.
+
+### Storage and retention
+
+| Data | Volume | Retention |
+| --- | --- | --- |
+| `VMSingle` | 50 Gi, `replicated` | 90 days (`retentionPeriod: 90d`), scrape interval 30 s |
+| `VLSingle` | 30 Gi, `replicated` | 30 days, and `-retention.maxDiskSpaceUsageBytes` at about 25 Gi as a safety net |
+| `VMAlertmanager` | A small `local` volume per replica | The silences, copied between the replicas by the gossip |
+| Vector aggregator | A `local` volume per replica (StatefulSet) | Disk buffer |
+| Vector agent | `hostPath` `/var/lib/vector` | Disk buffer, `max_size` about 1 Gi per node |
+| Grafana | The `volsync` component, `replicated` | Backed up to B2 |
+
+Sizes estimated, to check in the dashboards of VictoriaMetrics and VictoriaLogs after two weeks. The volumes can be expanded later, the retentions changed at any time.
+
+Every component has modest requests and a memory limit from the start, with a comment saying they are to resize from the metrics ([roadmap](../roadmap.md#cluster-tools)).
+
+### Alerting
+
+- **Severities:** `critical` to Pushover with priority 1, `warning` with priority 0, `info` to a null receiver (visible in Grafana only). A noise-tuning pass after two weeks of alerts.
+- **Grouping:** `group_by: [alertname, namespace]`, `repeat_interval: 12h`. No quiet hours: the do-not-disturb mode of the phone covers the nights.
+- **Configuration in Git, secrets as files:** the routes and receivers are in the values of the stack. The Pushover user key and token, and the ping URL of healthchecks.io, come from ExternalSecrets mounted in the pods (`spec.secrets` of the `VMAlertmanager`) and read through `user_key_file`, `token_file` and `url_file`.
+- **Pushover:** an application token from the `pushover-alertmanager` item (`username`: the user key, `credential`: the token; one token per tool, [conventions](../conventions.md#secrets)).
+- **Flux notifications go through Alertmanager too**: the notification-controller has no Pushover provider. A `Provider` of type `alertmanager` (address `.../api/v2/alerts/`) and an `Alert` for the failed reconciliations (`eventSeverity: error`), in every namespace: an `Alert` only selects the objects of its own namespace, and the Flux objects live in the namespace of their application. Hence the component `kubernetes/components/flux-alerts`, included by the `kustomization.yaml` of every namespace like `network-policies` ([conventions](../conventions.md#namespaces)). The events arrive with `severity=error`, which no route matches: the root receiver (`warning`, priority 0) takes them. Flux events carry no end time, so `global.resolve_timeout` is `1h` (the value the Flux documentation suggests).
+- **Inhibition:** a `critical` alert silences the `warning` of the same `alertname` and `namespace` (the two thresholds of a rule, as in kube-prometheus).
+- **Dead man's switch:** the `Watchdog` alert of the default rules (always firing) has its own route (`group_interval: 30s`, `repeat_interval: 1m`) to a webhook receiver, the ping URL of a healthchecks.io check (field `kube-cluster01-alertmanager` of the `healthchecks` item). The check expects a ping every minute, with a grace of 3 minutes, and notifies through healthchecks.io itself. The healthchecks checks of the backups may then be dropped ([backups](../backups/README.md#monitoring)).
+- **Rules of the repository**, listed in the [roadmap](../roadmap.md#observability): certificates close to expiry, VolSync, DRBD and LINSTOR, Flux, disks and the LINSTOR thin pool, the flows denied by the network policies, and the errors of Vector. The denied flows: `hubble_policy_verdicts_total{action="audit"}` while the policies are in audit mode (`hubble_drop_total{reason="POLICY_DENIED"}` stays at zero then), `action="dropped"` and `hubble_drop_total` once they are enforced.
+
+### Logs
+
+- **Vector agent** (DaemonSet, `observability-agents`): the pod logs (`/var/log/pods`) and the Hubble export (`/var/run/cilium/hubble/events*.log`, JSON lines on each node, in tmpfs). Disk buffer in `hostPath` `/var/lib/vector`.
+- **Vector aggregator** (StatefulSet, two replicas, `observability`): the Talos service and kernel logs, and the syslog of the devices. A LoadBalancer Service on the [pinned addresses](../reference.md#pinned-loadbalancer-addresses) `192.168.19.2` and `fd38:4c4d:8f66:13::2`, named `syslog.kube-cluster01.shelltopia.net`. Disk buffer on a `local` volume per replica.
+- Talos sends its logs over raw TCP in `json_lines` (`machine.logging.destinations` and the `KmsgLogConfig` document; Talos v1.14.4, same behaviour as in the v1.12 documentation) to `syslog.kube-cluster01.shelltopia.net`, with `extraTags` naming the node. Kernel logs only need `KmsgLogConfig` on a running node, the kernel argument is for the early boot.
+- Vector enriches and filters per source (for instance the pf noise of OPNsense) before VictoriaLogs.
+
+### Metrics
+
+- `VMAgent` scrapes every 30 s the monitors of the charts ([status](#status)), kube-state-metrics, node-exporter, the kubelet and cAdvisor, the API server and the control plane (etcd `:2381`, scheduler, controller-manager, already exposed by Talos). It selects the monitors of every namespace (`selectAllByDefault`), the `ServiceMonitor` and `PodMonitor` objects converted by the operator.
+- **The operator only looks for the Prometheus CRDs at its start:** when the `monitoring.coreos.com` API is missing then, it disables the conversion of the `ServiceMonitor`, `PodMonitor`, `PrometheusRule` and `Probe` objects until its next restart (its log says `controller disabled either by provided flag or respective CRD is not found`). The CRDs are applied by `just bootstrap crds` before the applications, and the Kustomization of the stack depends on `prometheus-operator-crds`. If the CRDs ever arrive after the operator (no converted `VMServiceScrape` outside of the stack, only its own targets): `kubectl -n observability rollout restart deploy victoria-metrics-k8s-stack-victoria-metrics-operator`.
+- The Hubble metrics (`drop`, `policy`) are enabled with the workload contexts, for the dashboard and the alert of the denied flows. At each end: the namespace (`source_namespace`, `destination_namespace`, from `labelsContext`), and in `source` or `destination` the workload, else the `app` label (Hubble only knows the workload of the pods of its own node), else the reserved identity (`reserved:world`, `reserved:host`...): `sourceContext` and `destinationContext` set to `workload-name|app|reserved-identity`. `hubble_drop_total` adds `reason` and `protocol`, `hubble_policy_verdicts_total` adds `direction`, `match` and `action` (`forwarded`, `dropped`, `audit`, `redirected`).
+- VolSync checks the caller of its metrics endpoint (HTTPS, a TokenReview): a post-renderer of its release adds the ServiceAccount token of `VMAgent` to its ServiceMonitor.
+- Graphite: `VMAgent` listens for it (`-graphiteListenAddr`) behind a LoadBalancer Service on the [pinned addresses](../reference.md#pinned-loadbalancer-addresses) `192.168.19.3` and `fd38:4c4d:8f66:13::3`, named `graphite.kube-cluster01.shelltopia.net`. The TrueNAS exporter only takes an IP: the name is reserved for the devices that take one.
+- The data sources of Grafana are generated by the stack (ConfigMaps read by the sidecar of Grafana): `VMSingle` (Prometheus type), VictoriaLogs (plugin `victoriametrics-logs-datasource`), the Alertmanager.
+
+### Grafana
+
+- **Its own release** (`grafana` chart of `grafana-community/helm-charts`), in `observability`, apart from the stack ([why](evaluations.md#grafana-apart-from-the-stack)). Its sidecars read the data sources and dashboards that the stack generates in the namespace, through a Role of the repository limited to the ConfigMaps (the Role of the chart also reads the Secrets). Its volume is the PVC of the `volsync` component (`APP: grafana`, owned by its UID 472), mounted as `existingClaim`, hence the `Recreate` strategy. The `initChownData` container is disabled (it runs as root, which `restricted` refuses).
+- **No admin API, so no reload by the sidecars:** without a local account, the sidecars cannot call the reload API of Grafana. The dashboards are files that Grafana rescans by itself. The data sources are written by an init container at startup (in `LIST` mode: the chart passes `sidecar.datasources.watchMethod` to it as is, and the default `WATCH` never exits, leaving the pod stuck in `Init`): Reloader restarts Grafana when their ConfigMap changes (an upgrade of the stack, VictoriaLogs at stage 3), through `configmap.reloader.stakater.com/reload: victoria-metrics-k8s-stack-grafana-ds` next to `reloader.stakater.com/auto` (no pod references that ConfigMap, the sidecars read it through the API). Reloader checks the named list before `auto`, the two combine. Creating an admin account only for this reload was rejected ([evaluations](evaluations.md#rejected-and-alternative-options)).
+- **The community dashboards are downloaded at each start** (an init container, from grafana.com and GitHub): if grafana.com is down, Grafana does not start until it is back.
+- **Login by OIDC only, with the Pocket ID, from the first start**: no local account, no password. `disable_initial_admin_creation` (only effective on an empty database, hence from the first start; set as the `GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION` variable, so that the chart creates no admin Secret), `[auth] disable_login_form = true`, and the generic OAuth integration with PKCE and `auto_login`, scopes `openid profile email groups`. Endpoints: `https://id.shelltopia.org/authorize`, `/api/oidc/token`, `/api/oidc/userinfo`.
+- **Roles from the groups** of the `groups` claim: `grafana_admins` is `GrafanaAdmin` (`allow_assign_grafana_admin`), `grafana_viewers` is `Viewer`. `allowed_groups` lists both and `role_attribute_strict = true` refuses a user with no valid role. `allow_sign_up` creates the user at the first login, the groups being the only gate.
+- **The client**: a confidential OIDC client in the Pocket ID, callback `https://grafana.shelltopia.org/login/generic_oauth` (and `root_url` set accordingly), the id and the secret in the `pocket-id-grafana` item (`kubernetes` vault: `username` and `credential`, [naming](../secrets/README.md#naming-of-the-items)), injected by the ExternalSecret `grafana-oidc` as the `GF_AUTH_GENERIC_OAUTH_CLIENT_ID` and `_SECRET` variables (Reloader restarts Grafana when they change).
+- **Pocket ID down** (it is hosted at PikaPods): no new login, nothing else. The alerts do not go through Grafana, the dashboards are in Git. `use_refresh_token` stays off, so that an outage does not end the open sessions.
+- **No break-glass account, by design.** Grafana holds nothing that Git does not: the way back is a new empty database with `disable_initial_admin_creation = false` and the login form, both in Git. The metrics and logs stay reachable with `kubectl port-forward` on the APIs of `VMSingle` and VictoriaLogs. To verify at the first deployment.
+- Only on the `internal` Gateway, as `grafana.shelltopia.org` ([conventions](../conventions.md#routes-and-names)). The other UIs of the cluster use the same Pocket ID ([roadmap](../roadmap.md#cluster-tools)).
+
+### External devices
+
+| Device | Metrics | Logs |
+| --- | --- | --- |
+| OPNsense | `os-node_exporter` plugin | Remote syslog |
+| MikroTik CRS326 (RouterOS 7) | `snmp_exporter` | Remote syslog (BSD syslog or CEF, UDP, TCP or TLS, the address is an IP or text) |
+| Grandstream GWN7664 | `snmp_exporter` (SNMP v2/v3) | Syslog |
+| TrueNAS CE 25.10 | Graphite exporter of *Reporting* (pushed), received by `VMAgent` | Remote syslog |
+| Uptime Kuma, Pocket ID | `blackbox_exporter` (HTTP probes) | None |
+
+Each line has points to [verify](evaluations.md#to-verify) before it is relied on. Every device is in a separate VLAN, except that the NAS also has a leg in the nodes subnet: its traffic to the cluster comes from its main interface ([network](../network/README.md#nas-no-asymmetric-path)).
+
+### Network and Pod Security
+
+- **Receivers** (Vector aggregator, Graphite of `VMAgent`): one LoadBalancer Service each, on their own addresses pinned in the `internal` pool, IPv4 and IPv6, like every LoadBalancer address ([conventions](../conventions.md#loadbalancer-addresses)). Their names, in `shelltopia.net`, are static `A` and `AAAA` host overrides in Unbound, created by hand and kept in sync with the addresses ([dns](../dns/runbook.md#where-to-create-a-record)). Ingress from `world` is enough for the devices: OPNsense filters the VLANs, and the baseline policy of the namespace keeps any other pod out. Talos arrives from `remote-node` (and `host` for the node running the pod, to check).
+- **Scraping:** `VMAgent` reaches every pod (an exception in `kubernetes/apps/kube-system/cilium/policies/baseline.yaml`) and the node ports it scrapes (`host.yaml`: kubelet 10250, etcd 2381, scheduler 10259, controller-manager 10257, node-exporter 9100, the Cilium agent 9962 and operator 9963, Hubble 9965, drbd-reactor 9942).
+- **Other flows:** the notification-controller of `flux-system` to the Alertmanager, the Vector agent (`observability-agents`) to VictoriaLogs. The rest stays inside `observability`.
+- **Scrapers** (`snmp_exporter`, `blackbox_exporter`): egress by FQDN (`toFQDNs`), never by address, as the [conventions](../conventions.md#network-policies) ask for every pod reaching the internal network.
+- **Pod Security:** `observability-agents` is `privileged`, for the Vector agent (`hostPath`: the pod logs, the Hubble files, its buffer) and node-exporter (`hostNetwork`, `hostPID`, `hostPath`). `observability` is `restricted`: the values set the security context where a chart default does not meet it (the operator, the Alertmanager, the Job of the rules and dashboards, Grafana). For the resources of the operator, `useStrictSecurity` is not enough: any `securityContext` in the spec replaces its defaults, and the chart sets a partial one as soon as there is a volume, so the values write it out in full.
+- **Secrets**: ExternalSecrets from the `kubernetes` vault, one item per tool or device, named `<provider>-<app>` or `<host>-<service>` (`pushover-alertmanager`, `pocket-id-grafana`, `sw-01-snmp`, `ap-01-snmp`, the ping URL in `healthchecks`).

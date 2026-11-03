@@ -135,7 +135,7 @@ Adopting it later: run it in parallel first (own bucket `shelltopia-kopiur`, S3 
 | Restore recipe with a HelmRelease | `volsync-restore` was tested on a plain Deployment only: check the suspension and resumption of the HelmReleases, and a StatefulSet, with the first real application. |
 | Repository check | Detect a malicious `forget` (the job checks do not): number and age of the snapshots of each repository, compared with the previous run. |
 | Restore tests automation | Once applications use VolSync: a nightly CronJob restoring the latest backup of each repository into a throwaway namespace (`replicated-temporary` volumes, read-only B2 keys, resource limits), checking it (`restic check --read-data-subset`, files present, SQLite `PRAGMA integrity_check`), then deleting everything. Never on the production volumes. |
-| Logs and metrics backup | With the observability choice. |
+| Logs and metrics backup | With the observability choice: [open points](../observability/evaluations.md#open-points). |
 | `mbsync` / `vdirsyncer` replacement | At migration. |
 | Copy to the NAS | When TrueNAS 27 brings an S3 API, for the cluster repositories only. |
 | Kopiur | Look at it again in early 2027 ([checklist](#kopiur-evaluated-to-revisit)). |

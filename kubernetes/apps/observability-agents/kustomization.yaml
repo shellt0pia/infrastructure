@@ -1,0 +1,11 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+# node-exporter is deployed here by the release of the stack, in the `observability` namespace
+# (namespaceOverride of its subchart).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: observability-agents
+components:
+  - ../../components/network-policies
+resources:
+  - ./namespace.yaml

@@ -1,0 +1,21 @@
+---
+# The CRDs of the Prometheus operator (ServiceMonitor, PodMonitor, PrometheusRule...), without the
+# operator: the charts of the cluster create their monitors with them, and the VictoriaMetrics
+# operator converts them (docs/observability/README.md). Also applied by `just bootstrap crds`
+# (bootstrap/helmfile/crds.yaml.gotmpl), so that the applications enabling their monitors need
+# no dependsOn on this Kustomization. The stack does depend on it: its operator only looks for these
+# CRDs at its start.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: prometheus-operator-crds
+spec:
+  interval: 1h
+  path: ./kubernetes/apps/observability/prometheus-operator-crds/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: observability
+  wait: true

@@ -29,6 +29,12 @@ spec:
           matchExpressions:
             - key: gateway.envoyproxy.io/owning-gateway-name
               operator: Exists
+    # VMAgent scrapes the metrics of every pod that has a monitor
+    # (docs/observability/README.md#network-and-pod-security).
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: observability
+            app.kubernetes.io/name: vmagent
   egress:
     # The whole cluster: pods, Services, nodes (API server, host DNS). The policies of the
     # destination decide.

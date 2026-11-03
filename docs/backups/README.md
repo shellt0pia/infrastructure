@@ -55,7 +55,7 @@ flowchart TD
 | Mail archives and contacts/calendar (mbsync, vdirsyncer) | ~2 GiB | NAS | Backrest on the NAS |
 | Irreplaceable media (`media/library`: `audiodrama`, `audiobooks`, `books`, `comics`) | ~20 GiB | NAS | Backrest on the NAS |
 | etcd | small | Control plane nodes | No: everything it holds is rebuilt from Git, 1Password and the backups ([why](evaluations.md#etcd-not-backed-up)) |
-| Logs and metrics | | Cluster | Undecided, depends on the volume (see [roadmap](../roadmap.md#observability)). VictoriaMetrics `vmbackup` to S3 is an option. |
+| Logs and metrics | | Cluster | Undecided, depends on the volume (see [observability](../observability/README.md#high-availability)). VictoriaMetrics `vmbackup` to B2 is an option. |
 | Volumes of the `local` class | | Cluster | No: this class is for disposable or application-replicated data |
 | Redis / Valkey | | Cluster | No (caches and queues) |
 | Manifests | | Git | No |

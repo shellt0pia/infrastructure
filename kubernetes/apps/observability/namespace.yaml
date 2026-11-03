@@ -1,0 +1,11 @@
+---
+# The metrics, logs and alerts stack, see docs/observability/README.md. `restricted` (the
+# default): the agents that need the nodes (node-exporter, the Vector agent) go in
+# `observability-agents` instead.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+  annotations:
+    # Never delete a namespace (and everything in it) because of a refactoring.
+    kustomize.toolkit.fluxcd.io/prune: disabled

@@ -5,11 +5,11 @@
 # These releases are never installed by helmfile: only their CRDs are rendered and applied.
 # The chart and the values come from kubernetes/apps, as in apps.yaml.gotmpl.
 #
-# Only list charts that Flux installs later and whose CRDs live in the chart `crds/` directory
-# (or CRD-only charts, e.g. prometheus-operator-crds): Helm skips these CRDs when they already
-# exist. CRDs rendered from `templates/` (cert-manager `crds.enabled`, External Secrets
-# `installCRDs`) would make the Helm install fail on their ownership metadata. Never list the
-# charts of apps.yaml.gotmpl for the same reason.
+# Only list charts that Flux installs later. CRDs in the chart `crds/` directory are skipped by
+# Helm when they already exist. CRDs rendered from `templates/` (prometheus-operator-crds) are
+# taken over by the helm-controller at the install, Flux leaving `install.disableTakeOwnership`
+# to false. Never list the charts of apps.yaml.gotmpl: the Helm CLI of helmfile does not take
+# existing objects over, and their install would fail on the ownership metadata.
 #
 # Run from this directory: `just bootstrap crds`.
 
@@ -26,4 +26,10 @@ templates:
 
 # Same release format as apps.yaml.gotmpl (chart template + `inherit: default`), without needs
 # or hooks.
-releases: []
+releases:
+  # The monitors of the charts (ServiceMonitor, PodMonitor), docs/observability/README.md.
+  - name: prometheus-operator-crds
+    namespace: observability
+    {{- template "chart" (dict "name" "prometheus-operator-crds" "namespace" "observability") }}
+    inherit:
+      - template: default

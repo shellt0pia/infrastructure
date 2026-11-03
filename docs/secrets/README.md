@@ -51,7 +51,7 @@ Items are named after what they connect, in lowercase with hyphens. Three forms:
 
 | Form | For | Examples |
 | --- | --- | --- |
-| `<provider>-<app>` | A secret that authenticates a tool of the repository to an external service: the service, then the tool that uses it (the name of its folder in `kubernetes/apps`). When the user is the cluster itself, not a tool, the name of the cluster. | `cloudflare-external-dns`, `cloudflare-cert-manager`, `pushover-alertmanager`, `pocket-id-grafana` (its OIDC client), `backblaze-b2-cnpg`, `backblaze-b2-tofu-admin`, `docker-hub-kube-cluster01` (the nodes pull with it), `1password-external-secrets-operator` (the token of its store) |
+| `<provider>-<app>` | A secret that authenticates a tool of the repository to an external service: the service, then the tool that uses it (the name of its folder in `kubernetes/apps`, or of the component for a release that bundles several, as `alertmanager` in `victoria-metrics-k8s-stack`). When the user is the cluster itself, not a tool, the name of the cluster. | `cloudflare-external-dns`, `cloudflare-cert-manager`, `pushover-alertmanager`, `pocket-id-grafana` (its OIDC client), `backblaze-b2-cnpg`, `backblaze-b2-tofu-admin`, `docker-hub-kube-cluster01` (the nodes pull with it), `1password-external-secrets-operator` (the token of its store) |
 | `<host>-<service>` | The credentials of a service exposed by one of our own devices: the host, then the service. | `sw-01-snmp`, `ap-01-snmp`, `nas-01-nut-server` |
 | `<tool>-<purpose>` | The settings of a tool for one use, when it is not a connection to a provider. | `restic-volsync`, `restic-nas` (the restic repository of VolSync and of Backrest) |
 

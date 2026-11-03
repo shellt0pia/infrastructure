@@ -1,0 +1,12 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: observability
+components:
+  - ../../components/network-policies
+resources:
+  - ./namespace.yaml
+  - ./prometheus-operator-crds/ks.yaml
+  - ./victoria-metrics-k8s-stack/ks.yaml
+  - ./grafana/ks.yaml

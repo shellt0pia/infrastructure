@@ -62,6 +62,8 @@ Every LoadBalancer Service pins its addresses (`lbipam.cilium.io/ips`), allocate
 | TCP 3366 | LINSTOR controller pod → satellites (host network) | [cluster](cluster/README.md#network-policies) |
 | TCP 4244 | Hubble Relay → Hubble server of each Cilium agent | [cluster](cluster/README.md#network-policies) |
 | TCP 4245 | Workstation → Hubble Relay, through `kubectl port-forward` (`hubble -P`) | [cluster](cluster/runbook.md#network-policies) |
+| TCP 10250 (kubelet), 2381 (etcd), 10259 (scheduler), 10257 (controller-manager), 9100 (node-exporter), 9962 (Cilium agent), 9963 (Cilium operator), 9965 (Hubble), 9942 (drbd-reactor) | `VMAgent` → nodes (host firewall) | [observability](observability/README.md#network-and-pod-security) |
+| The ports of the receivers (syslog, Talos logs, Graphite), chosen at their deployment | Devices and nodes → Vector aggregator, `VMAgent` | [observability](observability/README.md#network-and-pod-security) |
 
 ## Namespaces
 
@@ -76,6 +78,8 @@ Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: dis
 | `network` | The Gateways, the wildcard certificate, k8s-gateway, external-dns, cloudflare-ddns | `restricted` | [ingress](ingress/README.md), [dns](dns/README.md) |
 | `piraeus-datastore` | Piraeus/LINSTOR | `privileged` | [storage](storage/README.md#decisions) |
 | `backups` | VolSync, `volsync-monitor` | `restricted` | [backups](backups/README.md) |
+| `observability` | `victoria-metrics-k8s-stack` (operator, `VMSingle`, `VLSingle`, `VMAgent`, `VMAlert`, `VMAlertmanager`, kube-state-metrics), Grafana, `prometheus-operator-crds`, the Vector aggregator. Deployed by stage ([status](observability/README.md#status)) | `restricted` | [observability](observability/README.md#network-and-pod-security) |
+| `observability-agents` | node-exporter (from the stack, stage 2), the Vector agent (stage 3) | `privileged` | [observability](observability/README.md#network-and-pod-security) |
 | `debug` | Throwaway test pods, `kubectl debug node` | `privileged` | [cluster](cluster/README.md#pod-security) |
 | `kube-system` | Cilium, CoreDNS, Intel device plugin, Reloader, snapshot-controller, Spegel | exempt | [cluster](cluster/README.md) |
 
@@ -93,9 +97,9 @@ A namespace whose applications are exposed on the internet carries the label `sh
 | `kubernetes` | `1password-external-secrets-operator` | Token of the store, injected by the bootstrap | [secrets](secrets/bootstrap.md#5-service-account-for-external-secrets) |
 | `kubernetes` | `cloudflare-cert-manager`, `cloudflare-external-dns`, `cloudflare-ddns` | cert-manager, external-dns, cloudflare-ddns (field `credential`) | [ingress](ingress/README.md#certificate), [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
 | `kubernetes` | `restic-volsync` | VolSync | [backups](backups/README.md#destination-backblaze-b2) |
-| `kubernetes` | `healthchecks` | Ping URLs of the checks, one field per check | [backups](backups/README.md#monitoring) |
+| `kubernetes` | `healthchecks` | Ping URLs of the checks, one field per check: the backups, the dead man's switch of Alertmanager (`kube-cluster01-alertmanager`) | [backups](backups/README.md#monitoring), [observability](observability/README.md#alerting) |
 | `kubernetes` | `pushover-alertmanager` | Alertmanager (field `username`: the Pushover user key, `credential`: the application token) | [observability](observability/README.md#alerting) |
-| `kubernetes` | `pocket-id-grafana` | Grafana, OIDC client of the Pocket ID (`username`: the client id, `credential`: the secret), later | [observability](observability/README.md#grafana) |
+| `kubernetes` | `pocket-id-grafana` | Grafana, OIDC client of the Pocket ID (`username`: the client id, `credential`: the secret) | [observability](observability/README.md#grafana) |
 | `kubernetes` | `backblaze-b2-cnpg` | CloudNativePG, later | [backups](backups/README.md#destination-backblaze-b2) |
 | `personal` | Token of the workstation service account | The shell of the workstation | [secrets](secrets/README.md#on-the-workstation-a-read-only-service-account) |
 
@@ -109,7 +113,9 @@ The tokens to renew and their consumers are in the [secrets runbook](secrets/run
 | Cloudflare | DNS and DNSSEC of both zones, DNS-01 challenges | [dns](dns/README.md), [ingress](ingress/README.md#certificate) |
 | Let's Encrypt | The wildcard certificate, staging and production | [ingress](ingress/README.md#certificate) |
 | 1Password | Every secret | [secrets](secrets/README.md) |
-| healthchecks.io | Checks of the backups | [backups](backups/README.md#monitoring) |
+| healthchecks.io | Checks of the backups, dead man's switch of Alertmanager | [backups](backups/README.md#monitoring), [observability](observability/README.md#alerting) |
+| Pushover | Notifications of Alertmanager | [observability](observability/README.md#alerting) |
+| Pocket ID (PikaPods) | OIDC login of Grafana, later | [observability](observability/README.md#grafana) |
 | GitHub | The repository followed by Flux | [cluster](cluster/README.md#decisions) |
 | Docker Hub | Pulls through the credentials of containerd | [secrets](secrets/bootstrap.md#3-docker-hub) |
 
@@ -118,6 +124,7 @@ The tokens to renew and their consumers are in the [secrets runbook](secrets/run
 | When | What | Described in |
 | --- | --- | --- |
 | Every minute | external-dns | [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
+| Every minute | The `Watchdog` alert pings healthchecks.io (grace 3 minutes), once the rules run | [observability](observability/README.md#alerting) |
 | Every 5 minutes | cloudflare-ddns detects the WAN IPv4 | [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
 | Every hour | Refresh of the ExternalSecrets of the Cloudflare tokens, reconciliation of the Kustomizations and HelmReleases | [conventions](conventions.md#flux-kustomizations) |
 | Every 12 hours | Refresh of the ExternalSecrets of VolSync and of its monitoring | [backups](backups/runbook.md#refreshing-the-secrets) |

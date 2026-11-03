@@ -58,3 +58,4 @@ Each topic has its own folder, with the same files (only those with content):
 | [Ingress](ingress/README.md) | Envoy Gateway, the Gateways, the certificate, HAProxy on OPNsense. |
 | [DNS](dns/README.md) | k8s-gateway, external-dns, cloudflare-ddns, OpenTofu records. |
 | [Backups](backups/README.md) | VolSync and restic on Backblaze B2, Backrest for the NAS. |
+| [Observability](observability/README.md) | Planned: `victoria-metrics-k8s-stack` (VictoriaMetrics, VictoriaLogs, Alertmanager), Grafana, Vector, Pushover, and the monitoring of the devices. |

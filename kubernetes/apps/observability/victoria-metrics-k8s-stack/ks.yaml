@@ -1,0 +1,41 @@
+---
+# Needs the ClusterSecretStore (the Pushover token and the ping URL of healthchecks.io), and the
+# Prometheus CRDs: the operator only looks for them at its start, and never converts the monitors
+# when they arrive later (docs/observability/README.md#metrics).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: victoria-metrics-k8s-stack
+spec:
+  dependsOn:
+    - name: external-secrets-stores
+      namespace: external-secrets
+    - name: prometheus-operator-crds
+  interval: 1h
+  path: ./kubernetes/apps/observability/victoria-metrics-k8s-stack/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: observability
+  wait: true
+---
+# Separate Kustomization: the manifests of the repository that use the VictoriaMetrics CRDs (the
+# etcd scrape, the rules of the repository from stage 4) need them installed by the release.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: victoria-metrics-k8s-stack-config
+spec:
+  dependsOn:
+    - name: victoria-metrics-k8s-stack
+  interval: 1h
+  path: ./kubernetes/apps/observability/victoria-metrics-k8s-stack/config
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: observability
+  wait: true

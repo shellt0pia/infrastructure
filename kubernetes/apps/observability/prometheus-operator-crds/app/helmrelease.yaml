@@ -1,0 +1,26 @@
+---
+# CRD-only chart, its CRDs rendered from `templates/` (subchart `crds`): Helm updates them with
+# every upgrade of the chart. They exist before the first install (`just bootstrap crds`): the
+# helm-controller takes them over, Flux leaving `install.disableTakeOwnership` to false.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: prometheus-operator-crds
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: prometheus-operator-crds
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    crds:
+      annotations:
+        # Uninstalling the release would delete the CRDs, and every monitor of the cluster with
+        # them.
+        helm.sh/resource-policy: keep

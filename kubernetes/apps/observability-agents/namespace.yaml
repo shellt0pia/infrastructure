@@ -1,0 +1,18 @@
+---
+# The agents of the observability stack that need the nodes, see
+# docs/observability/README.md#network-and-pod-security. The rest of the stack is in
+# `observability` (restricted).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability-agents
+  annotations:
+    # Never delete a namespace (and everything in it) because of a refactoring.
+    kustomize.toolkit.fluxcd.io/prune: disabled
+  labels:
+    # node-exporter (hostNetwork, hostPID, the root filesystem of the node in hostPath) and the
+    # Vector agent (hostPath: the pod logs, the Hubble files, its buffer): the Talos default
+    # (restricted) would reject them.
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged

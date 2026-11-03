@@ -49,3 +49,31 @@ spec:
         - ports:
             - port: "4244"
               protocol: TCP
+    # VMAgent scrapes the metrics of the nodes and of the hostNetwork pods
+    # (docs/observability/README.md#network-and-pod-security): the kubelet (and cAdvisor), etcd,
+    # the scheduler, the controller-manager, node-exporter, the Cilium agent and operator, Hubble,
+    # drbd-reactor (LINSTOR satellites).
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: observability
+            app.kubernetes.io/name: vmagent
+      toPorts:
+        - ports:
+            - port: "10250"
+              protocol: TCP
+            - port: "2381"
+              protocol: TCP
+            - port: "10259"
+              protocol: TCP
+            - port: "10257"
+              protocol: TCP
+            - port: "9100"
+              protocol: TCP
+            - port: "9962"
+              protocol: TCP
+            - port: "9963"
+              protocol: TCP
+            - port: "9965"
+              protocol: TCP
+            - port: "9942"
+              protocol: TCP

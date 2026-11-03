@@ -1,0 +1,37 @@
+---
+# Grafana, its own release (docs/observability/README.md#grafana). Needs the ClusterSecretStore
+# (the OIDC client) and VolSync (its volume, through the volsync component). The data sources and
+# the default dashboards come from the release of the stack, but Grafana starts without them: no
+# dependsOn on it.
+#
+# The volsync component substitutes the variables below in every manifest of the application: no
+# literal variable reference in them, the dashboards of the repository opt out with the
+# kustomize.toolkit.fluxcd.io/substitute annotation (app/kustomization.yaml).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: grafana
+spec:
+  components:
+    - ../../../../components/volsync
+  dependsOn:
+    - name: volsync
+      namespace: backups
+    - name: external-secrets-stores
+      namespace: external-secrets
+  interval: 1h
+  path: ./kubernetes/apps/observability/grafana/app
+  postBuild:
+    substitute:
+      APP: grafana
+      VOLSYNC_CAPACITY: 1Gi
+      # The user and group of the Grafana image.
+      VOLSYNC_UID: "472"
+      VOLSYNC_GID: "472"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: observability
+  wait: true

@@ -1,0 +1,22 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./ocirepository.yaml
+  - ./externalsecret.yaml
+  - ./role.yaml
+  - ./helmrelease.yaml
+# The dashboards of the repository, read by the sidecar of Grafana (label grafana_dashboard).
+# Grafana variables look like those of Flux: the substitution of the volsync component (ks.yaml)
+# must skip them.
+configMapGenerator:
+  - name: grafana-dashboards-repository
+    files:
+      - ./dashboards/denied-flows.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+      annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled

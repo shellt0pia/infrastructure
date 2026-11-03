@@ -1,0 +1,344 @@
+---
+# The VictoriaMetrics stack, see docs/observability/README.md#the-release-of-the-stack. Deployed
+# in stages (docs/observability/bootstrap.md): the operator and the Alertmanager at stage 1, the
+# metrics at stage 2, each later stage enables more of the components disabled below.
+#
+# The chart is in 0.x and its minors may break the values: read its changelog before every
+# upgrade, never automerge (docs/roadmap.md#upgrades).
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: victoria-metrics-k8s-stack
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: victoria-metrics-k8s-stack
+  # The chart ships the VictoriaMetrics CRDs in the `crds/` directory of its operator subchart,
+  # which Helm only installs once: CreateReplace also updates them on every chart upgrade.
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  values:
+    victoria-metrics-operator:
+      crds:
+        cleanup:
+          # Its hook deletes the CRDs, and every VictoriaMetrics resource with them, when the
+          # release is uninstalled.
+          enabled: false
+      # The chart default misses the seccomp profile that `restricted` requires.
+      podSecurityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      # To resize from the metrics.
+      resources:
+        requests:
+          cpu: 20m
+          memory: 128Mi
+        limits:
+          memory: 256Mi
+
+    # Enabled at the next stages (docs/observability/bootstrap.md): VictoriaLogs at stage 3,
+    # vmalert and the default rules at stage 4.
+    vlsingle:
+      enabled: false
+    vmalert:
+      enabled: false
+    defaultRules:
+      enabled: false
+      sources:
+        # Follows kubeEtcd.enabled, disabled below.
+        etcd:
+          enabled: true
+
+    # Never enabled here: the CoreDNS chart has its own monitor, and Talos runs etcd outside any
+    # pod (the VMNodeScrape of ../config instead).
+    coreDns:
+      enabled: false
+    kubeEtcd:
+      enabled: false
+
+    # The metrics, 90 days (docs/observability/README.md#storage-and-retention). One pod on a
+    # `replicated` volume: Piraeus moves it to another node with its data, the VMAgent replicas
+    # buffer meanwhile.
+    vmsingle:
+      spec:
+        retentionPeriod: 90d
+        extraArgs:
+          # Both VMAgent replicas scrape every target: keep one sample per series per scrape
+          # interval (the scrapeInterval of the VMAgent).
+          dedup.minScrapeInterval: 30s
+        storage:
+          storageClassName: replicated
+          resources:
+            requests:
+              storage: 50Gi
+        # Same security context as the Alertmanager, see there why it is written out in full.
+        useStrictSecurity: true
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          fsGroup: 65534
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
+          privileged: false
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        # To resize from the metrics.
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            memory: 1536Mi
+
+    # Two replicas that both scrape every target (no shardCount): a node lost costs no sample,
+    # VMSingle deduplicates (docs/observability/README.md#high-availability). It selects the
+    # monitors of every namespace (selectAllByDefault), the ServiceMonitors and PodMonitors
+    # converted by the operator included. Reaching the pods and the node ports: the baseline and
+    # host policies in kubernetes/apps/kube-system/cilium/policies.
+    vmagent:
+      spec:
+        replicaCount: 2
+        scrapeInterval: 30s
+        # On every series: the dashboards and rules that expect a `cluster` label (the
+        # clusterLabel of the chart) get one.
+        externalLabels:
+          cluster: kube-cluster01
+        podDisruptionBudget:
+          minAvailable: 1
+        # ScheduleAnyway: with 2 nodes, a strict constraint would leave a replica Pending while a
+        # node is down. The operator fills the label selector.
+        topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+        # Same security context as the Alertmanager, see there why it is written out in full.
+        useStrictSecurity: true
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          fsGroup: 65534
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
+          privileged: false
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        # To resize from the metrics.
+        resources:
+          requests:
+            cpu: 50m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
+
+    # The defaults of the subchart already meet `restricted`.
+    kube-state-metrics:
+      # To resize from the metrics.
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+
+    # hostNetwork, hostPID and the root filesystem of the node: in the privileged namespace
+    # (kubernetes/apps/observability-agents). Scraped on the port 9100 of the nodes.
+    prometheus-node-exporter:
+      namespaceOverride: observability-agents
+      # The scrape stays in `observability`: without it, it only looks for the Service there.
+      vmScrape:
+        spec:
+          namespaceSelector:
+            matchNames:
+              - observability-agents
+      # To resize from the metrics.
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 64Mi
+
+    # The kubelet (and cAdvisor) and the API server: the scrapes of the chart as they are.
+    # The scheduler and the controller-manager: the Service of the chart selects their static
+    # pods by the label `component`, which Talos sets too. They serve /metrics on 0.0.0.0 with
+    # a self-signed certificate (no --tls-cert-file on Talos): no verification.
+    kubeScheduler:
+      vmScrape:
+        spec:
+          endpoints:
+            - port: http-metrics
+              scheme: https
+              bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+              tlsConfig:
+                insecureSkipVerify: true
+    kubeControllerManager:
+      vmScrape:
+        spec:
+          endpoints:
+            - port: http-metrics
+              scheme: https
+              bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+              tlsConfig:
+                insecureSkipVerify: true
+
+    # Downloads the default dashboards (and the rules from stage 4) from upstream at each install
+    # or upgrade, and creates them as ConfigMaps and VMRules outside Helm and Flux. The sources
+    # stay on their default branches (docs/observability/evaluations.md#sources-of-the-rules-and-dashboards).
+    syncJob:
+      podSecurityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containerSecurityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+      extraVolumes:
+        - name: tmp
+          emptyDir: {}
+      extraVolumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      # To resize from the metrics.
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          memory: 256Mi
+    defaultDashboards:
+      sources:
+        # Follow kubeEtcd.enabled and coreDns.enabled, disabled above.
+        etcd:
+          enabled: true
+        kubernetes-system-coredns:
+          enabled: true
+
+    # Grafana has its own release (../../grafana). The stack still generates the ConfigMap of
+    # its data sources, read by the sidecar of Grafana (label grafana_datasource), next to
+    # those of the dashboards (label grafana_dashboard).
+    grafana:
+      enabled: false
+      forceDeployDatasource: true
+
+    alertmanager:
+      # Slack templates, no use for Pushover.
+      monzoTemplate:
+        enabled: false
+      spec:
+        # Two replicas, one per node when possible, that gossip the silences and the
+        # notifications already sent (docs/observability/README.md#high-availability).
+        replicaCount: 2
+        podDisruptionBudget:
+          minAvailable: 1
+        # ScheduleAnyway: with 2 nodes, a strict constraint would leave a replica Pending while a
+        # node is down. The operator fills the label selector.
+        topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+        # The security context of `restricted`, for the pod and every container. Written out in
+        # full: the chart sets a partial one (user and fsGroup only) when the spec has a volume,
+        # and any securityContext replaces the defaults of useStrictSecurity in the operator.
+        # 65534 (nobody): the user of the image, and the default of the operator.
+        useStrictSecurity: true
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          fsGroup: 65534
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
+          privileged: false
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        # Mounted under /etc/vm/secrets/alertmanager/ (externalsecret.yaml).
+        secrets:
+          - alertmanager
+        # The silences, a small `local` volume per replica: the gossip copies them to the
+        # other one.
+        storage:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: local
+              resources:
+                requests:
+                  storage: 1Gi
+        # To resize from the metrics.
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            memory: 128Mi
+      # docs/observability/README.md#alerting. Rendered as is into the configuration Secret (no
+      # Helm templating): the `{{ }}` are templates of the Alertmanager.
+      config:
+        global:
+          # Flux events carry no end time: an alert of Flux resolves after this.
+          resolve_timeout: 1h
+        route:
+          # Default receiver: an alert without a known severity (the Flux events are
+          # `severity=error`) still rings.
+          receiver: pushover-warning
+          group_by: [alertname, namespace]
+          repeat_interval: 12h
+          routes:
+            # Dead man's switch: the Watchdog alert (always firing) pings healthchecks.io every
+            # minute, which notifies by its own channel when the pings stop.
+            - matchers: ['alertname="Watchdog"']
+              receiver: healthchecks
+              group_wait: 0s
+              group_interval: 30s
+              repeat_interval: 1m
+            - matchers: ['severity="critical"']
+              receiver: pushover-critical
+            # Visible in Grafana only.
+            - matchers: ['severity="info"']
+              receiver: "null"
+        # A critical alert silences the warning of the same name (the two thresholds of a
+        # rule, as in kube-prometheus).
+        inhibit_rules:
+          - source_matchers: ['severity="critical"']
+            target_matchers: ['severity="warning"']
+            equal: [alertname, namespace]
+        receivers:
+          - name: "null"
+          - name: pushover-warning
+            pushover_configs:
+              - user_key_file: /etc/vm/secrets/alertmanager/pushover-user-key
+                token_file: /etc/vm/secrets/alertmanager/pushover-token
+                priority: "0"
+          - name: pushover-critical
+            pushover_configs:
+              - user_key_file: /etc/vm/secrets/alertmanager/pushover-user-key
+                token_file: /etc/vm/secrets/alertmanager/pushover-token
+                # Priority 1 (bypasses the quiet hours of Pushover, not the do-not-disturb
+                # mode of the phone), 0 for the resolution.
+                priority: '{{ if eq .Status "firing" }}1{{ else }}0{{ end }}'
+          - name: healthchecks
+            webhook_configs:
+              - url_file: /etc/vm/secrets/alertmanager/healthchecks-url
+                send_resolved: false

@@ -1,0 +1,22 @@
+---
+# etcd, which Talos runs outside any pod: the chart only finds it through a Service selecting a
+# pod or a list of addresses (docs/observability/README.md#the-release-of-the-stack). Talos binds
+# its metrics on http://0.0.0.0:2381 on every control plane node (port allowed to VMAgent by
+# kubernetes/apps/kube-system/cilium/policies/host.yaml).
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMNodeScrape
+metadata:
+  name: kube-etcd
+spec:
+  selector:
+    matchLabels:
+      node-role.kubernetes.io/control-plane: ""
+  port: "2381"
+  scheme: http
+  path: /metrics
+  relabelConfigs:
+    # The etcd rules and dashboard select `job=~".*etcd.*"`: the name the chart would give.
+    - targetLabel: job
+      replacement: kube-etcd
+    - sourceLabels: [__meta_kubernetes_node_name]
+      targetLabel: node

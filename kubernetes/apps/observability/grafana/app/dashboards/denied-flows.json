@@ -1,0 +1,115 @@
+{
+  "title": "Network policies: denied flows",
+  "uid": "denied-flows",
+  "description": "Flows that the network policies deny (action dropped) or would deny in audit mode (action audit), per workload, from the Hubble metrics `policy` and `drop`. See docs/cluster/README.md#network-policies.",
+  "tags": ["cilium", "hubble", "network-policies"],
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "time": {"from": "now-24h", "to": "now"},
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Data source",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {"text": "VictoriaMetrics", "value": "VictoriaMetrics"}
+      },
+      {
+        "name": "action",
+        "label": "Verdict",
+        "description": "audit: denied once the policies are enforced (audit mode). dropped: denied now.",
+        "type": "custom",
+        "query": "audit,dropped",
+        "multi": true,
+        "includeAll": false,
+        "current": {"text": ["audit", "dropped"], "value": ["audit", "dropped"]}
+      },
+      {
+        "name": "source_namespace",
+        "label": "Source namespace",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "${datasource}"},
+        "query": {"query": "label_values(hubble_policy_verdicts_total, source_namespace)", "refId": "source_namespace"},
+        "definition": "label_values(hubble_policy_verdicts_total, source_namespace)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {"text": "All", "value": "$__all"}
+      },
+      {
+        "name": "destination_namespace",
+        "label": "Destination namespace",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "${datasource}"},
+        "query": {"query": "label_values(hubble_policy_verdicts_total, destination_namespace)", "refId": "destination_namespace"},
+        "definition": "label_values(hubble_policy_verdicts_total, destination_namespace)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {"text": "All", "value": "$__all"}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Policy verdicts per flow",
+      "description": "Rate of the denied (or audited) flows, per source and destination workload. The workload is the one of the pod, else its app label, else the reserved identity (reserved:world, reserved:host...). The empty namespaces are those outside the cluster.",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"unit": "pps", "min": 0}, "overrides": []},
+      "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["max", "mean"], "sortBy": "Max", "sortDesc": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (action, direction, source_namespace, source, destination_namespace, destination) (rate(hubble_policy_verdicts_total{action=~\"$action\", source_namespace=~\"$source_namespace\", destination_namespace=~\"$destination_namespace\"}[$__rate_interval])) > 0",
+          "legendFormat": "{{action}} {{direction}}: {{source_namespace}}/{{source}} -> {{destination_namespace}}/{{destination}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Denied flows over the period",
+      "description": "Count of the denied (or audited) flows over the time range, the flows to allow first at the top.",
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 10},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0}, "overrides": []},
+      "options": {"showHeader": true, "sortBy": [{"displayName": "Flows", "desc": true}]},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (action, direction, match, source_namespace, source, destination_namespace, destination) (increase(hubble_policy_verdicts_total{action=~\"$action\", source_namespace=~\"$source_namespace\", destination_namespace=~\"$destination_namespace\"}[$__range])) > 0",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {"id": "organize", "options": {"excludeByName": {"Time": true}, "renameByName": {"Value": "Flows", "action": "Verdict", "direction": "Direction", "match": "Match", "source_namespace": "Source namespace", "source": "Source", "destination_namespace": "Destination namespace", "destination": "Destination"}, "indexByName": {"action": 0, "direction": 1, "source_namespace": 2, "source": 3, "destination_namespace": 4, "destination": 5, "match": 6, "Value": 7}}}
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Dropped packets by reason",
+      "description": "Every drop of the datapath, not only the policies (POLICY_DENIED). Stays empty for the policies while they are in audit mode.",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 22},
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {"defaults": {"unit": "pps", "min": 0}, "overrides": []},
+      "options": {"legend": {"displayMode": "table", "placement": "right", "calcs": ["max", "mean"], "sortBy": "Max", "sortDesc": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (reason, source_namespace, source, destination_namespace, destination) (rate(hubble_drop_total{source_namespace=~\"$source_namespace\", destination_namespace=~\"$destination_namespace\"}[$__rate_interval])) > 0",
+          "legendFormat": "{{reason}}: {{source_namespace}}/{{source}} -> {{destination_namespace}}/{{destination}}"
+        }
+      ]
+    }
+  ]
+}

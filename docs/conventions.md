@@ -161,7 +161,7 @@ spec:
 
 ### Routes and names
 
-- A route lists its `hostnames` and its `parentRefs`: the DNS records are created from them ([dns](dns/README.md#overview)). Applications are served in `shelltopia.org`.
+- A route lists its `hostnames` and its `parentRefs`: the DNS records are created from them ([dns](dns/README.md#overview)). Applications are served in `shelltopia.org`, as `<appname>.shelltopia.org` where `<appname>` is the name of the application (its folder in `kubernetes/apps`): `grafana.shelltopia.org`.
 - A public route is attached to both Gateways ([ingress](ingress/runbook.md#exposing-an-application)).
 - A volume to back up goes through the `volsync` component, one volume per application ([backups](backups/runbook.md#backing-up-an-application)).
 
