@@ -5,6 +5,7 @@ kind: Kustomization
 namespace: cert-manager
 components:
   - ../../components/network-policies
+  - ../../components/flux-alerts
 resources:
   - ./namespace.yaml
   - ./cert-manager/ks.yaml

@@ -1,0 +1,15 @@
+---
+# Flux notifications of a namespace, see docs/observability/README.md#alerting: the failed
+# reconciliations of its Flux objects go to the Alertmanager. An Alert only selects objects of
+# its own namespace (no wildcard on the namespace), and every Flux object lives in the namespace
+# of its application: hence one Provider and one Alert per namespace.
+#
+# Usage, in the kustomization.yaml of each namespace (kubernetes/apps/<namespace>), which sets
+# the namespace of the Provider and the Alert:
+#
+#   components:
+#     - ../../components/flux-alerts
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - ./alert.yaml

@@ -5,6 +5,7 @@ kind: Kustomization
 namespace: envoy-gateway-system
 components:
   - ../../components/network-policies
+  - ../../components/flux-alerts
 resources:
   - ./namespace.yaml
   - ./envoy-gateway/ks.yaml

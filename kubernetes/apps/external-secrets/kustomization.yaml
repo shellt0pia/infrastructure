@@ -5,6 +5,7 @@ kind: Kustomization
 namespace: external-secrets
 components:
   - ../../components/network-policies
+  - ../../components/flux-alerts
 resources:
   - ./namespace.yaml
   - ./external-secrets/ks.yaml
