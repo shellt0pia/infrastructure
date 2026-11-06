@@ -4,7 +4,7 @@ locals {
     "caa-letsencrypt" = { name = "@", type = "CAA", ttl = 3600, data = { flags = 0, tag = "issue", value = "letsencrypt.org" } }
     # Required by PikaPods.
     "caa-sectigo" = { name = "@", type = "CAA", ttl = 3600, data = { flags = 0, tag = "issue", value = "sectigo.com" } }
-    "id"     = { name = "id", type = "CNAME", content = "silver-hamster.pikapod.net" }
-    "uptime" = { name = "uptime", type = "CNAME", content = "strategic-asp.pikapod.net" }
+    "cname-id" = { name = "id", type = "CNAME", content = "silver-hamster.pikapod.net" }
+    "cname-uptime" = { name = "uptime", type = "CNAME", content = "strategic-asp.pikapod.net" }
   })
 }
