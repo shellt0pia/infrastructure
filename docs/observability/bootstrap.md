@@ -105,7 +105,7 @@ The first slice of the stack, so that the alert path exists before anything else
 
 ## 3. Logs
 
-- [ ] **Deploy.** In the stack: `vlsingle` (30 Gi `replicated`, 30 days, `-retention.maxDiskSpaceUsageBytes` at 25 GiB) and the VictoriaLogs plugin of Grafana (`grafana.plugins`, in the values of the stack for its data source and in those of Grafana). The Vector agent (pod logs, Hubble export, disk buffers in `/var/lib/vector`) in `observability-agents`. The Vector aggregator (StatefulSet, two replicas, a `local` volume each) behind its LoadBalancer Service pinned on `192.168.19.2` and `fd38:4c4d:8f66:13::2` (`externalTrafficPolicy: Local`, [ports](README.md#logs)). Network policies: the agent to VictoriaLogs, the aggregator from `world` (the agent, the kubelet and Talos from `host` through the baseline).
+- [x] **Deploy.** In the stack: `vlsingle` (30 Gi `replicated`, 30 days, `-retention.maxDiskSpaceUsageBytes` at 25 GiB) and the VictoriaLogs plugin of Grafana (`grafana.plugins`, in the values of the stack for its data source and in those of Grafana). The Vector agent (pod logs, Hubble export, disk buffers in `/var/lib/vector`) in `observability-agents`. The Vector aggregator (StatefulSet, two replicas, a `local` volume each) behind its LoadBalancer Service pinned on `192.168.19.2` and `fd38:4c4d:8f66:13::2` (`externalTrafficPolicy: Local`, [ports](README.md#logs)). Network policies: the agent to VictoriaLogs, the aggregator from `world` (the agent, the kubelet and Talos from `host` through the baseline).
 
   ```sh
   flux -n observability get ks,hr
@@ -131,7 +131,7 @@ The first slice of the stack, so that the alert path exists before anything else
 
   Expected: the agent and aggregator pods `up` (two each), no error, no audited flow to VictoriaLogs.
 
-- [ ] **Talos.** `talos/patches/logging.yaml.j2`: `machine.logging.destinations` (service logs) and `KmsgLogConfig` (kernel logs), in `json_lines` to the hostPorts of the Vector agent of the node, `127.0.0.1:6051` and `127.0.0.1:6050`. The agent with its hostPorts first, then `just talos diff`, then the apply on one node first.
+- [x] **Talos.** `talos/patches/logging.yaml.j2`: `machine.logging.destinations` (service logs) and `KmsgLogConfig` (kernel logs), in `json_lines` to the hostPorts of the Vector agent of the node, `127.0.0.1:6051` and `127.0.0.1:6050`. The agent with its hostPorts first, then `just talos diff`, then the apply on one node first.
 
   ```sh
   kubectl -n observability-agents get ds vector-agent -o jsonpath='{.spec.template.spec.containers[0].ports}{"\n"}'
@@ -142,7 +142,7 @@ The first slice of the stack, so that the alert path exists before anything else
 
   Expected: the hostPorts 6050 and 6051 on `127.0.0.1`, the diff limited to the two destinations, no audited flow to the agent. In *Explore*: `log_source:talos-service | stats by (node) count()` and the same for `talos-kernel`, a line per node with its short name. Then the other node.
 
-- [ ] **Source address of the syslog** (`externalTrafficPolicy: Local`). From the workstation (the OPNsense rules must let it reach the aggregator on 514), over TCP then UDP:
+- [x] **Source address of the syslog** (`externalTrafficPolicy: Local`). From the workstation (the OPNsense rules must let it reach the aggregator on 514), over TCP then UDP:
 
   ```sh
   logger --tcp -n syslog.kube-cluster01.shelltopia.net -P 514 'stage 3 test, TCP'
