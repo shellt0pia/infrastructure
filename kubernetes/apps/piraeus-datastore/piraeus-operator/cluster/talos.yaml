@@ -15,6 +15,17 @@ data:
       archive = 1
     }
 ---
+# Talos has no /etc/selinux/config, mounted by the operator into the CSI node plugin: libselinux
+# then reports SELinux as disabled, and `mount` silently drops the `context` option of the
+# StorageClasses. This file replaces the host directory (LinstorCluster, csiNode).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: talos-selinux-config
+data:
+  config: |
+    # Only the presence of this file matters (libselinux is_selinux_enabled).
+---
 # - DRBD comes from the siderolabs/drbd extension and the modules are loaded by Talos
 #   (talos/patches/drbd.yaml): drop the module loader, which would try to build DRBD, and
 #   the kernel modules and sources mounts.

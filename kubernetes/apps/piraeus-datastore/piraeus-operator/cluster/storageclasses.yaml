@@ -12,6 +12,14 @@
 # Retain: deleting a PVC (or the app) never deletes the data. Released PVs and their LINSTOR
 # resources must be cleaned up by hand (`kubectl delete pv`, then `kubectl linstor
 # resource-definition delete`).
+#
+# SELinux: Talos cannot label the volumes that a CSI driver mounts, their files would be
+# `unlabeled_t` and every access of a pod an AVC denial (refused once Talos is enforcing). The
+# `context` mount option of every class labels the whole filesystem `ephemeral_t`, the label of
+# the Talos user volumes, which the pods can read and write (Talos documentation, SELinux, CSI
+# volumes). It is copied into each PV at its creation: an existing PV is patched by hand
+# (docs/storage/runbook.md, SELinux label of an existing volume). No pod may set
+# `seLinuxOptions`: the kubelet would then add its own `context` to the mount.
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -28,6 +36,8 @@ reclaimPolicy: Retain
 allowVolumeExpansion: true
 # Place the first replica on the node of the pod (local reads).
 volumeBindingMode: WaitForFirstConsumer
+mountOptions:
+  - context=system_u:object_r:ephemeral_t:s0
 ---
 # Same volumes as `replicated` (same resource group and placement, so that a snapshot of a
 # `replicated` volume can be restored into it), but deleted with their PVC. Only for the
@@ -48,6 +58,8 @@ parameters:
 reclaimPolicy: Delete
 allowVolumeExpansion: true
 volumeBindingMode: WaitForFirstConsumer
+mountOptions:
+  - context=system_u:object_r:ephemeral_t:s0
 ---
 # Single copy on the node of the pod, without DRBD: no replication, no network traffic. For data
 # that is replicated by the application itself or that can be lost (caches, metrics, logs).
@@ -67,3 +79,5 @@ parameters:
 reclaimPolicy: Retain
 allowVolumeExpansion: true
 volumeBindingMode: WaitForFirstConsumer
+mountOptions:
+  - context=system_u:object_r:ephemeral_t:s0

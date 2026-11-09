@@ -23,3 +23,13 @@ spec:
   # NFS exports of LINSTOR volumes, for ReadWriteMany: not needed, shared data lives on the NAS.
   nfsServer:
     enabled: false
+  # Talos: /etc/selinux/config for the `mount` of the CSI node plugin (talos.yaml).
+  csiNode:
+    enabled: true
+    podTemplate:
+      spec:
+        volumes:
+          - name: etc-selinux
+            hostPath: null
+            configMap:
+              name: talos-selinux-config

@@ -101,6 +101,38 @@ LINSTOR allows overcommitting the thin pool by default: the volumes can be bigge
 
 - [ ] **Limit the overcommit**, to stop volumes from being provisioned past what the disk can hold: set `MaxOversubscriptionRatio` on the `LinstorCluster` in `kubernetes/apps/piraeus-datastore`.
 
+## SELinux label of an existing volume
+
+The StorageClasses mount the volumes with the `ephemeral_t` SELinux context ([decisions](README.md#decisions)). The option is copied into each PV at its creation: the PVs created before it are mounted without it, their files are `unlabeled_t` and every write of a pod is an AVC denial.
+
+1. **Find the PVs without the option:**
+
+   ```sh
+   kubectl get pv -o custom-columns='PV:.metadata.name,SC:.spec.storageClassName,NS:.spec.claimRef.namespace,PVC:.spec.claimRef.name,OPTS:.spec.mountOptions'
+   ```
+
+   Expected: `<none>` in `OPTS` for the LINSTOR PVs to patch.
+
+2. **Patch the PV:**
+
+   ```sh
+   kubectl patch pv <pv> --type merge -p '{"spec":{"mountOptions":["context=system_u:object_r:ephemeral_t:s0"]}}'
+   ```
+
+3. **Mount it again**, the option only applies to a new mount: delete the pod that uses it. A VolSync cache volume is mounted again at the next sync.
+
+   ```sh
+   kubectl -n <namespace> delete pod <pod>
+   ```
+
+4. **Check the mount** on the node of the new pod:
+
+   ```sh
+   talosctl -n <node> read /proc/mounts | grep <pv>
+   ```
+
+   Expected: `context="system_u:object_r:ephemeral_t:s0"` in the options, and no new `unlabeled_t` denial in VictoriaLogs (`log_source:talos-service "talos-service":auditd unlabeled_t`).
+
 ## Mounting a NAS share
 
 The shares of the NAS already exist, with their data: a static PersistentVolume points to one, nothing is provisioned. The inline `nfs` pod volumes are forbidden by [Pod Security](../cluster/README.md#pod-security). A PV binds a single PVC: one PV per share and per namespace that mounts it, named `<namespace>-<share>`, next to the application (in `app/`).
