@@ -7,7 +7,8 @@
 # Never write `op://` in a comment of a template: `op inject` would try to resolve it.
 
 # DNS domain of the nodes: `<node>.<domain>` is both their hostname (machine config) and the
-# name used by talosctl to reach them. These names only have AAAA records (ULA addresses).
+# name used by talosctl to reach them. These names have A and AAAA records (IPv4 and ULA
+# addresses), with their PTR (docs/network/README.md#names).
 domain: shelltopia.net
 
 cluster:

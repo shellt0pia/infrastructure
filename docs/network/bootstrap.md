@@ -19,7 +19,7 @@ Create every prerequisite of a step before starting it, then follow the steps in
 
 ## 2. DNS (Unbound, internal only)
 
-- [x] **Node names.** Add host overrides `kube-01` and `kube-03` in `shelltopia.net`: **AAAA records only**, with the ULA address of the [table](README.md#nodes-subnet).
+- [x] **Node names.** Add host overrides `kube-01` and `kube-03` in `shelltopia.net`: an **A record** (reserved IPv4) and an **AAAA record** (ULA address) of the [table](README.md#nodes-subnet), with their PTR. The A records were added at the [logs stage](../observability/bootstrap.md#3-logs).
 - [x] **Cluster endpoint.** Add host overrides **with the same name** `kube-cluster01.shelltopia.net`, one AAAA record per node (ULA address). This DNS round-robin is the `cluster.endpoint`.
 - [x] **Check the endpoint:**
 
@@ -32,11 +32,11 @@ Create every prerequisite of a step before starting it, then follow the steps in
 - [x] **Check the NTP server.** `ntp-01.shelltopia.net` (`network.ntp_servers` in `talos/vars.yaml`) resolves from the nodes subnet.
 - [x] **Cloudflare.** **Do not** create these records on Cloudflare: the Kubernetes and Talos APIs must stay internal.
 
-The reasons for AAAA records only are in the [README](README.md#names).
+Why the node names have A records and the cluster endpoint none: see the [README](README.md#names).
 
 ## 3. Firewall
 
-- [x] **Administration.** Administration subnets (`fd38:4c4d:8f66:a::/64`, and optionally `192.168.10.0/24` and `2a02:8434:f003:d10a::/64`) → nodes: TCP 50000 (Talos API) and 6443 (Kubernetes API). The names only resolve to ULA addresses, so the ULA rule is the one used.
+- [x] **Administration.** Administration subnets (`fd38:4c4d:8f66:a::/64`, and optionally `192.168.10.0/24` and `2a02:8434:f003:d10a::/64`) → nodes: TCP 50000 (Talos API) and 6443 (Kubernetes API). The cluster endpoint only resolves to ULA addresses. The node names also resolve to IPv4 addresses ([names](README.md#names)), which clients prefer: the IPv4 rule is then the one used by `talosctl`.
 - [x] **DNS and NTP.** Nodes → OPNsense: DNS (TCP/UDP 53) and NTP (UDP 123, addresses of `ntp-01.shelltopia.net`).
 - [x] **Internet.** Nodes → Internet over HTTPS (443), IPv4 and IPv6:
   - images: `factory.talos.dev`, `ghcr.io`, `registry.k8s.io` (and its CDNs), Docker Hub (`registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com`);

@@ -8,7 +8,7 @@ The names, addresses, ports, namespaces, items and schedules scattered in the to
 | --- | --- | --- |
 | `shelltopia.org` | The services: every application name, served by the wildcard certificate `*.shelltopia.org` | [ingress](ingress/README.md#certificate) |
 | `shelltopia.net` | The infrastructure: nodes, firewall, NAS, NTP, UPS | [network](network/README.md#nodes-subnet) |
-| `kube-01`, `kube-02`, `kube-03` (`.shelltopia.net`) | The nodes, AAAA records only (ULA addresses) | [network](network/README.md#names) |
+| `kube-01`, `kube-02`, `kube-03` (`.shelltopia.net`) | The nodes, A and AAAA records (IPv4 and ULA addresses) with their PTR | [network](network/README.md#names) |
 | `kube-cluster01.shelltopia.net` | The cluster endpoint: DNS round-robin, one AAAA per node, API on port 6443 | [network](network/README.md#principles) |
 | `gateway-external.kube-cluster01.shelltopia.net` | Entry name of the external Gateway, target of the public CNAMEs | [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
 | `syslog.kube-cluster01.shelltopia.net` | The Vector aggregator: Talos logs and syslog of the devices. Unbound host overrides, `A` and `AAAA` to its pinned addresses | [observability](observability/README.md#logs) |
