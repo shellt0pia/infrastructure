@@ -6,21 +6,17 @@ Day-to-day administration of the network. Architecture: [README.md](README.md).
 
 What to update when the ISP delegates a new IPv6 prefix. Current delegated prefix: `2a02:8434:f003:d100::/56`.
 
-Until the Milkywan WireGuard tunnel gives a stable public prefix (see the [roadmap](../roadmap.md#to-check-or-watch)), the GUA prefix can change at any time. Since external IPv6 access is broken anyway until the procedure is done, it does not need to be zero-downtime.
+The ISP prefix can change at any time, but it now only concerns the LAN subnets. The nodes subnet and the `external` LB pool use the stable Milkywan /48 (`2a0e:e701:2132::/48`, [milkywan.md](milkywan.md)): neither the cluster nor the nodes follow the ISP prefix anymore. Since external IPv6 access of the LAN is broken anyway until the procedure is done, it does not need to be zero-downtime.
 
 ### What does not change
 
-The [configuration](README.md#what-does-not-change-with-a-new-prefix) was designed so that a prefix change has almost no impact: the ULA prefix and every ULA address, the cluster ranges, and the subnet IDs (OPNsense keeps the same prefix ID on each interface, only the first 56 bits change).
+The [configuration](README.md#what-does-not-change-with-a-new-prefix) was designed so that a prefix change has almost no impact: the ULA prefix and every ULA address, the cluster ranges, the Milkywan /48 and the subnet IDs (OPNsense keeps the same prefix ID on each interface, only the first 56 bits change).
 
-New GUA prefix of a subnet = first 56 bits of the new delegated prefix + the same subnet ID (2 hex digits, ID `13` in the example below). Example with a new delegated prefix `2001:db8:1234:ab00::/56`:
+New GUA prefix of a subnet = first 56 bits of the new delegated prefix + the same subnet ID (2 hex digits). Example with a new delegated prefix `2001:db8:1234:ab00::/56`:
 
 | Usage | Subnet ID | Current | New |
 | --- | --- | --- | --- |
 | Administration subnet | `0a` | `2a02:8434:f003:d10a::/64` | `2001:db8:1234:ab0a::/64` |
-| Nodes subnet | `0f` | `2a02:8434:f003:d10f::/64` | `2001:db8:1234:ab0f::/64` |
-| `external` LB pool | `13` | `2a02:8434:f003:d113::/64` | `2001:db8:1234:ab13::/64` |
-
-If the ISP ever delegates a smaller prefix (e.g. a /60, with subnet IDs `0` to `f` only), subnet ID `13` no longer fits: pick a new ID for the `external` pool and update the documentation accordingly.
 
 ### Automatic (nothing to do)
 
@@ -28,86 +24,39 @@ If the ISP ever delegates a smaller prefix (e.g. a /60, with subnet IDs `0` to `
 | --- | --- |
 | OPNsense interfaces and router advertisements | Interfaces track the WAN delegated prefix (DHCPv6-PD). |
 | OPNsense *Dynamic IPv6 Host* aliases | The interface identifier is combined with the current prefix of the interface. |
-| Talos nodes | SLAAC: the new GUA address shows up, the old one expires (its lifetime, or earlier if OPNsense deprecates the old prefix). The machine configs never reference the GUA (`nodeIP` and etcd use IPv4 and ULA only). |
-| Kubernetes | Node IPs are IPv4 and ULA. Pod egress to the Internet is masqueraded by iptables, the kernel picks the new GUA as source address. |
 | Cilium BGP sessions | Between ULA addresses. |
 | NAS | Static ULA on the nodes subnet, SLAAC on its main interface. |
 
 ### Manual
 
-Order matters: let OPNsense accept the new routes **before** the cluster advertises them.
+#### 1. Repository: pod baseline
 
-#### 1. OPNsense: BGP prefix list
-
-*Routing → BGP → Prefix Lists*:
-
-- [ ] **Prefix list.** `kube-cluster01-lb-v6`, seq `20`: replace the network with `<new external pool /64> le 128`.
-- [ ] **Check.** Apply, then:
-
-  ```sh
-  vtysh -c 'show running-config' | grep kube-cluster01-lb-v6
-  ```
-
-  Expected: both entries, the seq `20` one with the new prefix.
-
-#### 2. Repository: `external` LB pool
-
-- [ ] **Pool.** In `kubernetes/apps/kube-system/cilium/networking/pools.yaml`, replace the GUA block of the `external` pool.
-- [ ] **Pinned addresses.** Every LoadBalancer Service pins its addresses with the `lbipam.cilium.io/ips` annotation ([conventions](../conventions.md#loadbalancer-addresses)): update the GUA ones of the `external` pool (the external Gateway), and the [reference](../reference.md#pinned-loadbalancer-addresses):
-
-  ```sh
-  git grep 'lbipam.cilium.io/ips'
-  ```
-
-- [ ] **Pod baseline.** In `kubernetes/apps/kube-system/cilium/policies/baseline.yaml`, replace the delegated /56 in the `except` list of `::/0`. Until then, the pods can reach the GUA of the other nodes as `world`, past the host firewall ([cluster](../cluster/README.md#network-policies)).
+- [ ] **Pod baseline.** In `kubernetes/apps/kube-system/cilium/policies/baseline.yaml`, replace the delegated /56 in the `except` list of `::/0` (keep the Milkywan /48). Until then, the pods can reach the GUA of the LAN devices as `world`, past their firewall ([cluster](../cluster/README.md#network-policies)).
 - [ ] **Deployment.** Commit and push, then:
 
   ```sh
-  flux reconcile kustomization cilium-networking -n kube-system --with-source
-  flux reconcile kustomization cilium-policies -n kube-system
+  flux reconcile kustomization cilium-policies -n kube-system --with-source
   ```
 
-- [ ] **Pool and Services.** Check that the pool is not `CONFLICTING` and that the external Services got a new IPv6 address from the new prefix:
+#### 2. OPNsense: firewall
 
-  ```sh
-  kubectl get ciliumloadbalancerippools
-  kubectl get svc -A -l lbipam.shelltopia.net/pool=external
-  ```
-
-  If a Service keeps its old address, remove the address from its status or recreate it.
-
-- [ ] **Routes.** On OPNsense:
-
-  ```sh
-  vtysh -c 'show bgp ipv6 unicast'
-  ```
-
-  Expected: the /128 routes of the new prefix, the old ones are gone.
-
-#### 3. OPNsense: firewall and NAT
-
-- [ ] **WAN rules.** Inbound IPv6 to the `external` pool (or to its addresses).
-- [ ] **Administration rule.** *Administration subnets → LoadBalancer pools* ([firewall](bootstrap.md#3-firewall)).
+- [ ] **Administration rule.** *Administration subnets → nodes* and *→ LoadBalancer pools* ([firewall](bootstrap.md#3-firewall)), if they use the GUA of the administration subnet.
 - [ ] **GUA networks.** Any rule or alias written with a GUA network instead of an interface network macro (`<interface> net`) or a *Dynamic IPv6 Host* alias. To find them, search for the old prefix in *System → Configuration → Backups* (download the XML).
 
-#### 4. DNS
+#### 3. DNS
 
-- [ ] **Cloudflare.** Nothing to do for the applications. Their names are CNAMEs to `gateway-external.kube-cluster01.shelltopia.net`, whose `AAAA` record is updated by external-dns from the new address of the Service:
-
-  ```sh
-  dig +short AAAA gateway-external.kube-cluster01.shelltopia.net @1.1.1.1
-  ```
-
-  Expected: the new address. Other AAAA records with a GUA address managed by OpenTofu, if any: update them in `tofu/cloudflare`, then:
+- [ ] **OpenTofu.** AAAA records with an ISP GUA address, if any: update them in `tofu/cloudflare`, then:
 
   ```sh
   just tofu plan cloudflare
   just tofu apply cloudflare
   ```
 
-- [ ] **Unbound.** Host overrides with a GUA address, if any (the node names and internal services use ULA addresses).
+  The applications are not concerned: their names are CNAMEs to `gateway-external.kube-cluster01.shelltopia.net`, in the Milkywan /48.
 
-#### 5. Elsewhere
+- [ ] **Unbound.** Host overrides with an ISP GUA address, if any (the node names and internal services use ULA addresses).
+
+#### 4. Elsewhere
 
 - [ ] **Ansible.** `home` and the other Ansible-managed hosts, while they still exist: the production inventory is encrypted, check it for the old prefix:
 
@@ -124,26 +73,10 @@ Order matters: let OPNsense accept the new routes **before** the cluster adverti
 
 ### Final checks
 
-- [ ] **Nodes:**
-
-  ```sh
-  talosctl get addresses
-  ```
-
-  Expected: the new GUA address on every node.
-
-- [ ] **From a pod:**
-
-  ```sh
-  curl -6 https://ifconfig.co
-  ```
-
-  Expected: the new GUA address of its node.
-
-- [ ] **From outside** (e.g. mobile network): the public services answer over IPv6.
+- [ ] **From the LAN:** a host has an address of the new prefix and reaches the internet over IPv6.
+- [ ] **Pods:** the baseline still blocks the LAN. From a pod, the NAS, OPNsense and the other LAN devices are unreachable, except by an exception by name.
 
 ### Reducing the work
 
-- Use a single OPNsense *Network* alias for the `external` pool in every rule: one place to change instead of every rule.
-- The GUA addresses pinned on the Services (`lbipam.cilium.io/ips`) are in the [reference](../reference.md#pinned-loadbalancer-addresses): only the external Gateway has some.
-- Once the Milkywan tunnel is in place, the `external` pool moves to its stable prefix and this procedure no longer applies to it.
+- Use a single OPNsense *Network* alias for the ISP prefixes in every rule: one place to change instead of every rule.
+- Prefer interface network macros and *Dynamic IPv6 Host* aliases to GUA networks in the rules.

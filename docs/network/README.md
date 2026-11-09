@@ -5,6 +5,7 @@ How the nodes are addressed and reached, and how OPNsense routes the cluster: DH
 | Document | Content |
 | --- | --- |
 | [bootstrap.md](bootstrap.md) | First configuration of OPNsense for the cluster (DHCP, DNS, firewall, BGP) and the network tests after the bootstrap. |
+| [milkywan.md](milkywan.md) | Plan for the Milkywan WireGuard tunnel (stable public IPv4 and IPv6 /48) and the move of the `external` pool to it. |
 | [runbook.md](runbook.md) | Day-to-day: what to update when the ISP delegates a new IPv6 prefix. |
 | [evaluations.md](evaluations.md) | The choices considered, and the points to check or watch. |
 
@@ -15,14 +16,15 @@ How the nodes are addressed and reached, and how OPNsense routes the cluster: DH
 | DHCP, router advertisements, names of the nodes | OPNsense (DHCPv4, RA, Unbound) | Done for kube-01 and kube-03, [kube-02](../nodes/runbook.md#adding-kube-02) when `home` is migrated |
 | Firewall | OPNsense | Done, the rules of the Gateways are in [ingress](../ingress/bootstrap.md#firewall) |
 | BGP | FRR on OPNsense, Cilium BGP control plane | In use, [checklist](bootstrap.md#4-bgp-frr) |
-| IPv6 prefix change | Procedure | [Written](runbook.md#ipv6-prefix-change), the prefix may change at any time |
-| Stable public prefix | Milkywan WireGuard tunnel | Planned ([open points](evaluations.md#open-points)) |
+| IPv6 prefix change | Procedure | [Written](runbook.md#ipv6-prefix-change), the prefix may change at any time (LAN only) |
+| Stable public prefix | Milkywan WireGuard tunnel | Tunnel in place, the nodes subnet and the `external` pool use its /48 ([plan](milkywan.md)). Left: DNS ([open points](evaluations.md#open-points)) |
 
 ## Overview
 
 ```mermaid
 flowchart TD
     ISP["ISP: WAN IPv4, delegated IPv6 prefix"] --> OPN
+    MW["Milkywan WireGuard tunnel: routed IPv4 and IPv6 /48"] --> OPN
     CLIENTS["LAN and VPN clients"] --> OPN
     OPN["OPNsense: firewall, DHCPv4, router advertisements, Unbound, FRR AS 64512"] -->|"DHCPv4 mappings, SLAAC, names of the nodes"| NODES
     NODES["Nodes subnet: kube-01, kube-02, kube-03, Cilium BGP AS 64513"] -->|"eBGP, one IPv4 and one IPv6 session per node"| OPN
@@ -35,14 +37,14 @@ The nodes get their addresses from OPNsense and open the BGP sessions towards it
 ## Principles
 
 - **Everything dynamic, FQDN wherever possible**: DHCPv4 static mappings, SLAAC with EUI-64 addresses, `ntp-01.shelltopia.net`, `ups-01-dmz.shelltopia.net`. The only exception is the LoadBalancer addresses of the cluster, all pinned and listed in the [reference](../reference.md#pinned-loadbalancer-addresses): Unbound only forwards to addresses (k8s-gateway), some devices only send to an address (the TrueNAS Graphite exporter), and a Service left dynamic could take the address that another one pins ([conventions](../conventions.md#loadbalancer-addresses)).
-- **The GUA prefix may change**: it is never used in the configs, except in the `external` LB pool and the matching OPNsense prefix list. Everything else uses the ULA prefix ([prefix change](runbook.md#ipv6-prefix-change)).
+- **The ISP GUA prefix may change**: only the LAN subnets use it, and it is never used in the configs of the cluster. The nodes subnet and the `external` LB pool use the stable Milkywan /48 ([Milkywan](milkywan.md)), everything else the ULA prefix ([prefix change](runbook.md#ipv6-prefix-change)).
 - Node names have **AAAA records only** (ULA): hosts must use IPv6 ULA to reach them. No A record is needed.
 - Cluster endpoint: DNS round-robin `kube-cluster01.shelltopia.net` (one AAAA per node).
 - OPNsense filters everything entering the nodes subnet: no Talos ingress firewall ([nodes](../nodes/README.md#decisions)). The traffic of the pods to the nodes and to the LAN is filtered by the Cilium network policies ([cluster](../cluster/README.md#network-policies)).
 
 ## Nodes subnet
 
-Nodes subnet: `192.168.15.0/24`, `fd38:4c4d:8f66:f::/64` (ULA) and `2a02:8434:f003:d10f::/64` (GUA, delegated, may change). Talos configures it dynamically, no address is hardcoded in the machine configuration:
+Nodes subnet: `192.168.15.0/24`, `fd38:4c4d:8f66:f::/64` (ULA) and `2a0e:e701:2132:f::/64` (GUA, from the Milkywan /48, static on OPNsense). Talos configures it dynamically, no address is hardcoded in the machine configuration:
 
 - DHCPv4: IPv4 address, gateway, DNS server and domain name;
 - router advertisements: SLAAC with EUI-64 addresses for the ULA and GUA prefixes, RDNSS.
@@ -83,7 +85,8 @@ The configuration was designed so that a prefix change has almost no impact:
 
 - the ULA prefix `fd38:4c4d:8f66::/48` and every ULA address: node names, cluster endpoint, etcd, BGP sessions, `internal` LB pool, NAS, NTP, DNS;
 - the cluster ranges (`fd1b:654d:9afe::/48`), never routed outside the cluster;
-- the subnet IDs: OPNsense keeps the same prefix ID on each interface, only the first 56 bits change.
+- the subnet IDs: OPNsense keeps the same prefix ID on each interface, only the first 56 bits change;
+- the nodes subnet and the `external` LB pool, in the Milkywan /48 (`2a0e:e701:2132::/48`), which does not depend on the ISP.
 
 What does change is listed in the [runbook](runbook.md#ipv6-prefix-change).
 
@@ -99,7 +102,7 @@ The LoadBalancer IPs of the Services are advertised by every node to OPNsense wi
 | Pool | IPv4 | IPv6 | Services |
 | --- | --- | --- | --- |
 | `internal` | `192.168.19.0/25` | `fd38:4c4d:8f66:13::/64` | default |
-| `external` | `192.168.19.128/25` | `2a02:8434:f003:d113::/64` (GUA, from the delegated /56) | label `lbipam.shelltopia.net/pool: external` |
+| `external` | `192.168.19.128/25` | `2a0e:e701:2132:13::/64` (GUA, from the Milkywan /48) | label `lbipam.shelltopia.net/pool: external` |
 
 These prefixes are only routed through BGP: **do not assign them to any interface**, and do not use them anywhere else. Internet exposure is still decided by OPNsense ([ingress](../ingress/README.md#overview)).
 

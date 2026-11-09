@@ -134,7 +134,7 @@ All of it waits for kube-02: rebooting one of the two etcd members loses the quo
 
 The points of each topic are kept in its `evaluations.md`.
 
-- [ ] Network: ECMP and multi-WAN on OPNsense, the NAS *Pre Init* script, the ISP prefix change, the Milkywan WireGuard tunnel (planned, stable public prefix), Cilium `bpf.masquerade`: [network/evaluations.md](network/evaluations.md#open-points).
+- [ ] Network: ECMP and multi-WAN on OPNsense, the NAS *Pre Init* script, the ISP prefix change, the Milkywan WireGuard tunnel (in place, left: DNS), Cilium `bpf.masquerade`: [network/evaluations.md](network/evaluations.md#open-points).
 - [ ] Nodes: watchdog, `nfsrahead`, Talos firmware updates, firmware reset to the factory Secure Boot keys, serial of SATA disks, `EthernetConfig` alias, TPM unlock failure seen once on kube-01, Dell *Microsoft UEFI CA*: [nodes/evaluations.md](nodes/evaluations.md#open-points).
 - [ ] Cluster: Intel DRA driver, network policies (Talos host DNS): [cluster/evaluations.md](cluster/evaluations.md#open-points).
 - [ ] Storage: LINSTOR thin pool oversubscription, Talos and the LINSTOR VG, Piraeus `talos-loader-override`: [storage/evaluations.md](storage/evaluations.md#open-points).

@@ -19,16 +19,17 @@ The names, addresses, ports, namespaces, items and schedules scattered in the to
 
 | What | IPv4 | IPv6 | Described in |
 | --- | --- | --- | --- |
-| Nodes subnet | `192.168.15.0/24` | `fd38:4c4d:8f66:f::/64` (ULA), `2a02:8434:f003:d10f::/64` (GUA, may change) | [network](network/README.md#nodes-subnet) |
+| Nodes subnet | `192.168.15.0/24` | `fd38:4c4d:8f66:f::/64` (ULA), `2a0e:e701:2132:f::/64` (GUA, Milkywan /48) | [network](network/README.md#nodes-subnet) |
 | `kube-01`, `kube-02`, `kube-03` | `192.168.15.11`, `.12`, `.13` | EUI-64 ULA addresses, in the table of the nodes subnet | [network](network/README.md#nodes-subnet) |
 | `internal` LB pool | `192.168.19.0/25` | `fd38:4c4d:8f66:13::/64` | [network](network/README.md#bgp) |
-| `external` LB pool | `192.168.19.128/25` | `2a02:8434:f003:d113::/64` (GUA, from the delegated /56) | [network](network/README.md#bgp) |
+| `external` LB pool | `192.168.19.128/25` | `2a0e:e701:2132:13::/64` (GUA, Milkywan /48) | [network](network/README.md#bgp) |
+| Milkywan WireGuard tunnel (`wg2`) | `10.1.6.20/30`, routed `45.13.104.160` | `2a0b:cbc0:7:1::c/126`, routed `2a0e:e701:2132::/48` | [network](network/milkywan.md) |
 | Pods | `10.244.0.0/16` | `fd1b:654d:9afe:100::/56` | [cluster](cluster/README.md#cluster-ranges) |
 | Services | `10.96.0.0/12` | `fd1b:654d:9afe:200::/112` | [cluster](cluster/README.md#cluster-ranges) |
 | Cluster DNS | `10.96.0.10` | `fd1b:654d:9afe:200::a` | [cluster](cluster/README.md#coredns) |
 | NAS main interface | `192.168.14.0/24` | | [network](network/README.md#nas-no-asymmetric-path) |
 
-The cluster ranges are permanent, and the GUA prefix may change: [what to update](network/runbook.md#ipv6-prefix-change).
+The cluster ranges and the Milkywan /48 are permanent, the ISP GUA prefix of the LAN may change: [what to update](network/runbook.md#ipv6-prefix-change).
 
 BGP: OPNsense is AS `64512`, the nodes share AS `64513` ([network](network/README.md#bgp)).
 
@@ -42,7 +43,7 @@ Every LoadBalancer Service pins its addresses (`lbipam.cilium.io/ips`), allocate
 | Vector aggregator (`syslog`) | `internal` | `192.168.19.2` | `fd38:4c4d:8f66:13::2` | Host overrides `syslog.kube-cluster01.shelltopia.net`, the OPNsense rules of the device VLANs | [observability](observability/README.md#logs) |
 | Graphite of `VMAgent` | `internal` | `192.168.19.3` | `fd38:4c4d:8f66:13::3` | Host overrides `graphite.kube-cluster01.shelltopia.net`, the TrueNAS exporter (by IP), the OPNsense rules | [observability](observability/README.md#metrics) |
 | k8s-gateway | `internal` | `192.168.19.53` | `fd38:4c4d:8f66:13::53` | The Unbound query forwarding of `shelltopia.org` | [dns](dns/README.md#internal-k8s-gateway) |
-| Envoy, `external` Gateway | `external` | `192.168.19.129` | `2a02:8434:f003:d113::1` (GUA, changes with the prefix) | The port forwarding of the WAN IPv4, the WAN rules of OPNsense. Still dynamic (current addresses checked on 2026-11-02), [to pin](roadmap.md#ingress) | [ingress](ingress/README.md#overview) |
+| Envoy, `external` Gateway | `external` | `192.168.19.129` | `2a0e:e701:2132:13::1` (GUA, expected, to check once the pool is applied) | The HAProxy backends, the `wg2` rules of OPNsense. Still dynamic (IPv4 checked on 2026-11-02), [to pin](roadmap.md#ingress) | [ingress](ingress/README.md#overview) |
 
 ## Ports
 

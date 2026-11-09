@@ -74,15 +74,15 @@ The first certificate was issued by `letsencrypt-staging` then switched to produ
 ### Firewall
 
 - [x] **Clients.** Client subnets (LAN, VPN) → `internal` pool (`192.168.19.0/25`, `fd38:4c4d:8f66:13::/64`): TCP 80 and 443, UDP 443 (HTTP/3).
-- [x] **Internet.** WAN → `external` pool IPv6 (`2a02:8434:f003:d113::/64`): **TCP 80 and 443 only**. The Service also exposes 8080 and 8443, which must never be reachable from the internet: Envoy trusts any PROXY protocol header on them, a client could spoof its address.
+- [x] **Internet.** Milkywan (`wg2`) → `external` pool IPv6 (`2a0e:e701:2132:13::/64`): **TCP 80 and 443 only**, with **Reply-to** (gateway of the tunnel), one rule per family ([milkywan.md](../network/milkywan.md)). The Service also exposes 8080 and 8443, which must never be reachable from the internet: Envoy trusts any PROXY protocol header on them, a client could spoof its address.
 - [x] **HAProxy.** No rule is needed for HAProxy → `external` pool IPv4 (8080, 8443): the traffic comes from the firewall itself.
 - [x] **Direct ports.** Do not open 8080 and 8443 of the `external` pool to the LAN either, for the same reason. The tests of these ports run from a pod.
 
-The `external` pool is in the GUA prefix delegated by the ISP: when it changes, the rules follow ([IPv6 prefix change](../network/runbook.md#ipv6-prefix-change)).
+The `external` pool is in the stable Milkywan /48: it does not follow the prefix delegated by the ISP ([IPv6 prefix change](../network/runbook.md#ipv6-prefix-change)).
 
 ### HAProxy (IPv4, during the migration)
 
-There is no IPv4 port forwarding on 80/443: HAProxy listens on the WAN address with a `http` frontend (port 80, routing on the Host header) and a `https` frontend (port 443, TCP mode, routing on the SNI without terminating TLS). Each name has a rule: the names still served by `home` go to it, the names migrated to the cluster go to the `external` Gateway, with the PROXY protocol so that Envoy sees the client address. A name without rule gets its connection closed (no default backend):
+There is no IPv4 port forwarding on 80/443: HAProxy listens on the Milkywan IPv4 (`45.13.104.160`, an alias of `wg2`, shared with `home`) instead of the WAN address, with a `http` frontend (port 80, routing on the Host header) and a `https` frontend (port 443, TCP mode, routing on the SNI without terminating TLS). Each name has a rule: the names still served by `home` go to it, the names migrated to the cluster go to the `external` Gateway, with the PROXY protocol so that Envoy sees the client address. A name without rule gets its connection closed (no default backend):
 
 - [x] **Real servers.** Look up the address of the `external` Gateway:
 

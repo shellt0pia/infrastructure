@@ -42,9 +42,10 @@ spec:
         - cluster
     # The internet, but not the private networks (LAN, NAS, OPNsense, VPN). The LoadBalancer
     # addresses of the cluster stay reachable: Cilium translates them to the pods first.
-    # The public IPv6 prefix of the LAN (the delegated /56, also in docs/network/runbook.md) is
-    # excluded too: the pods leave through the GUA of their node, so the GUA of the other nodes
-    # would be `world` and bypass the host firewall.
+    # The public IPv6 prefixes of the LAN (the /56 delegated by the ISP, also in
+    # docs/network/runbook.md) and of the Milkywan tunnel (the /48 of the nodes subnet and of the
+    # `external` pool) are excluded too: the pods leave through the GUA of their node, so the GUA
+    # of the other nodes would be `world` and bypass the host firewall.
     - toCIDRSet:
         - cidr: 0.0.0.0/0
           except:
@@ -55,3 +56,4 @@ spec:
           except:
             - fc00::/7
             - 2a02:8434:f003:d100::/56
+            - 2a0e:e701:2132::/48

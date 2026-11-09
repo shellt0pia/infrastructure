@@ -138,5 +138,5 @@ The address of a Gateway comes from the pool: it stays the same as long as its S
 
 Once `home` no longer serves anything:
 
-- [ ] **Port forwarding.** WAN IPv4 TCP 80 and 443 → `external` Gateway IPv4, same ports (direct listeners, no PROXY protocol).
+- [ ] **Port forwarding.** Milkywan IPv4 (`45.13.104.160`, `wg2`) TCP 80 and 443 → `external` Gateway IPv4, same ports (direct listeners, no PROXY protocol).
 - [ ] **Proxy listeners.** Remove the `http-proxy` and `https-proxy` listeners (`gateway-external.yaml`), the `external-proxy-protocol` `ClientTrafficPolicy` and the matching `parentRefs` of the redirect route.

@@ -20,5 +20,5 @@ Every response carries the `preload` token, which is harmless on its own. Submit
 | --- | --- |
 | Port forwarding instead of HAProxy | Once `home` is migrated: [procedure](runbook.md#removing-haproxy). |
 | `ecdhCurves` | The names are passed as is to Envoy (BoringSSL). After an Envoy upgrade, check that the listeners are not rejected (logs of `envoy-gateway`). |
-| Milkywan WireGuard tunnel (planned) | Stable public IPv4 and IPv6 prefix: the `external` pool, the OPNsense prefix list and the NAT rules will move to it ([roadmap](../roadmap.md#to-check-or-watch)). |
+| Milkywan WireGuard tunnel | Stable public IPv4 and IPv6 prefix, in place: the `external` pool, the OPNsense prefix list and HAProxy are on it ([network](../network/milkywan.md)). Left: DNS ([roadmap](../roadmap.md#to-check-or-watch)). |
 | Per-route needs at migration | Basic authentication (`SecurityPolicy` on the route), Plex over HTTPS to its backend (or *Secure connections: Preferred*). |

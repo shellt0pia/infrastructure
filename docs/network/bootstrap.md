@@ -46,7 +46,7 @@ The reasons for AAAA records only are in the [README](README.md#names).
 - [x] **NUT.** Nodes → NUT server (`ups.server` in `talos/vars.yaml`): TCP 3493, if it is not on the nodes subnet. On the NAS, allow the nodes addresses in `upsd.conf`/the NFS exports if they are filtered.
 - [x] **Between the nodes.** Everything is on the same subnet, nothing to do. The Talos ingress firewall is not used: OPNsense filters all the traffic entering the nodes subnet. The traffic between the pods and the nodes never goes through it, it is restricted by the Cilium host firewall ([cluster](../cluster/README.md#network-policies)).
 - [x] **BGP.** Nodes subnet (`192.168.15.0/24` and `fd38:4c4d:8f66:f::/64`) → *This Firewall*: TCP 179 (BGP, [step 4](#4-bgp-frr)).
-- [x] **LoadBalancer pools.** Administration subnets → LoadBalancer pools (internal: `192.168.19.0/25`, `fd38:4c4d:8f66:13::/64` / external: `192.168.19.128/25`, `2a02:8434:f003:d113::/64`): TCP 80 for the test of the [LoadBalancer](#network-tests-after-the-bootstrap). The rules of the Gateways are in [ingress/bootstrap.md](../ingress/bootstrap.md#firewall).
+- [x] **LoadBalancer pools.** Administration subnets → LoadBalancer pools (internal: `192.168.19.0/25`, `fd38:4c4d:8f66:13::/64` / external: `192.168.19.128/25`, `2a0e:e701:2132:13::/64`): TCP 80 for the test of the [LoadBalancer](#network-tests-after-the-bootstrap). The rules of the Gateways are in [ingress/bootstrap.md](../ingress/bootstrap.md#firewall).
 
 ## 4. BGP (FRR)
 
@@ -62,7 +62,7 @@ The design is in the [README](README.md#bgp).
   | --- | --- | --- | --- | --- |
   | `kube-cluster01-lb-v4` | IPv4 | 10 | Permit | `192.168.19.0/24 le 32` |
   | `kube-cluster01-lb-v6` | IPv6 | 10 | Permit | `fd38:4c4d:8f66:13::/64 le 128` |
-  | `kube-cluster01-lb-v6` | IPv6 | 20 | Permit | `2a02:8434:f003:d113::/64 le 128` |
+  | `kube-cluster01-lb-v6` | IPv6 | 20 | Permit | `2a0e:e701:2132:13::/64 le 128` |
   | `deny-all-v4` | IPv4 | 10 | Deny | `any` |
   | `deny-all-v6` | IPv6 | 10 | Deny | `any` |
 
@@ -81,7 +81,7 @@ The design is in the [README](README.md#bgp).
 
   Expected: both `ipv6 prefix-list kube-cluster01-lb-v6 seq 10/20` lines are present.
 
-If the ISP changes the delegated prefix, follow the [runbook](runbook.md#ipv6-prefix-change) (`external` pool in `pools.yaml`, `kube-cluster01-lb-v6` prefix list, firewall rules, DNS).
+If the ISP changes the delegated prefix, the BGP configuration is not concerned: the `external` pool is in the Milkywan /48 ([milkywan.md](milkywan.md)). The [runbook](runbook.md#ipv6-prefix-change) lists what follows the ISP prefix.
 
 ## Network tests after the bootstrap
 
@@ -163,4 +163,4 @@ To run once the cluster is bootstrapped ([cluster/bootstrap.md](../cluster/boots
   kubectl -n debug delete svc,deployment lbtest
   ```
 
-  Expected: the addresses move to `192.168.19.128/25` and `2a02:8434:f003:d113::/64`.
+  Expected: the addresses move to `192.168.19.128/25` and `2a0e:e701:2132:13::/64`.

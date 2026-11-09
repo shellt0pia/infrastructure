@@ -25,7 +25,7 @@ The manifests are in `kubernetes/apps/envoy-gateway-system` (controller), `kuber
 ```mermaid
 flowchart TD
     LAN[LAN and VPN clients] -->|80, 443 TCP and UDP| GI[Gateway internal - internal LB pool]
-    WAN4[Internet IPv4] -->|80, 443| HA[HAProxy on OPNsense WAN]
+    WAN4[Internet IPv4] -->|80, 443| HA[HAProxy on OPNsense, Milkywan IPv4]
     HA -->|other names| HOME[home]
     HA -->|migrated names, 8080 and 8443, PROXY protocol v2| GE[Gateway external - external LB pool]
     WAN6[Internet IPv6] -->|80, 443 TCP| GE
@@ -45,7 +45,7 @@ flowchart TD
 | Gateway | LB pool | Listeners | Routes accepted from |
 | --- | --- | --- | --- |
 | `internal` | `internal` (`192.168.19.0/25`, `fd38:4c4d:8f66:13::/64`) | `http` 80, `https` 443 (+ UDP 443, HTTP/3) | every namespace. Clients outside RFC 1918 and `fd00::/8` get a 403 (`SecurityPolicy`). |
-| `external` | `external` (`192.168.19.128/25`, `2a02:8434:f003:d113::/64`) | `http` 80, `https` 443, `http-proxy` 8080, `https-proxy` 8443 | namespaces labeled `shelltopia.net/gateway-external: "true"` |
+| `external` | `external` (`192.168.19.128/25`, `2a0e:e701:2132:13::/64`) | `http` 80, `https` 443, `http-proxy` 8080, `https-proxy` 8443 | namespaces labeled `shelltopia.net/gateway-external: "true"` |
 
 The `http` and `http-proxy` listeners only accept the redirect routes of `network`: a route without `sectionName` is never served in plain HTTP.
 
@@ -65,4 +65,4 @@ Envoy Gateway (Gateway API) is the implementation, the Cilium Gateway API stays 
 
 ## IPv4 from the internet
 
-HAProxy on OPNsense (SNI on 443, Host on 80) keeps sending the names of `home` to it and sends the migrated names to the `external` Gateway on 8080/8443 with the PROXY protocol, until `home` is migrated. Then a plain port forwarding to 80/443 of the Gateway replaces it and the PROXY protocol listeners are removed ([procedure](runbook.md#removing-haproxy)). IPv6 reaches the Gateway directly. The setup is in [bootstrap.md](bootstrap.md#haproxy-ipv4-during-the-migration).
+HAProxy on OPNsense (listening on the Milkywan IPv4 `45.13.104.160`, shared with `home`; SNI on 443, Host on 80) keeps sending the names of `home` to it and sends the migrated names to the `external` Gateway on 8080/8443 with the PROXY protocol, until `home` is migrated. Then a plain port forwarding to 80/443 of the Gateway replaces it and the PROXY protocol listeners are removed ([procedure](runbook.md#removing-haproxy)). IPv6 reaches the Gateway directly. The setup is in [bootstrap.md](bootstrap.md#haproxy-ipv4-during-the-migration).
