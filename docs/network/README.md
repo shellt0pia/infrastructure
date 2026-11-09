@@ -6,6 +6,7 @@ How the nodes are addressed and reached, and how OPNsense routes the cluster: DH
 | --- | --- |
 | [bootstrap.md](bootstrap.md) | First configuration of OPNsense for the cluster (DHCP, DNS, firewall, BGP) and the network tests after the bootstrap. |
 | [milkywan.md](milkywan.md) | Plan for the Milkywan WireGuard tunnel (stable public IPv4 and IPv6 /48) and the move of the `external` pool to it. |
+| [lte-backup.md](lte-backup.md) | Plan for the LTE failover (Mikrotik modem, SIM, OPNsense gateway group) and for what the cluster does while it runs on it. |
 | [runbook.md](runbook.md) | Day-to-day: what to update when the ISP delegates a new IPv6 prefix. |
 | [evaluations.md](evaluations.md) | The choices considered, and the points to check or watch. |
 
@@ -18,6 +19,7 @@ How the nodes are addressed and reached, and how OPNsense routes the cluster: DH
 | BGP | FRR on OPNsense, Cilium BGP control plane | In use, [checklist](bootstrap.md#4-bgp-frr) |
 | IPv6 prefix change | Procedure | [Written](runbook.md#ipv6-prefix-change), the prefix may change at any time (LAN only) |
 | Stable public prefix | Milkywan WireGuard tunnel | Tunnel in place, the nodes subnet and the `external` pool use its /48 ([plan](milkywan.md)). Left: DNS ([open points](evaluations.md#open-points)) |
+| LTE backup | Mikrotik modem, OPNsense gateway group | Planned ([plan](lte-backup.md)) |
 
 ## Overview
 

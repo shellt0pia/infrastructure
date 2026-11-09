@@ -97,6 +97,7 @@ Architecture and status: [backups/README.md](backups/README.md#status). Order: v
 - [ ] For each application, [Pod Security](cluster/README.md#pod-security) `restricted` ([conventions](conventions.md#pod-security)): an image that runs as non-root, its UID and GID in the manifest, its data `chown`ed to them when copied to its volume (the Podman containers ran as root), the NAS shares through static PersistentVolumes. Otherwise a namespace at `baseline`, with the reason in a comment.
 - [ ] Evaluate user namespaces (`hostUsers: false`) per application: root in the container is mapped to an unprivileged UID of the node, so an image that starts as root could stay as is ([cluster](cluster/README.md#pod-security)). First test a real pod with a LINSTOR volume ([open point](cluster/evaluations.md#open-points)). Not for the pods that mount a NAS share (no idmapped mounts on NFS) nor the `hostNetwork` ones; the s6-overlay and linuxserver.io images still need `baseline` (capabilities `CHOWN`, `SETUID`, `SETGID`).
 - [ ] Replace calibre (KasmVNC) with another application.
+- [ ] For each migrated service, decide whether it must keep running or be stopped (KEDA scale to 0) or cut off from the Internet (Cilium `egressDeny`) while the cluster runs on the LTE backup, and label it accordingly ([lte-backup.md](network/lte-backup.md#workloads-during-a-failover)). Plex and the other stateful applications that must not stay reachable are stopped.
 - [ ] Rewrite `README.md` once Ansible is gone (it still describes the Fedora CoreOS setup).
 
 ### Ingress
