@@ -1,7 +1,8 @@
 ---
 # The VictoriaMetrics stack, see docs/observability/README.md#the-release-of-the-stack. Deployed
 # in stages (docs/observability/bootstrap.md): the operator and the Alertmanager at stage 1, the
-# metrics at stage 2, each later stage enables more of the components disabled below.
+# metrics at stage 2, the logs at stage 3, each later stage enables more of the components
+# disabled below.
 #
 # The chart is in 0.x and its minors may break the values: read its changelog before every
 # upgrade, never automerge (docs/roadmap.md#upgrades).
@@ -44,10 +45,8 @@ spec:
         limits:
           memory: 256Mi
 
-    # Enabled at the next stages (docs/observability/bootstrap.md): VictoriaLogs at stage 3,
-    # vmalert and the default rules at stage 4.
-    vlsingle:
-      enabled: false
+    # Enabled at the next stage (docs/observability/bootstrap.md): vmalert and the default rules
+    # at stage 4.
     vmalert:
       enabled: false
     defaultRules:
@@ -101,6 +100,42 @@ spec:
             memory: 512Mi
           limits:
             memory: 1536Mi
+
+    # The logs, 30 days (docs/observability/README.md#storage-and-retention), the size cap as a
+    # safety net below the volume: the oldest days go first when it is reached. Same failover as
+    # VMSingle, the Vector agent and aggregator buffer on disk meanwhile.
+    vlsingle:
+      enabled: true
+      spec:
+        retentionPeriod: 30d
+        retentionMaxDiskSpaceUsageBytes: 25GiB
+        storage:
+          storageClassName: replicated
+          resources:
+            requests:
+              storage: 30Gi
+        # Same security context as the Alertmanager, see there why it is written out in full.
+        useStrictSecurity: true
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          fsGroup: 65534
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
+          privileged: false
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        # To resize from the metrics.
+        resources:
+          requests:
+            cpu: 50m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
 
     # Two replicas that both scrape every target (no shardCount): a node lost costs no sample,
     # VMSingle deduplicates (docs/observability/README.md#high-availability). It selects the
@@ -236,9 +271,13 @@ spec:
     # Grafana has its own release (../../grafana). The stack still generates the ConfigMap of
     # its data sources, read by the sidecar of Grafana (label grafana_datasource), next to
     # those of the dashboards (label grafana_dashboard).
+    # The VictoriaLogs data source is only rendered when its plugin is listed here; the Grafana
+    # release installs the plugin itself.
     grafana:
       enabled: false
       forceDeployDatasource: true
+      plugins:
+        - victoriametrics-logs-datasource
 
     alertmanager:
       # Slack templates, no use for Pushover.

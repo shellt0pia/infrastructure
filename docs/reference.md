@@ -11,7 +11,7 @@ The names, addresses, ports, namespaces, items and schedules scattered in the to
 | `kube-01`, `kube-02`, `kube-03` (`.shelltopia.net`) | The nodes, A and AAAA records (IPv4 and ULA addresses) with their PTR | [network](network/README.md#names) |
 | `kube-cluster01.shelltopia.net` | The cluster endpoint: DNS round-robin, one AAAA per node, API on port 6443 | [network](network/README.md#principles) |
 | `gateway-external.kube-cluster01.shelltopia.net` | Entry name of the external Gateway, target of the public CNAMEs | [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
-| `syslog.kube-cluster01.shelltopia.net` | The Vector aggregator: Talos logs and syslog of the devices. Unbound host overrides, `A` and `AAAA` to its pinned addresses | [observability](observability/README.md#logs) |
+| `syslog.kube-cluster01.shelltopia.net` | The Vector aggregator: syslog of the devices. Unbound host overrides, `A` and `AAAA` to its pinned addresses | [observability](observability/README.md#logs) |
 | `graphite.kube-cluster01.shelltopia.net` | The Graphite listener of `VMAgent` (reserved: the TrueNAS exporter takes an IP only). Unbound host overrides, `A` and `AAAA` to its pinned addresses | [observability](observability/README.md#metrics) |
 | `ntp-01.shelltopia.net`, `ups-01-dmz.shelltopia.net` | NTP (OPNsense) and NUT server (the NAS) of the nodes | [network](network/README.md#principles) |
 
@@ -64,7 +64,9 @@ Every LoadBalancer Service pins its addresses (`lbipam.cilium.io/ips`), allocate
 | TCP 4244 | Hubble Relay → Hubble server of each Cilium agent | [cluster](cluster/README.md#network-policies) |
 | TCP 4245 | Workstation → Hubble Relay, through `kubectl port-forward` (`hubble -P`) | [cluster](cluster/runbook.md#network-policies) |
 | TCP 10250 (kubelet), 2381 (etcd), 10259 (scheduler), 10257 (controller-manager), 9100 (node-exporter), 9962 (Cilium agent), 9963 (Cilium operator), 9965 (Hubble), 9942 (drbd-reactor) | `VMAgent` → nodes (host firewall) | [observability](observability/README.md#network-and-pod-security) |
-| The ports of the receivers (syslog, Talos logs, Graphite), chosen at their deployment | Devices and nodes → Vector aggregator, `VMAgent` | [observability](observability/README.md#network-and-pod-security) |
+| TCP and UDP 514 (to the pod port 5514): syslog | Devices → Vector aggregator (`syslog.kube-cluster01.shelltopia.net`) | [observability](observability/README.md#logs) |
+| TCP 6050 (Talos kernel logs), 6051 (Talos service logs), on `127.0.0.1` (IPv4 only) | Talos → the hostPorts of the Vector agent of the same node | [observability](observability/README.md#logs) |
+| Graphite, chosen at stage 5 | TrueNAS → `VMAgent` (`graphite.kube-cluster01.shelltopia.net`) | [observability](observability/README.md#metrics) |
 
 ## Namespaces
 
@@ -80,7 +82,7 @@ Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: dis
 | `piraeus-datastore` | Piraeus/LINSTOR | `privileged` | [storage](storage/README.md#decisions) |
 | `backups` | VolSync, `volsync-monitor` | `restricted` | [backups](backups/README.md) |
 | `observability` | `victoria-metrics-k8s-stack` (operator, `VMSingle`, `VLSingle`, `VMAgent`, `VMAlert`, `VMAlertmanager`, kube-state-metrics), Grafana, `prometheus-operator-crds`, the Vector aggregator. Deployed by stage ([status](observability/README.md#status)) | `restricted` | [observability](observability/README.md#network-and-pod-security) |
-| `observability-agents` | node-exporter (from the stack, stage 2), the Vector agent (stage 3) | `privileged` | [observability](observability/README.md#network-and-pod-security) |
+| `observability-agents` | node-exporter (from the stack), the Vector agent | `privileged` | [observability](observability/README.md#network-and-pod-security) |
 | `debug` | Throwaway test pods, `kubectl debug node` | `privileged` | [cluster](cluster/README.md#pod-security) |
 | `kube-system` | Cilium, CoreDNS, Intel device plugin, Reloader, snapshot-controller, Spegel | exempt | [cluster](cluster/README.md) |
 

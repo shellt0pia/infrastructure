@@ -1,0 +1,157 @@
+---
+# The Vector aggregator (docs/observability/README.md#logs): the syslog of the devices, to
+# VictoriaLogs. Two replicas behind a LoadBalancer Service, so that the receivers do not move with
+# the nodes. The Talos logs go to the agent of each node.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: vector-aggregator
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: vector-aggregator
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    role: Aggregator
+    nameOverride: vector-aggregator
+
+    # One replica per node when possible (docs/observability/README.md#high-availability).
+    replicas: 2
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+    # ScheduleAnyway: with 2 nodes, a strict constraint would leave a replica Pending while a
+    # node is down. The chart fills the label selector.
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+    # The disk buffer, a `local` volume per replica: a replica lost with its node loses its
+    # undelivered buffer only.
+    persistence:
+      enabled: true
+      storageClassName: local
+      size: 2Gi
+
+    # No access to the Kubernetes API (the chart only creates RBAC for the agent).
+    serviceAccount:
+      automountToken: false
+    # `restricted`, 65534 (nobody). Every port above 1024: the Service maps 514 to 5514.
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      runAsGroup: 65534
+      fsGroup: 65534
+      fsGroupChangePolicy: OnRootMismatch
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: ["ALL"]
+    # Out of the LoadBalancer until Vector listens.
+    readinessProbe:
+      tcpSocket:
+        port: 5514
+    # To resize from the metrics. The limit is for the drain of the disk buffer after an outage of
+    # VictoriaLogs: about 265 MiB at the peak with 1 MiB batches, 495 MiB with the default ones
+    # (docs/observability/evaluations.md#memory-of-vector).
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        memory: 512Mi
+
+    podMonitor:
+      enabled: true
+
+    # Written out: by default the chart exposes the port of every source and sink, the metrics
+    # included. The headless Service of the StatefulSet copies the ports and the annotations,
+    # without effect there (LB-IPAM only serves LoadBalancer Services).
+    service:
+      type: LoadBalancer
+      ipFamilyPolicy: RequireDualStack
+      # Keeps the source address of the devices (the field `source_ip` of the syslog): only the
+      # nodes with a replica announce the address over BGP (docs/network/README.md#bgp).
+      externalTrafficPolicy: Local
+      annotations:
+        # Pinned addresses of the `internal` pool, like every LoadBalancer Service
+        # (docs/conventions.md#loadbalancer-addresses, allocated in docs/reference.md). Depend on
+        # them: the Unbound host overrides `syslog.kube-cluster01.shelltopia.net` (the name used
+        # by the devices) and the OPNsense rules of the device VLANs. If another Service already
+        # holds one of them, this Service gets no address at all: check
+        # `kubectl -n observability get svc vector-aggregator`.
+        lbipam.cilium.io/ips: "192.168.19.2,fd38:4c4d:8f66:13::2"
+      ports:
+        - name: syslog-tcp
+          port: 514
+          targetPort: 5514
+          protocol: TCP
+        - name: syslog-udp
+          port: 514
+          targetPort: 5514
+          protocol: UDP
+
+    customConfig:
+      data_dir: /vector-data-dir
+      # `[::]` for every listener: IPv6 and IPv4 on one socket (Vector binds `0.0.0.0` to IPv4
+      # only). The IPv4 peers then appear as `::ffff:a.b.c.d` (stripped in the transform).
+      sources:
+        # RFC 5424 and RFC 3164, the per-device parsing at stage 5.
+        syslog_tcp:
+          type: syslog
+          mode: tcp
+          address: "[::]:5514"
+        syslog_udp:
+          type: syslog
+          mode: udp
+          address: "[::]:5514"
+        internal_metrics:
+          type: internal_metrics
+
+      transforms:
+        syslog_normalized:
+          type: remap
+          inputs: [syslog_tcp, syslog_udp]
+          source: |
+            .log_source = "syslog"
+            .source_ip = replace(to_string(.source_ip) ?? "", r'^::ffff:', "")
+
+      # The Elasticsearch API of VictoriaLogs, see the agent
+      # (kubernetes/apps/observability-agents/vector-agent). Disk buffer of 1 GiB on the 2 Gi
+      # volume. Batches of 1 MiB instead of 10, as for the agent: they bound the memory of the
+      # drain.
+      sinks:
+        vlsingle:
+          type: elasticsearch
+          inputs: [syslog_normalized]
+          endpoints:
+            - http://vlsingle-victoria-metrics-k8s-stack.observability.svc.cluster.local.:9428/insert/elasticsearch/
+          api_version: v8
+          compression: gzip
+          healthcheck:
+            enabled: false
+          query:
+            _msg_field: message
+            _time_field: timestamp
+            _stream_fields: log_source,host
+          batch:
+            max_bytes: 1048576
+          buffer:
+            type: disk
+            max_size: 1073741824
+            when_full: block
+        # Its port is the `prom-exporter` port of the pod, scraped by the podMonitor.
+        prom_exporter:
+          type: prometheus_exporter
+          inputs: [internal_metrics]
+          address: "[::]:9090"

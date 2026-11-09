@@ -14,3 +14,19 @@ spec:
         - matchLabels:
             io.kubernetes.pod.namespace: flux-system
             app.kubernetes.io/component: notification-controller
+---
+# The Vector agent (namespace observability-agents) sends the pod logs and the Hubble flows to
+# VictoriaLogs. The aggregator and Grafana are in this namespace (network-policies component).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vlsingle
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: vlsingle
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: observability-agents
+            app.kubernetes.io/name: vector-agent

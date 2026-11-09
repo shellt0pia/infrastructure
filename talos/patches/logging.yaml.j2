@@ -1,0 +1,19 @@
+---
+# Talos service logs to the Vector agent of the node (docs/observability/README.md#logs): its
+# hostPort on the loopback, json_lines over TCP. The agent names the node itself. IPv4 only, not
+# `localhost`: the hostPorts only exist on `127.0.0.1` (vector-agent HelmRelease). Nothing is sent
+# before the agent runs (cluster bootstrap): `talosctl logs` and `talosctl dmesg` stay the
+# reference then. The destinations only exist in the v1alpha1 document (no multi-doc
+# equivalent).
+version: v1alpha1
+machine:
+  logging:
+    destinations:
+      - endpoint: tcp://127.0.0.1:6051/
+        format: json_lines
+---
+# Kernel logs to the same agent, on their own port.
+apiVersion: v1alpha1
+kind: KmsgLogConfig
+name: remote-log
+url: tcp://127.0.0.1:6050/

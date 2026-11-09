@@ -105,18 +105,51 @@ The first slice of the stack, so that the alert path exists before anything else
 
 ## 3. Logs
 
-- [ ] **Deploy.** In the stack: `vlsingle` (30 Gi `replicated`, 30 days, `-retention.maxDiskSpaceUsageBytes` at about 25 Gi). The Vector agent (pod logs, Hubble export, disk buffer in `/var/lib/vector`) in `observability-agents`. The Vector aggregator (StatefulSet, two replicas, a `local` volume each) behind its LoadBalancer Service pinned on `192.168.19.2` and `fd38:4c4d:8f66:13::2`. Network policies: the agent to VictoriaLogs, the aggregator from `world` and `remote-node` (and `host`, to check).
+- [ ] **Deploy.** In the stack: `vlsingle` (30 Gi `replicated`, 30 days, `-retention.maxDiskSpaceUsageBytes` at 25 GiB) and the VictoriaLogs plugin of Grafana (`grafana.plugins`, in the values of the stack for its data source and in those of Grafana). The Vector agent (pod logs, Hubble export, disk buffers in `/var/lib/vector`) in `observability-agents`. The Vector aggregator (StatefulSet, two replicas, a `local` volume each) behind its LoadBalancer Service pinned on `192.168.19.2` and `fd38:4c4d:8f66:13::2` (`externalTrafficPolicy: Local`, [ports](README.md#logs)). Network policies: the agent to VictoriaLogs, the aggregator from `world` (the agent, the kubelet and Talos from `host` through the baseline).
 
   ```sh
-  kubectl -n observability get svc -o wide
+  flux -n observability get ks,hr
+  flux -n observability-agents get ks,hr
+  kubectl -n observability get vlsingle,pods -o wide
+  kubectl -n observability-agents get pods -o wide
+  kubectl -n observability get svc vector-aggregator -o wide
   dig +short syslog.kube-cluster01.shelltopia.net A syslog.kube-cluster01.shelltopia.net AAAA
   ```
 
-  Expected: the Service of the aggregator on its pinned addresses (without address, another Service holds one of them), the name resolving to them, the logs of a pod and the Hubble flows `AUDIT` of every node searchable by namespace in Grafana.
+  Expected: the Kustomizations `Ready`, a Vector agent per node, the Service of the aggregator on its pinned addresses (without address, another Service holds one of them), the names resolving to them. The data source *VictoriaLogs* in Grafana (Grafana restarted by Reloader). In *Explore*, VictoriaLogs:
 
-- [ ] **Talos.** `machine.logging.destinations` and `KmsgLogConfig` to `tcp://syslog.kube-cluster01.shelltopia.net:<port>`, `json_lines`, `extraTags` naming the node, in `talos/patches/`, then `just talos diff` and the apply on one node first.
+  - `log_source:pods`: the logs of every namespace, with `node` and the `kubernetes.*` fields;
+  - `log_source:hubble flow.verdict:AUDIT`: the audited flows of every node, searchable by namespace (`flow.source.namespace:observability`), with their short message.
 
-  Expected: the service and kernel logs of every node, with their `extraTags`.
+  The Vector jobs `up` and without errors, from the APIs of `VMAgent` and `VMSingle` (port-forwards of [stage 2](#2-metrics)):
+
+  ```sh
+  curl -s localhost:8429/api/v1/targets | jq -r '.data.activeTargets[] | select(.labels.job | test("vector")) | .labels.job + " " + .health'
+  curl -s localhost:8428/api/v1/query --data-urlencode 'query=sum by (job, component_id) (increase(vector_component_errors_total[1h]))' | jq -c '.data.result[] | [.metric, .value[1]]'
+  hubble observe -P --verdict AUDIT --to-label app.kubernetes.io/name=vlsingle
+  ```
+
+  Expected: the agent and aggregator pods `up` (two each), no error, no audited flow to VictoriaLogs.
+
+- [ ] **Talos.** `talos/patches/logging.yaml.j2`: `machine.logging.destinations` (service logs) and `KmsgLogConfig` (kernel logs), in `json_lines` to the hostPorts of the Vector agent of the node, `127.0.0.1:6051` and `127.0.0.1:6050`. The agent with its hostPorts first, then `just talos diff`, then the apply on one node first.
+
+  ```sh
+  kubectl -n observability-agents get ds vector-agent -o jsonpath='{.spec.template.spec.containers[0].ports}{"\n"}'
+  just talos diff
+  just talos apply-node kube-01
+  hubble observe -P --verdict AUDIT --to-label app.kubernetes.io/name=vector-agent --since 10m
+  ```
+
+  Expected: the hostPorts 6050 and 6051 on `127.0.0.1`, the diff limited to the two destinations, no audited flow to the agent. In *Explore*: `log_source:talos-service | stats by (node) count()` and the same for `talos-kernel`, a line per node with its short name. Then the other node.
+
+- [ ] **Source address of the syslog** (`externalTrafficPolicy: Local`). From the workstation (the OPNsense rules must let it reach the aggregator on 514), over TCP then UDP:
+
+  ```sh
+  logger --tcp -n syslog.kube-cluster01.shelltopia.net -P 514 'stage 3 test, TCP'
+  logger --udp -n syslog.kube-cluster01.shelltopia.net -P 514 'stage 3 test, UDP'
+  ```
+
+  Expected: in *Explore*, `log_source:syslog "stage 3 test"` returns both lines, `source_ip` being the address of the workstation (not a node address).
 
 - [ ] **Failover.** Stop the pod of VictoriaLogs (or, once kube-02 joined, the node that holds it): Vector buffers, then delivers when it is back. Not tested until the three nodes run.
 

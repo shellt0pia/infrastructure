@@ -1,0 +1,291 @@
+---
+# The Vector agent, on every node (docs/observability/README.md#logs): the pod logs, the Hubble
+# flows exported by Cilium (AUDIT and DROPPED, kubernetes/apps/kube-system/cilium) and the Talos
+# logs of its node, to VictoriaLogs. In `observability-agents` (privileged): it reads the node
+# through hostPath, and listens on hostPorts.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: vector-agent
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: vector-agent
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    role: Agent
+    nameOverride: vector-agent
+
+    # No Service: VMAgent scrapes the pods (podMonitor below), Talos reaches the agent of its node
+    # through the hostPorts.
+    service:
+      enabled: false
+    serviceHeadless:
+      enabled: false
+    podMonitor:
+      enabled: true
+    # Written out: by default the chart exposes the port of every source and sink. The Talos
+    # destinations of the node are 127.0.0.1:6050 and :6051 (talos/patches/logging.yaml.j2):
+    # Cilium connects them from the host to the pod (source `cilium_host`, the `host` entity,
+    # allowed by the baseline). `hostIP` states the intent, loopback only; tested on 2026-11-09:
+    # from the node itself Cilium also answers on its own addresses, from the workstation the
+    # connection times out. Once the policies are enforced, the baseline keeps the pods out.
+    # IPv4 only: Cilium maps a loopback hostIP to its family alone, and a second entry on `::1`
+    # for the same containerPort is dropped or refused by the Helm upgrades (Kubernetes keys the
+    # ports by containerPort and protocol). Tested and explained in
+    # docs/observability/evaluations.md#to-verify (Talos destinations).
+    containerPorts:
+      - name: prom-exporter
+        containerPort: 9090
+        protocol: TCP
+      - name: talos-kernel
+        containerPort: 6050
+        hostPort: 6050
+        hostIP: 127.0.0.1
+        protocol: TCP
+      - name: talos-service
+        containerPort: 6051
+        hostPort: 6051
+        hostIP: 127.0.0.1
+        protocol: TCP
+
+    # Every node, even tainted: its logs matter most then.
+    tolerations:
+      - effect: NoSchedule
+        operator: Exists
+
+    # Root: the pod logs and the Hubble files belong to root, and no capability is needed to read
+    # files one owns. Nothing else: no capability, read-only root filesystem, the node paths
+    # mounted read-only except the data directory.
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      privileged: false
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: ["ALL"]
+    # To resize from the metrics. The limit is for the catch-up (a backlog of pod logs, or the disk
+    # buffers after an outage of VictoriaLogs): about 340 MiB at the peak with 1 MiB batches on the
+    # bench, but an agent was OOM killed at 512Mi (503 MB anon-rss) when the network came back on
+    # 2026-11-06, with all its sinks and a relist at once
+    # (docs/observability/evaluations.md#memory-of-vector). Idle: 40 to 65 MB, up to 150 MB kept
+    # by the allocator after a catch-up.
+    resources:
+      requests:
+        cpu: 20m
+        memory: 128Mi
+      limits:
+        memory: 1Gi
+
+    # The default also mounts /var/lib, /proc and /sys of the node, for the host_metrics source
+    # (node-exporter covers it): only the pod logs.
+    defaultVolumes:
+      - name: var-log
+        hostPath:
+          path: /var/log/
+    defaultVolumeMounts:
+      - name: var-log
+        mountPath: /var/log/
+        readOnly: true
+    # The Hubble export (tmpfs, rotated by Cilium).
+    extraVolumes:
+      - name: hubble
+        hostPath:
+          path: /var/run/cilium/hubble
+          type: Directory
+    extraVolumeMounts:
+      - name: hubble
+        mountPath: /var/run/cilium/hubble
+        readOnly: true
+    # The checkpoints of the files and the disk buffers, kept across restarts: hostPath
+    # /var/lib/vector (EPHEMERAL partition of Talos), mounted on data_dir.
+    persistence:
+      hostPath:
+        enabled: true
+        path: /var/lib/vector
+
+    customConfig:
+      data_dir: /vector-data-dir
+      # `[::]`: IPv6 and IPv4 on one socket (Vector binds `0.0.0.0` to IPv4 only).
+      sources:
+        pods:
+          type: kubernetes_logs
+          # The annotations and the namespace and node labels on every line: too heavy for what
+          # they bring. The pod labels stay.
+          pod_annotation_fields:
+            pod_annotations: ""
+          namespace_annotation_fields:
+            namespace_labels: ""
+          node_annotation_fields:
+            node_labels: ""
+        hubble:
+          type: file
+          include:
+            - /var/run/cilium/hubble/events*.log
+        # Talos of this node, json_lines over TCP (containerPorts above).
+        talos_kernel:
+          type: socket
+          mode: tcp
+          address: "[::]:6050"
+          framing:
+            method: newline_delimited
+          decoding:
+            codec: json
+        talos_service:
+          type: socket
+          mode: tcp
+          address: "[::]:6051"
+          framing:
+            method: newline_delimited
+          decoding:
+            codec: json
+        internal_metrics:
+          type: internal_metrics
+
+      transforms:
+        pods_normalized:
+          type: remap
+          inputs: [pods]
+          source: |
+            .log_source = "pods"
+            .node = get_env_var!("VECTOR_SELF_NODE_NAME")
+            del(.file)
+        # One JSON flow per line ({"flow": {...}, "node_name": ..., "time": ...}): the fields
+        # under `flow.` (flow.source.namespace, flow.verdict...), and a short message.
+        hubble_parsed:
+          type: remap
+          inputs: [hubble]
+          source: |
+            .log_source = "hubble"
+            .node = get_env_var!("VECTOR_SELF_NODE_NAME")
+            del(.file)
+            event, err = parse_json(string!(.message))
+            if err == null && is_object(event) {
+              del(.message)
+              . = merge(., object!(event))
+              .timestamp = parse_timestamp(.time, "%+") ?? .timestamp
+              del(.time)
+              del(.node_name)
+              src = to_string(.flow.source.pod_name) ?? ""
+              if src == "" {
+                src = to_string(.flow.IP.source) ?? ""
+              } else {
+                src = (to_string(.flow.source.namespace) ?? "") + "/" + src
+              }
+              dst = to_string(.flow.destination.pod_name) ?? ""
+              if dst == "" {
+                dst = to_string(.flow.IP.destination) ?? ""
+              } else {
+                dst = (to_string(.flow.destination.namespace) ?? "") + "/" + dst
+              }
+              .message = join!(compact([
+                to_string(.flow.verdict) ?? "",
+                to_string(.flow.traffic_direction) ?? "",
+                src + " -> " + dst,
+                to_string(.flow.drop_reason_desc) ?? "",
+                to_string(.flow.Summary) ?? ""
+              ]), " ")
+            }
+        # The node is the one of the agent: the peer is always the local `cilium_host` address.
+        talos_kernel_normalized:
+          type: remap
+          inputs: [talos_kernel]
+          source: |
+            .log_source = "talos-kernel"
+            .node = get_env_var!("VECTOR_SELF_NODE_NAME")
+            del(.host)
+            del(.port)
+            .message = del(.msg)
+            .timestamp = parse_timestamp(del(."talos-time"), "%+") ?? .timestamp
+        talos_service_normalized:
+          type: remap
+          inputs: [talos_service]
+          source: |
+            .log_source = "talos-service"
+            .node = get_env_var!("VECTOR_SELF_NODE_NAME")
+            del(.host)
+            del(.port)
+            .message = del(.msg)
+            .timestamp = parse_timestamp(del(."talos-time"), "%+") ?? .timestamp
+
+      # The Elasticsearch API of VictoriaLogs: `_msg_field`, `_time_field` and `_stream_fields`
+      # the events to its fields. One sink per stream layout. Disk buffers (min 256 MiB
+      # and 32 bytes each, 1.25 GiB per node in all): they block the sources when full, the files are read
+      # again from their checkpoints. Batches of 1 MiB instead of 10: they bound the memory of
+      # a catch-up (see the resources).
+      sinks:
+        vlsingle_pods:
+          type: elasticsearch
+          inputs: [pods_normalized]
+          endpoints:
+            - http://vlsingle-victoria-metrics-k8s-stack.observability.svc.cluster.local.:9428/insert/elasticsearch/
+          api_version: v8
+          compression: gzip
+          healthcheck:
+            enabled: false
+          query:
+            _msg_field: message
+            _time_field: timestamp
+            _stream_fields: log_source,kubernetes.pod_namespace,kubernetes.pod_name,kubernetes.container_name
+          batch:
+            max_bytes: 1048576
+          buffer:
+            type: disk
+            max_size: 536870912
+            when_full: block
+        vlsingle_hubble:
+          type: elasticsearch
+          inputs: [hubble_parsed]
+          endpoints:
+            - http://vlsingle-victoria-metrics-k8s-stack.observability.svc.cluster.local.:9428/insert/elasticsearch/
+          api_version: v8
+          compression: gzip
+          healthcheck:
+            enabled: false
+          query:
+            _msg_field: message
+            _time_field: timestamp
+            _stream_fields: log_source,node
+          batch:
+            max_bytes: 1048576
+          buffer:
+            type: disk
+            max_size: 536870912
+            when_full: block
+        # A few lines per minute: the smallest disk buffer Vector accepts (256 MiB and 32 bytes,
+        # checked at startup only, not by `vector validate`).
+        vlsingle_talos:
+          type: elasticsearch
+          inputs:
+            - talos_kernel_normalized
+            - talos_service_normalized
+          endpoints:
+            - http://vlsingle-victoria-metrics-k8s-stack.observability.svc.cluster.local.:9428/insert/elasticsearch/
+          api_version: v8
+          compression: gzip
+          healthcheck:
+            enabled: false
+          query:
+            _msg_field: message
+            _time_field: timestamp
+            _stream_fields: log_source,node,talos-service
+          batch:
+            max_bytes: 1048576
+          buffer:
+            type: disk
+            max_size: 268435488
+            when_full: block
+        # Its port is the `prom-exporter` port of the pod, scraped by the podMonitor.
+        prom_exporter:
+          type: prometheus_exporter
+          inputs: [internal_metrics]
+          address: "[::]:9090"

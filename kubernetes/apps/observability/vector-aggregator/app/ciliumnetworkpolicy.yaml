@@ -1,0 +1,20 @@
+---
+# The devices (OPNsense filters their VLANs, `world`). Only the receiver: VMAgent scrapes the
+# metrics port through the baseline. The Talos logs go to the agent of each node.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vector-aggregator
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: vector-aggregator
+  ingress:
+    - fromEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "5514"
+              protocol: TCP
+            - port: "5514"
+              protocol: UDP
