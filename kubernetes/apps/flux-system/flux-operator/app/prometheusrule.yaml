@@ -3,8 +3,10 @@
 # `flux_resource_info` (every Flux object of the cluster) and `flux_instance_info` (the
 # FluxInstance), rebuilt at each report of the operator (`reporting.interval`, helmrelease.yaml).
 # The namespace of the object is in `exported_namespace` (`namespace` is the one of the
-# operator): copied to `namespace` for the routes and the title. Converted to a VMRule by the
-# operator of the stack.
+# operator): copied to `namespace` for the routes and the title. The message of the Ready
+# condition comes from kube-state-metrics (customResourceState,
+# kubernetes/apps/observability/victoria-metrics-k8s-stack/app/helmrelease.yaml). Converted to a
+# VMRule by the operator of the stack.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -15,8 +17,8 @@ spec:
       rules:
         # "Failing" as the operator counts it in its FluxReport: `Ready` False, not suspended,
         # not waiting for a dependency (only the object that fails alerts, not those that depend
-        # on it). One alert per object: the reason, which changes, stays out of the labels (it
-        # would restart the `for`) and is read back in the summary.
+        # on it). One alert per object: the reason and the message, which change, stay out of the
+        # labels (they would restart the `for`) and are read back in the summary.
         - alert: FluxResourceNotReady
           expr: |
             label_replace(
@@ -30,11 +32,11 @@ spec:
             severity: warning
           annotations:
             summary: >-
-              {{ $labels.kind }} {{ $labels.name }} not ready{{ with printf `max by (reason) ({__name__=~"flux_resource_info|flux_instance_info", exported_namespace=%q, kind=%q, name=%q, ready="False"})` $labels.exported_namespace $labels.kind $labels.name | query }}: {{ . | first | label "reason" }}{{ end }}.
+              {{ $labels.kind }} {{ $labels.name }} not ready{{ with printf `max by (reason) ({__name__=~"flux_resource_info|flux_instance_info", exported_namespace=%q, kind=%q, name=%q, ready="False"})` $labels.exported_namespace $labels.kind $labels.name | query }}: {{ . | first | label "reason" }}{{ end }}{{ with printf `max by (message) (kube_flux_resource_ready_message{namespace=%q, customresource_kind=%q, name=%q, message!=""})` $labels.exported_namespace $labels.kind $labels.name | query }}: {{ . | first | label "message" }}{{ end }}.
             description: >-
               The {{ $labels.kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} has
-              been failing for 10 minutes. The error: `flux get` or the web UI of the
-              flux-operator.
+              been failing for 10 minutes. The error is in the summary; else `flux get` or the
+              web UI of the flux-operator.
         - alert: FluxResourceSuspended
           expr: |
             label_replace(

@@ -318,6 +318,13 @@ spec:
       # The ReplicationSources of VolSync, for its rules
       # (kubernetes/apps/backups/volsync/app/prometheusrule.yaml): their creation, their last
       # sync (0 before the first one) and their pause, the dates as Unix timestamps.
+      # The message of the Ready condition of the Flux objects, which flux_resource_info does
+      # not carry, read back in the summary of FluxResourceNotReady
+      # (kubernetes/apps/flux-system/flux-operator/app/prometheusrule.yaml): every kind of the
+      # toolkit groups (`kind: "*"`), and the FluxInstance (flux_instance_info). Not the
+      # FluxReport, whose message changes at each report (`Reporting finished in 123ms`), nor
+      # the ResourceSets, which the rule does not read. The message changes with each revision:
+      # a new series per Kustomization at each commit, the old one stale at once.
       customResourceState:
         enabled: true
         config:
@@ -353,10 +360,83 @@ spec:
                       gauge:
                         path: [spec, paused]
                         nilIsZero: true
+              - groupVersionKind:
+                  group: kustomize.toolkit.fluxcd.io
+                  version: v1
+                  kind: "*"
+                metricNamePrefix: kube_flux_resource
+                labelsFromPath:
+                  namespace: [metadata, namespace]
+                  name: [metadata, name]
+                metrics:
+                  - name: ready_message
+                    help: The message of the Ready condition of the Flux object.
+                    each:
+                      type: Info
+                      info:
+                        labelsFromPath:
+                          message: [status, conditions, "[type=Ready]", message]
+              - groupVersionKind:
+                  group: helm.toolkit.fluxcd.io
+                  version: v2
+                  kind: "*"
+                metricNamePrefix: kube_flux_resource
+                labelsFromPath:
+                  namespace: [metadata, namespace]
+                  name: [metadata, name]
+                metrics:
+                  - name: ready_message
+                    help: The message of the Ready condition of the Flux object.
+                    each:
+                      type: Info
+                      info:
+                        labelsFromPath:
+                          message: [status, conditions, "[type=Ready]", message]
+              - groupVersionKind:
+                  group: source.toolkit.fluxcd.io
+                  version: v1
+                  kind: "*"
+                metricNamePrefix: kube_flux_resource
+                labelsFromPath:
+                  namespace: [metadata, namespace]
+                  name: [metadata, name]
+                metrics:
+                  - name: ready_message
+                    help: The message of the Ready condition of the Flux object.
+                    each:
+                      type: Info
+                      info:
+                        labelsFromPath:
+                          message: [status, conditions, "[type=Ready]", message]
+              - groupVersionKind:
+                  group: fluxcd.controlplane.io
+                  version: v1
+                  kind: FluxInstance
+                metricNamePrefix: kube_flux_resource
+                labelsFromPath:
+                  namespace: [metadata, namespace]
+                  name: [metadata, name]
+                metrics:
+                  - name: ready_message
+                    help: The message of the Ready condition of the Flux object.
+                    each:
+                      type: Info
+                      info:
+                        labelsFromPath:
+                          message: [status, conditions, "[type=Ready]", message]
       rbac:
         extraRules:
           - apiGroups: [volsync.backube]
             resources: [replicationsources]
+            verbs: [list, watch]
+          - apiGroups:
+              - kustomize.toolkit.fluxcd.io
+              - helm.toolkit.fluxcd.io
+              - source.toolkit.fluxcd.io
+            resources: ["*"]
+            verbs: [list, watch]
+          - apiGroups: [fluxcd.controlplane.io]
+            resources: [fluxinstances]
             verbs: [list, watch]
       # To resize from the metrics.
       resources:
