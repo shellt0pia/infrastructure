@@ -19,6 +19,8 @@ MINIJINJA_CONFIG_FILE = "{{ config_root }}/.minijinja.toml"
 "aqua:mitsuhiko/minijinja" = "latest"
 "aqua:mikefarah/yq" = "latest"
 "aqua:google/yamlfmt" = "latest"
+# Validates the rendered manifests against the Kubernetes and CRD schemas (AGENTS.md).
+"aqua:yannh/kubeconform" = "latest"
 "aqua:coreos/butane" = "latest"
 # Structured logs of the just recipes.
 "aqua:charmbracelet/gum" = "latest"
@@ -39,3 +41,7 @@ MINIJINJA_CONFIG_FILE = "{{ config_root }}/.minijinja.toml"
 "pypi:ansible-lint" = "latest"
 # B2 CLI (tofu/README.md#setup, docs/backups/runbook.md): not in the aqua registry.
 "pypi:b2" = "latest"
+# Linters of the CI (.github/workflows/lint.yml), with .yamllint.yml and .markdownlint.yml.
+"pypi:yamllint" = "latest"
+# markdownlint-cli2 is only published on npm: it runs with the Node of the system.
+"npm:markdownlint-cli2" = "latest"
