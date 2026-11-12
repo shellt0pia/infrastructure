@@ -5,6 +5,5 @@ kind: Kustomization
 namespace: debug
 components:
   - ../../components/network-policies
-  - ../../components/flux-alerts
 resources:
   - ./namespace.yaml

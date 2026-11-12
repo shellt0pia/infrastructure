@@ -35,5 +35,10 @@
       matchUpdateTypes: ['major', 'minor'],
       dependencyDashboardApproval: true,
     },
+    {
+      description: 'The Piraeus chart and the tag of its upstream alert rules (GitRepository piraeus-operator) in the same PR',
+      matchDepNames: ['/piraeusdatastore\\/piraeus-operator/'],
+      groupName: 'Piraeus',
+    },
   ],
 }

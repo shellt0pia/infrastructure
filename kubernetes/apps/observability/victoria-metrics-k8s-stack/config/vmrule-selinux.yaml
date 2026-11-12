@@ -1,0 +1,28 @@
+---
+# The LogsQL rules, evaluated by the vmalert of the stack through its internal VMAuth
+# (/select/logsql/ to VLSingle, docs/observability/README.md#alerting). A VMRule, not a
+# PrometheusRule: the group needs `type: vlogs`. vmalert limits each query to the interval of
+# its group.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: selinux
+spec:
+  groups:
+    - name: selinux
+      type: vlogs
+      interval: 5m
+      rules:
+        # A write to a file without an SELinux label: a volume mounted without its context
+        # (docs/storage/README.md#decisions), refused once Talos is enforcing.
+        - alert: SELinuxUnlabeledDenials
+          expr: 'log_source:talos-service "talos-service":auditd unlabeled_t | stats by (node) count() as denials | filter denials:>0'
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $value }} SELinux denials on unlabeled_t files on {{ $labels.node }} over 5 minutes."
+            description: >-
+              The AVC denials on {{ $labels.node }} are about files without an SELinux label
+              (unlabeled_t), usually a volume mounted without the ephemeral_t context: the
+              denied process and path in the logs (`log_source:talos-service
+              "talos-service":auditd unlabeled_t`), then docs/storage/runbook.md#selinux-label-of-an-existing-volume.

@@ -1,0 +1,60 @@
+---
+# The Flux alerts, from the metrics of the flux-operator (docs/observability/README.md#alerting):
+# `flux_resource_info` (every Flux object of the cluster) and `flux_instance_info` (the
+# FluxInstance), rebuilt at each report of the operator (`reporting.interval`, helmrelease.yaml).
+# The namespace of the object is in `exported_namespace` (`namespace` is the one of the
+# operator): copied to `namespace` for the routes and the title. Converted to a VMRule by the
+# operator of the stack.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: flux
+spec:
+  groups:
+    - name: flux
+      rules:
+        # "Failing" as the operator counts it in its FluxReport: `Ready` False, not suspended,
+        # not waiting for a dependency (only the object that fails alerts, not those that depend
+        # on it). One alert per object: the reason, which changes, stays out of the labels (it
+        # would restart the `for`) and is read back in the summary.
+        - alert: FluxResourceNotReady
+          expr: |
+            label_replace(
+              max by (exported_namespace, kind, name) (
+                {__name__=~"flux_resource_info|flux_instance_info", ready="False", suspended="False", reason!="DependencyNotReady"}
+              ),
+              "namespace", "$1", "exported_namespace", "(.+)"
+            )
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: >-
+              {{ $labels.kind }} {{ $labels.name }} not ready{{ with printf `max by (reason) ({__name__=~"flux_resource_info|flux_instance_info", exported_namespace=%q, kind=%q, name=%q, ready="False"})` $labels.exported_namespace $labels.kind $labels.name | query }}: {{ . | first | label "reason" }}{{ end }}.
+            description: >-
+              The {{ $labels.kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} has
+              been failing for 10 minutes. The error: `flux get` or the web UI of the
+              flux-operator.
+        - alert: FluxResourceSuspended
+          expr: |
+            label_replace(
+              max by (exported_namespace, kind, name) (
+                {__name__=~"flux_resource_info|flux_instance_info", suspended="True"}
+              ),
+              "namespace", "$1", "exported_namespace", "(.+)"
+            )
+          for: 24h
+          labels:
+            severity: info
+          annotations:
+            summary: "{{ $labels.kind }} {{ $labels.name }} suspended for more than a day."
+        # Without the metric, FluxResourceNotReady can never fire: the flux-operator down (its
+        # TargetDown fires too), or the metric renamed by an upgrade.
+        - alert: FluxMetricsAbsent
+          expr: absent(flux_resource_info)
+          for: 15m
+          labels:
+            severity: warning
+            namespace: flux-system
+          annotations:
+            summary: No flux_resource_info, the Flux alerts are blind (flux-operator down, or the metric renamed).

@@ -5,7 +5,6 @@ kind: Kustomization
 namespace: observability
 components:
   - ../../components/network-policies
-  - ../../components/flux-alerts
 resources:
   - ./namespace.yaml
   - ./prometheus-operator-crds/ks.yaml

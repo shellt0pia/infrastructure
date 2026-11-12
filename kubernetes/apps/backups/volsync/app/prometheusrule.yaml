@@ -1,0 +1,67 @@
+---
+# The alerts of the backups (docs/backups/README.md#monitoring), with KubeJobFailed of the default
+# rules for the mover Jobs. The metrics of VolSync carry the object in `obj_namespace` and
+# `obj_name` (`namespace` is the one of VolSync): copied to `namespace` for the routes and the
+# title. The ReplicationSources themselves are exported by kube-state-metrics
+# (customResourceState, kubernetes/apps/observability/victoria-metrics-k8s-stack/app/helmrelease.yaml).
+# Converted to a VMRule by the operator of the stack.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: volsync
+spec:
+  groups:
+    - name: volsync
+      rules:
+        - alert: VolSyncVolumeOutOfSync
+          expr: |
+            label_replace(
+              max by (obj_namespace, obj_name, role, method) (volsync_volume_out_of_sync),
+              "namespace", "$1", "obj_namespace", "(.+)"
+            ) == 1
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.obj_name }} ({{ $labels.role }}) out of sync for an hour."
+            description: >-
+              VolSync reports {{ $labels.obj_namespace }}/{{ $labels.obj_name }} out of sync
+              ({{ $labels.method }}, {{ $labels.role }}): its last synchronization failed or did
+              not run. `kubectl describe` the object, and the logs of its mover Job.
+        - alert: VolSyncMissedIntervals
+          expr: |
+            label_replace(
+              sum by (obj_namespace, obj_name, role, method) (increase(volsync_missed_intervals_total[1d])),
+              "namespace", "$1", "obj_namespace", "(.+)"
+            ) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.obj_name }} ({{ $labels.role }}) missed {{ $value | humanize }} scheduled syncs over the last day."
+            description: >-
+              A synchronization of {{ $labels.obj_namespace }}/{{ $labels.obj_name }} was still
+              running at its next scheduled time. Fires for a day after each missed interval.
+        # The equivalent of volsync-monitor (kubernetes/apps/backups/volsync-monitor), which runs
+        # in parallel until the noise pass: no successful sync for 26 hours, counted from the
+        # creation of the ReplicationSource before its first sync.
+        - alert: VolSyncBackupLate
+          expr: |
+            time() - (
+              max by (namespace, name) (kube_volsync_replicationsource_status_last_sync_time) > 0
+              or
+              max by (namespace, name) (kube_volsync_replicationsource_created)
+            ) > 26 * 3600
+          labels:
+            severity: warning
+          annotations:
+            summary: "No successful backup of {{ $labels.name }} for {{ $value | humanizeDuration }}."
+            description: >-
+              The ReplicationSource {{ $labels.namespace }}/{{ $labels.name }} has not completed
+              a sync for more than 26 hours (daily backups): docs/backups/runbook.md.
+        - alert: VolSyncBackupPaused
+          expr: max by (namespace, name) (kube_volsync_replicationsource_spec_paused) == 1
+          for: 1h
+          labels:
+            severity: info
+          annotations:
+            summary: "The ReplicationSource {{ $labels.name }} is paused."

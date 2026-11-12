@@ -52,7 +52,7 @@ The first slice of the stack, so that the alert path exists before anything else
   kubectl get providers.notification.toolkit.fluxcd.io,alerts.notification.toolkit.fluxcd.io -A
   ```
 
-  Expected: one `Provider` and one `Alert` `Ready` per namespace, a notification (priority 0) when the Kustomization fails, and the alert resolved after the `resolve_timeout` (1 hour).
+  Expected: one `Provider` and one `Alert` `Ready` per namespace, a notification (priority 0) when the Kustomization fails, and the alert resolved after the `resolve_timeout` (1 hour). Replaced at stage 4 by rules on the metrics of the flux-operator ([Flux alerts from the metrics](#4-alert-rules-and-the-dead-mans-switch)).
 
 ## 2. Metrics
 
@@ -157,15 +157,388 @@ Once the logs and the drops are visible, the [network policies can be enforced](
 
 ## 4. Alert rules and the dead man's switch
 
-- [ ] **Rules.** In the stack: `vmalert` (two replicas), which evaluates the default rules, with `KubeCPUOvercommit` and `KubeMemoryOvercommit` disabled. In the second Kustomization: the `VMRule`s of the [roadmap](../roadmap.md#observability) (certificates, VolSync, DRBD and LINSTOR, Flux, the disks of the nodes and the thin pool, the flows denied by the network policies) and the errors of Vector. Check each one by provoking it when it is cheap to.
+Two pushes: **4a** `vmalert`, the default rules and the dead man's switch, checked before **4b**, the rules of the repository.
 
-  Expected: the rules loaded without error in both `vmalert`, no alert firing on a healthy cluster except `Watchdog`.
+- [x] **Deploy `vmalert` (4a).** In the stack: `vmalert` (two replicas spread over the nodes, every 30 s, `remoteWrite` and `remoteRead` to `VMSingle`, a notifier per Alertmanager replica), its datasource the internal `VMAuth` of the chart (two replicas, `/select/logsql/` to `VLSingle`, the rest to `VMSingle`), the links of the alerts to an *Explore* of Grafana (`external.grafana.host`), the default rules with `KubeCPUOvercommit` and `KubeMemoryOvercommit` disabled. In the Alertmanager: the route of `InfoInhibitor` to `"null"`, the short Pushover template (its link to the notifications in Grafana), the inhibition on the labels of the instances ([alerting](README.md#alerting)). Push, then:
 
-- [ ] **Dead man's switch.** The `Watchdog` alert reaches its route to the healthchecks.io check.
+  ```sh
+  flux -n observability get hr
+  kubectl -n observability get vmalert,vmauth
+  kubectl -n observability get pods -o wide -l 'app.kubernetes.io/name in (vmalert,vmauth)'
+  kubectl -n observability get vmrule
+  hubble observe -P --verdict AUDIT --from-label app.kubernetes.io/name=vmalert --since 10m
+  hubble observe -P --verdict AUDIT --from-label app.kubernetes.io/name=vmauth --since 10m
+  ```
 
-  Expected: the check is up. Scale the Alertmanager to zero: healthchecks.io notifies by its own channel within 4 minutes. Then drop the healthchecks checks of the backups if the alerts replace them ([backups](../backups/README.md#monitoring)).
+  Expected: the HelmRelease `Ready`, the `VMAlert` and the `VMAuth` `operational`, two pods of each on two nodes, the `VMRule`s of the default sources (created by the sync-job), no audited flow.
 
-- [ ] **Noise.** Two weeks later: the alerts received, the rules to disable or to change ([open points](evaluations.md#open-points)).
+- [x] **Rules loaded.** In each `vmalert` pod (a port-forward each):
+
+  ```sh
+  kubectl -n observability get pods -l app.kubernetes.io/name=vmalert -o name
+  kubectl -n observability port-forward <pod> 8080
+  curl -s localhost:8080/api/v1/rules | jq -r '.data.groups[].rules[] | select(.health != "ok") | .name + " " + .lastError'
+  curl -s localhost:8080/api/v1/rules | jq '[.data.groups[].rules[]] | length'
+  curl -s localhost:8080/api/v1/rules | jq -r '.data.groups[].rules[] | select(.name | test("^Kube(CPU|Memory)Overcommit$")) | .name'
+  ```
+
+  Expected: in both replicas, no rule without `health` `ok`, the same number of rules, no `KubeCPUOvercommit` nor `KubeMemoryOvercommit`.
+
+- [x] **Healthy cluster.** From the same port-forward:
+
+  ```sh
+  curl -s localhost:8080/api/v1/alerts | jq -r '.data.alerts[] | select(.state == "firing") | .labels.alertname + " " + .labels.severity + " " + (.labels.namespace // "")'
+  curl -s localhost:8080/api/v1/alerts | jq -r '.data.alerts[] | select(.labels.alertname == "Watchdog") | .source'
+  ```
+
+  Expected: `Watchdog` firing, and `InfoInhibitor` with the `info` alerts if any; anything else is fixed, or noted for the noise pass (below). The link of `Watchdog`, opened in a browser: an *Explore* of Grafana on its expression (`vector(1)`), from the start of the alert.
+
+- [x] **Dead man's switch.** The healthchecks.io check is up, one ping a minute. Then, the Alertmanager stopped (the HelmRelease suspended, or Flux would scale it back):
+
+  ```sh
+  flux -n observability suspend hr victoria-metrics-k8s-stack
+  kubectl -n observability patch vmalertmanager victoria-metrics-k8s-stack --type merge -p '{"spec":{"replicaCount":0}}'
+  ```
+
+  Expected: healthchecks.io notifies by its own channel within 4 minutes (period 1 minute, grace 3). Then:
+
+  ```sh
+  kubectl -n observability patch vmalertmanager victoria-metrics-k8s-stack --type merge -p '{"spec":{"replicaCount":2}}'
+  flux -n observability resume hr victoria-metrics-k8s-stack
+  ```
+
+  Expected: the two Alertmanager pods back, the check up again. The alerts of `vmalert` about its notifiers may fire meanwhile, then resolve.
+
+- [x] **Template.** A test alert to the Alertmanager API, then the same one resolved (an `endsAt` in the past). Sent to **both replicas**, as `vmalert` does: the replicas share the silences and the notifications sent, not the alerts. Through the Service (as at [stage 1](#1-operator-alertmanager-flux-notifications)), the alert reaches one replica only, and Grafana, which reads the other one through the same Service, does not show it. A port-forward per pod, each in its own terminal:
+
+  ```sh
+  kubectl -n observability port-forward pod/vmalertmanager-victoria-metrics-k8s-stack-0 9093
+  kubectl -n observability port-forward pod/vmalertmanager-victoria-metrics-k8s-stack-1 9094:9093
+  ```
+
+  Then:
+
+  ```sh
+  for p in 9093 9094; do curl -XPOST localhost:$p/api/v2/alerts -H 'Content-Type: application/json' \
+    -d '[{"labels":{"alertname":"Test","severity":"warning","namespace":"debug"},"annotations":{"summary":"Stage 4 template test."},"generatorURL":"https://grafana.shelltopia.org/explore"}]'; done
+  for p in 9093 9094; do curl -XPOST localhost:$p/api/v2/alerts -H 'Content-Type: application/json' \
+    -d '[{"labels":{"alertname":"Test","severity":"warning","namespace":"debug"},"annotations":{"summary":"Stage 4 template test."},"generatorURL":"https://grafana.shelltopia.org/explore","endsAt":"2026-01-01T00:00:00Z"}]'; done
+  ```
+
+  Expected: one notification (not two), `[FIRING:1] Test (debug)` as the title, `Stage 4 template test.` as the body, a *Grafana* link opening *Alerting → Active notifications* on the `Alertmanager` data source, filtered on `alertname="Test",namespace="debug"`: the alert, its *See source* button opening the `generatorURL`, its *Silence* button. Then `[RESOLVED] Test (debug)` and `[resolved] Stage 4 template test.` (the link opens an empty list: the alert has left the Alertmanager). The same alert without `summary` but with a `description` shows the description; with neither, `(no details)`.
+
+- [x] **`InfoInhibitor`.** Its route, from the same port-forwards:
+
+  ```sh
+  for p in 9093 9094; do curl -XPOST localhost:$p/api/v2/alerts -H 'Content-Type: application/json' \
+    -d '[{"labels":{"alertname":"InfoInhibitor","severity":"none"}}]'; done
+  ```
+
+  Expected: nothing on the phone (without its route, the default receiver would notify it).
+
+- [x] **Inhibition.** A `critical` and a `warning` of the same name on the same certificate, then on two:
+
+  ```sh
+  for p in 9093 9094; do curl -XPOST localhost:$p/api/v2/alerts -H 'Content-Type: application/json' \
+    -d '[{"labels":{"alertname":"TestInhibitSame","severity":"critical","namespace":"debug","name":"a"}},{"labels":{"alertname":"TestInhibitSame","severity":"warning","namespace":"debug","name":"a"}}]'; done
+  for p in 9093 9094; do curl -XPOST localhost:$p/api/v2/alerts -H 'Content-Type: application/json' \
+    -d '[{"labels":{"alertname":"TestInhibitOther","severity":"critical","namespace":"debug","name":"a"}},{"labels":{"alertname":"TestInhibitOther","severity":"warning","namespace":"debug","name":"b"}}]'; done
+  ```
+
+  Expected: `TestInhibitSame` once, priority 1 (the `warning` inhibited); `TestInhibitOther` twice, priority 1 and priority 0. They resolve after the `resolve_timeout` (5 minutes, 1 hour while the Flux events were there), or at once sent again with `"endsAt":"2026-01-01T00:00:00Z"`.
+
+- [x] **Flux events to both replicas.** Superseded by the next step the same day. The component `flux-alerts` had a `Provider` and an `Alert` per Alertmanager replica (each on its pod through the headless Service), for the same reason; checked with a throwaway Kustomization: one notification, the alert in both replicas.
+
+- [x] **Flux alerts from the metrics (fix of 4a).** The events of the notification-controller are dropped ([why](evaluations.md#rejected-and-alternative-options)): the component `flux-alerts` leaves every namespace (its `Provider`s and `Alert`s pruned), with the network policy from the notification-controller to the Alertmanager and `resolve_timeout: 1h` (back to the default, 5 minutes). Instead, `prometheusrule.yaml` next to the flux-operator, on its `flux_resource_info` and `flux_instance_info` (`FluxResourceNotReady`, `FluxResourceSuspended`, `FluxMetricsAbsent`, [alerting](README.md#alerting)), and `reporting.interval: 30s` on the operator. Push, then:
+
+  ```sh
+  kubectl get providers.notification.toolkit.fluxcd.io,alerts.notification.toolkit.fluxcd.io -A
+  kubectl -n observability get ciliumnetworkpolicy
+  kubectl -n flux-system get prometheusrule,vmrule
+  kubectl -n flux-system get deploy flux-operator -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="REPORTING_INTERVAL")].value}'
+  ```
+
+  Expected: no `Provider` nor `Alert` left, the `vlsingle` policy only, the `PrometheusRule` `flux` and its `VMRule` (converted by the operator), `30s`. In each `vmalert` pod (the port-forwards of *Rules loaded*):
+
+  ```sh
+  curl -s localhost:8080/api/v1/rules | jq -r '.data.groups[] | select(.name == "flux") | .rules[] | .name + " " + .health'
+  ```
+
+  Expected: `FluxResourceNotReady`, `FluxResourceSuspended` and `FluxMetricsAbsent`, `ok`, nothing firing. Then a throwaway Kustomization on a path that does not exist, and a second one that depends on it:
+
+  ```sh
+  kubectl -n debug apply -f - <<'EOF'
+  apiVersion: kustomize.toolkit.fluxcd.io/v1
+  kind: Kustomization
+  metadata:
+    name: stage-4-test
+  spec:
+    interval: 10m
+    path: ./does-not-exist
+    prune: true
+    sourceRef:
+      kind: GitRepository
+      name: flux-system
+      namespace: flux-system
+  ---
+  apiVersion: kustomize.toolkit.fluxcd.io/v1
+  kind: Kustomization
+  metadata:
+    name: stage-4-test-dependent
+  spec:
+    dependsOn:
+      - name: stage-4-test
+    interval: 10m
+    path: ./does-not-exist
+    prune: true
+    sourceRef:
+      kind: GitRepository
+      name: flux-system
+      namespace: flux-system
+  EOF
+  flux -n debug get ks
+  ```
+
+  Expected: both not ready, the second one with `DependencyNotReady`. About 11 minutes later (the report, the `for`), one notification: `[FIRING:1] FluxResourceNotReady (debug)`, `Kustomization stage-4-test not ready: <the reason of flux get>.`, nothing for `stage-4-test-dependent`. Then suspended:
+
+  ```sh
+  flux -n debug suspend ks stage-4-test
+  ```
+
+  Expected: `[RESOLVED] FluxResourceNotReady (debug)` within 5 minutes (the `group_interval`), and `max by (exported_namespace, kind, name) (flux_resource_info{suspended="True"})` in *Explore* returns `stage-4-test` (the expression of `FluxResourceSuspended`, not waited for 24 hours). Then:
+
+  ```sh
+  kubectl -n debug delete kustomization stage-4-test stage-4-test-dependent
+  ```
+
+  Last, the flux-operator stopped (its HelmRelease suspended, or Flux would scale it back):
+
+  ```sh
+  flux -n flux-system suspend hr flux-operator
+  kubectl -n flux-system scale deploy flux-operator --replicas 0
+  ```
+
+  Expected: `[FIRING:1] FluxMetricsAbsent (flux-system)` after about 15 minutes. Not `TargetDown`: without a pod, the target is gone, not down. Then:
+
+  ```sh
+  kubectl -n flux-system scale deploy flux-operator --replicas 1
+  flux -n flux-system resume hr flux-operator
+  ```
+
+  Expected: the operator back, `[RESOLVED] FluxMetricsAbsent (flux-system)` within 5 minutes.
+
+- [x] **Render of the sync-job (4b, before the push).** In the stack: the mixins of cert-manager, CoreDNS and Cilium (`defaultRules.sources`), the `job` of CoreDNS rewritten, the groups and rules not used disabled ([alerting](README.md#alerting)). The `VMRule`s the sync-job would create, rendered locally (it has no kubeconfig with `OUTPUT=-`: nothing reaches the cluster):
+
+  ```sh
+  yq '.spec.values' kubernetes/apps/observability/victoria-metrics-k8s-stack/app/helmrelease.yaml > /tmp/values.yaml
+  helm template victoria-metrics-k8s-stack oci://ghcr.io/victoriametrics/helm-charts/victoria-metrics-k8s-stack --version 0.97.1 \
+    -n observability -f /tmp/values.yaml --show-only templates/sync-job/config.yaml | yq '.data["config.yaml"]' > /tmp/sync-job.yaml
+  podman run --rm -e OUTPUT=- -e NAMESPACE=observability -e RELEASE=victoria-metrics-k8s-stack \
+    -e RESOURCE_PREFIX=victoria-metrics-k8s-stack -e PRUNE=false -e OWNER_REFERENCES=false \
+    -v /tmp/sync-job.yaml:/etc/config/config.yaml:ro,Z ghcr.io/victoriametrics/sync-job:v0.0.17 > /tmp/vmrules.yaml
+  yq -N 'select(.kind == "VMRule") | .spec.groups[].name' /tmp/vmrules.yaml | sort
+  yq -N 'select(.kind == "VMRule") | .spec.groups[] | select(.name | test("^coredns")) | .rules[].expr' /tmp/vmrules.yaml | grep -c 'job=~"coredns-metrics|k8s-gateway-metrics"'
+  yq -N 'select(.kind == "VMRule") | .spec.groups[].rules[] | select(.alert == "RunningOutOfCiliumClusterIdentities" or .alert == "CiliumAgentHighDeniedRate") | .alert' /tmp/vmrules.yaml
+  yq 'select(.kind == "VMRule") | {"groups": .spec.groups}' /tmp/vmrules.yaml > /tmp/rules.yaml
+  vmalert -dryRun -rule /tmp/rules.yaml
+  ```
+
+  Expected: the groups `cert-manager`, `certificates`, `coredns`, `coredns_forward` and the Cilium ones (`Cilium API`, `Conntrack`, `Endpoints`, `Identity`, `Maps`, `NAT`, `Nodes`, `Policy`) next to the default ones, each name once; no `Cilium IPAM`, `Clustermesh`, `Kvstoremesh` nor `Drops` (its only rule duplicates `NetworkPolicyDroppedFlows`: disabled as a group, a group without rules would still be created); 9 CoreDNS expressions on both jobs; neither disabled rule; `vmalert -dryRun` without error. It does not execute the templates: the one of `RunningOutOfCiliumClusterIdentities` (`{{ value }}` without argument) passes it, and fails at each notification.
+
+- [x] **Pairs of severities (4b, before the push).** The alerts with two severities, on the render of the previous step (`/tmp/rules.yaml`) plus the `PrometheusRule`s and the `VMRule` of the repository and the upstream rules of Piraeus (`config/extras/monitoring/alerts.yaml` of the tag `v2.12.0`, a `PrometheusRule` too):
+
+  ```sh
+  curl -fsSL https://raw.githubusercontent.com/piraeusdatastore/piraeus-operator/v2.12.0/config/extras/monitoring/alerts.yaml > /tmp/piraeus-alerts.yaml
+  {
+    yq -o json -I0 '.groups[].rules[] | select(.alert) | {"alert": .alert, "severity": .labels.severity}' /tmp/rules.yaml
+    yq -o json -I0 '.spec.groups[].rules[] | select(.alert) | {"alert": .alert, "severity": .labels.severity}' \
+      kubernetes/apps/*/*/*/prometheusrule.yaml kubernetes/apps/observability/victoria-metrics-k8s-stack/config/vmrule-selinux.yaml /tmp/piraeus-alerts.yaml
+  } | jq -rs 'group_by(.alert) | map(select(map(.severity) | unique | length > 1)) | .[] | .[0].alert + ": " + (map(.severity) | join(", "))'
+  ```
+
+  Expected, beyond the pairs of the default rules: `CertManagerCertExpirySoon` (instances told apart by `exported_namespace` and `name`, ours aggregated like the upstream one), `CoreDNSErrorsHigh` and `CoreDNSForwardErrorsHigh` (one per `namespace`: the two jobs are in `kube-system` and `network`), `linstorStoragePoolAtCapacity` (`node`, with `storage_pool` equal on both sides of an inhibition of the same `node`: one pool per node). Each instance label in the `equal` of the inhibition.
+
+- [x] **Deploy (4b).** In the stack: the mixins (above), the `ReplicationSource`s in kube-state-metrics (`customResourceState`, its RBAC). Next to the applications, each in the `kustomization.yaml` of its folder: the `PrometheusRule`s of the certificates (`CertManagerCertExpirySoon` `critical`), VolSync, the denied flows, Vector (agent and aggregator), LINSTOR (`linstorStoragePoolAtCapacity` `critical`). The upstream rules of Piraeus: the `GitRepository` `piraeus-operator` (the tag of the chart, Renovate updating both in one PR) and the Flux Kustomization `piraeus-alerts`. In the second Kustomization of the stack: the `VMRule` `selinux` (LogsQL). Push, then:
+
+  ```sh
+  flux -n observability get hr
+  flux -n piraeus-datastore get sources git
+  flux -n piraeus-datastore get ks
+  flux -n piraeus-datastore tree ks piraeus-alerts
+  kubectl get prometheusrule -A
+  kubectl -n observability get vmrule
+  ```
+
+  Expected: the HelmRelease `Ready`, the `GitRepository` `piraeus-operator` `Ready` on `v2.12.0`, the Kustomization `piraeus-alerts` `Ready`, its inventory the `PrometheusRule` `piraeus-datastore` alone. The `PrometheusRule`s `cert-manager`, `volsync`, `network-policies`, `vector-agent`, `vector-aggregator`, `linstor`, `piraeus-datastore` and `flux`, each with its `VMRule` (converted by the operator). In `observability`, the `VMRule`s of the mixins (created by the sync-job) and `selinux`.
+
+- [x] **ReplicationSources in kube-state-metrics.** In *Explore*, `VictoriaMetrics`:
+
+  ```promql
+  kube_volsync_replicationsource_created
+  kube_volsync_replicationsource_status_last_sync_time
+  kube_volsync_replicationsource_spec_paused
+  (time() - kube_volsync_replicationsource_status_last_sync_time) / 3600
+  ```
+
+  Expected: one series each for `grafana` (`namespace="observability"`), timestamps in seconds (not 0, not 1), `spec_paused` at 0, the hours since the last backup under 26 (the expression of `VolSyncBackupLate`, level 3).
+
+- [x] **Rules loaded (4b).** In each `vmalert` pod (the port-forwards of *Rules loaded*, 4a):
+
+  ```sh
+  curl -s localhost:8080/api/v1/rules | jq -r '.data.groups[].rules[] | select(.health != "ok") | .name + " " + .lastError'
+  curl -s localhost:8080/api/v1/rules | jq -r '.data.groups[] | select(.name | test("^(cert-manager|certificates|coredns|coredns_forward|Cilium .*|linstor.rules|drbd.rules|linstor|cert-manager-expiry|volsync|network-policies|vector-agent|vector-aggregator|selinux)$")) | .name + " " + (.rules | length | tostring)'
+  curl -s localhost:8080/api/v1/alerts | jq -r '.data.alerts[] | select(.state == "firing") | .labels.alertname + " " + .labels.severity + " " + (.labels.namespace // "")'
+  ```
+
+  Expected: in both replicas, no rule without `health` `ok` (`selinux` included: `vmalert` reaches VictoriaLogs through the `VMAuth`); the groups with their number of rules: `cert-manager` 1, `certificates` 3, `coredns` 4, `coredns_forward` 5, `Cilium API` 1, `Cilium Conntrack` 2, `Cilium Endpoints` 4, `Cilium Identity` 1, `Cilium Maps` 2, `Cilium NAT` 1, `Cilium Nodes` 1, `Cilium Policy` 1, `linstor.rules` 6, `drbd.rules` 8, `linstor` 1, `cert-manager-expiry` 1, `volsync` 4, `network-policies` 2, `vector-agent` 4, `vector-aggregator` 4, `selinux` 1; nothing firing beyond `Watchdog` and the `info` alerts (an audited flow may show as `NetworkPolicyAuditedFlows`: fixed, or noted for the noise pass).
+
+- [x] **Certificate expiry (level 3).** No certificate is made to expire: their remaining time and their renewal window, the expressions of the two severities without their threshold, in *Explore*:
+
+  ```promql
+  avg by (exported_namespace, namespace, name) ((certmanager_certificate_expiration_timestamp_seconds - time()) and on (exported_namespace, namespace, name) (certmanager_certificate_ready_status{condition="True"} == 1)) / 86400
+  avg by (exported_namespace, namespace, name) (certmanager_certificate_expiration_timestamp_seconds - certmanager_certificate_renewal_timestamp_seconds) * 0.7 / 86400
+  ```
+
+  Expected: one series per certificate, with its days left (over 30: renewed 30 days before its end), and 21 days for the upstream `warning` (0.7 of the renewal window of 30 days); ours fires at 7.
+
+- [x] **Certificate not ready, state restored.** A `Certificate` on an `Issuer` that does not exist:
+
+  ```sh
+  kubectl -n debug apply -f - <<'EOF'
+  apiVersion: cert-manager.io/v1
+  kind: Certificate
+  metadata:
+    name: stage-4-test
+  spec:
+    secretName: stage-4-test
+    dnsNames:
+      - stage-4-test.invalid
+    issuerRef:
+      kind: Issuer
+      name: does-not-exist
+  EOF
+  kubectl -n debug get certificate stage-4-test
+  ```
+
+  Expected: `READY` `False`, then after about 10 minutes one notification, priority 1: `[FIRING:1] CertManagerCertNotReady (cert-manager)` (the `namespace` is the one of cert-manager, which exports the metric; the certificate's is `exported_namespace`), The cert `stage-4-test` is not ready to serve traffic. Then, while it fires, both `vmalert` pods restarted at once:
+
+  ```sh
+  kubectl -n observability delete pod -l app.kubernetes.io/name=vmalert
+  kubectl -n observability get pods -l app.kubernetes.io/name=vmalert -w
+  ```
+
+  Expected: the pods back, `CertManagerCertNotReady` firing again in their `/api/v1/alerts` with the same `activeAt` (its state read back from `VMSingle` by `remoteRead`), and nothing on the phone: no `[RESOLVED]` then `[FIRING]`. Then:
+
+  ```sh
+  kubectl -n debug delete certificate stage-4-test
+  ```
+
+  Expected: `[RESOLVED] CertManagerCertNotReady (cert-manager)` within 5 minutes.
+
+- [x] **VolSync paused.** The Kustomization of Grafana suspended (so that Flux cannot revert the patch), then its `ReplicationSource` paused for an hour and a half, away from its schedule (01:30 UTC):
+
+  ```sh
+  flux -n observability suspend ks grafana
+  kubectl -n observability patch replicationsource grafana --type merge -p '{"spec":{"paused":true}}'
+  ```
+
+  Expected: `kube_volsync_replicationsource_spec_paused{name="grafana"}` at 1 within a minute, `VolSyncBackupPaused` pending, then firing after an hour, in *Alerting → Alert rules* (and in the `vmalert` API), nothing on the phone (`info`). Then:
+
+  ```sh
+  kubectl -n observability patch replicationsource grafana --type json -p '[{"op":"remove","path":"/spec/paused"}]'
+  flux -n observability resume ks grafana
+  ```
+
+  Expected: the metric back to 0, the alert gone at the next evaluation.
+
+- [x] **Audited flows.** From a pod of `debug`, a single flow no policy allows (to `VMSingle`, whose policies only admit the clients of the stack):
+
+  ```sh
+  kubectl -n debug run np-alert-test --image=docker.io/library/busybox --restart=Never --command -- \
+    nc -zv -w 3 vmsingle-victoria-metrics-k8s-stack.observability.svc 8428
+  kubectl -n debug wait --for=jsonpath='{.status.phase}'=Succeeded pod/np-alert-test
+  hubble observe -P --verdict AUDIT --from-pod debug/np-alert-test --since 5m
+  kubectl -n debug delete pod np-alert-test
+  ```
+
+  Expected: the flow in Hubble (`AUDIT`, ingress to `vmsingle`; audited, so the connection succeeds), then within two minutes (the scrape, the evaluation) `NetworkPolicyAuditedFlows` firing (no `for`: one flow is enough), `direction="ingress"`, `source_namespace="debug"`, `namespace="observability"` (the side whose policy decides), its summary with the number of flows and both ends; nothing on the phone (`info`). The alert gone an hour later (the `increase` window). `NetworkPolicyDroppedFlows` (`rate` over 10 minutes, `for: 10m`: a sustained drop only) is checked once the policies are [enforced](../cluster/bootstrap.md#network-policies), the same flow then dropped and repeated for 25 minutes.
+
+- [x] **Vector.** `VLSingle` stopped for 10 minutes (the HelmRelease suspended, or Flux would scale it back):
+
+  ```sh
+  flux -n observability suspend hr victoria-metrics-k8s-stack
+  kubectl -n observability patch vlsingle victoria-metrics-k8s-stack --type merge -p '{"spec":{"replicaCount":0}}'
+  ```
+
+  Expected: `[FIRING] VectorSinkStalled (observability-agents)` about 15 minutes after the stop (10 minutes without a sent event, then `for: 5m`; one alert per pod and sink, `vlsingle_pods`, `vlsingle_talos`, `vlsingle_hubble`: grouped in one notification), `vector_buffer_size_bytes{job="vector-agent"}` growing in *Explore*. No `VectorComponentErrors`: Vector retries without limit and keeps the events, the failed requests only count in `vector_http_client_errors_total` (checked on 2026-11-12). The aggregator only stalls if it receives something (no external device before [stage 5](#5-external-devices)). `selinux` loses its `health` `ok` meanwhile (no VictoriaLogs to query), and the alerts of `vmalert` about its evaluations may fire. Then:
+
+  ```sh
+  kubectl -n observability patch vlsingle victoria-metrics-k8s-stack --type merge -p '{"spec":{"replicaCount":1}}'
+  flux -n observability resume hr victoria-metrics-k8s-stack
+  ```
+
+  Expected: the buffers back to their level, the logs of the outage delivered (`log_source:pods | stats by (_time:1m) count()` over the last half hour, no empty minute), `[RESOLVED] VectorSinkStalled` within a few minutes, each sink at its next retry (the backoff grows with the outage: about 6 minutes for `vlsingle_hubble` after a 15-minute stop, on 2026-11-12). The buffering half of the [failover](#3-logs) of stage 3, on both nodes. `VectorComponentErrors`, `VectorBufferFillingUp` (over 80 % for 10 minutes) and `VectorDiscardedEvents` are not provoked: their expressions are checked against the cluster only.
+
+- [x] **DRBD (optional).** A throwaway volume (`replicated-temporary`: deleted with its PVC) and a pod on kube-01:
+
+  ```sh
+  kubectl -n debug apply -f - <<'EOF'
+  apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: drbd-alert-test
+  spec:
+    storageClassName: replicated-temporary
+    accessModes: [ReadWriteOnce]
+    resources:
+      requests:
+        storage: 1Gi
+  ---
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: drbd-alert-test
+  spec:
+    nodeSelector:
+      kubernetes.io/hostname: kube-01
+    containers:
+      - name: sleep
+        image: docker.io/library/busybox
+        command: [sleep, "3600"]
+        volumeMounts:
+          - name: data
+            mountPath: /data
+    volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: drbd-alert-test
+  EOF
+  kubectl -n debug get pvc drbd-alert-test -o jsonpath='{.spec.volumeName}{"\n"}'
+  kubectl -n piraeus-datastore get pods -o wide | grep satellite
+  kubectl -n piraeus-datastore exec <satellite of kube-03> -- drbdadm disconnect <pvc-...>
+  ```
+
+  Expected: `[FIRING] drbdConnectionNotConnected (piraeus-datastore)` after a minute (and `drbdDeviceNotUpToDate` for the replica left behind, if DRBD outdates it). Then:
+
+  ```sh
+  kubectl -n piraeus-datastore exec <satellite of kube-03> -- drbdadm connect <pvc-...>
+  kubectl -n debug delete pod drbd-alert-test
+  kubectl -n debug delete pvc drbd-alert-test
+  ```
+
+  Expected: `[RESOLVED]` after the reconnection and the resync, the PV and its LINSTOR resource gone with the PVC.
+
+- [x] **SELinux (level 3).** No denial is provoked. The expression of `SELinuxUnlabeledDenials` over 2026-11-09 and 2026-11-10 (the denials of [the mounts without context](../storage/README.md#decisions)), in *Explore*, `VictoriaLogs`:
+
+  ```logsql
+  _time:[2026-11-09T00:00:00Z, 2026-11-11T00:00:00Z) log_source:talos-service "talos-service":auditd unlabeled_t | stats by (node) count() as denials | filter denials:>0
+  ```
+
+  Expected: one line for kube-01 and one for kube-03 (`vmalert` adds its own `_time` filter, the 5 minutes of the group); over the last 24 hours, nothing (the alert not firing).
+
+- [x] **Not provoked.** Their expressions checked against the cluster only (level 3, before the push): `VolSyncVolumeOutOfSync`, `VolSyncMissedIntervals` and `VolSyncBackupLate` (a failing backup), `VectorComponentErrors`, `VectorBufferFillingUp` and `VectorDiscardedEvents`, `linstorStoragePoolAtCapacity` (a full pool), the storage pool errors, the rules of the mixins beyond `CertManagerCertNotReady`. The metadata of the thin pool, not exposed, has no alert ([open points](evaluations.md#open-points)).
+
+- [ ] **Noise.** Two weeks later: the alerts received, the rules to disable or to change ([open points](evaluations.md#open-points)), the overcommit rules once kube-02 joins, and the healthchecks.io checks of the backups dropped if the alerts replace them ([backups](../backups/README.md#monitoring)).
 
 ## 5. External devices
 

@@ -5,7 +5,6 @@ kind: Kustomization
 namespace: network
 components:
   - ../../components/network-policies
-  - ../../components/flux-alerts
 resources:
   - ./namespace.yaml
   - ./gateways/ks.yaml

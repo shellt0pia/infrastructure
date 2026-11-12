@@ -45,16 +45,148 @@ spec:
         limits:
           memory: 256Mi
 
-    # Enabled at the next stage (docs/observability/bootstrap.md): vmalert and the default rules
-    # at stage 4.
+    # Evaluates every VMRule of the cluster (selectAllByDefault), the PrometheusRules converted by
+    # the operator included. Two replicas that evaluate the same rules: the Alertmanager
+    # deduplicates the alerts, VMSingle the series they write (docs/observability/README.md#alerting).
+    # The chart sets the rest: the datasource (the internal VMAuth below), remoteWrite and
+    # remoteRead to VMSingle (the state of the `for:` restored at restart), a notifier per
+    # Alertmanager replica.
     vmalert:
-      enabled: false
+      enabled: true
+      spec:
+        replicaCount: 2
+        # The scrape interval, and the dedup interval of VMSingle.
+        evaluationInterval: 30s
+        podDisruptionBudget:
+          minAvailable: 1
+        # ScheduleAnyway: with 2 nodes, a strict constraint would leave a replica Pending while a
+        # node is down. The operator fills the label selector.
+        topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+        # Same security context as the Alertmanager, see there why it is written out in full.
+        useStrictSecurity: true
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          fsGroup: 65534
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
+          privileged: false
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        # To resize from the metrics.
+        resources:
+          requests:
+            cpu: 20m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+
+    # The links of the alerts (their generatorURL): an Explore of their expression in Grafana,
+    # from the start of the alert, on the default data source (`VictoriaMetrics`). With the
+    # scheme: the chart adds http:// otherwise.
+    external:
+      grafana:
+        host: https://grafana.shelltopia.org
+
+    # Created by the chart as soon as vmalert and vlsingle are both enabled, as the datasource of
+    # vmalert: /select/logsql/.* to VLSingle (the LogsQL rules), the rest to VMSingle. Every rule
+    # goes through it: if it is down, Watchdog stops too and the dead man's switch notices.
+    internal:
+      vmauth:
+        spec:
+          replicaCount: 2
+          podDisruptionBudget:
+            minAvailable: 1
+          # ScheduleAnyway: with 2 nodes, a strict constraint would leave a replica Pending while
+          # a node is down. The operator fills the label selector.
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: ScheduleAnyway
+          # Same security context as the Alertmanager, see there why it is written out in full.
+          useStrictSecurity: true
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            fsGroup: 65534
+            fsGroupChangePolicy: OnRootMismatch
+            seccompProfile:
+              type: RuntimeDefault
+            privileged: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # To resize from the metrics.
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+
+    # The default rules, and the upstream rules of the applications that have them, created as
+    # VMRules by the sync-job below. All enabled until the noise pass
+    # (docs/observability/bootstrap.md#4-alert-rules-and-the-dead-mans-switch), except:
     defaultRules:
-      enabled: false
+      rules:
+        # Fire as long as the cluster cannot lose a node without overcommitting: until kube-02
+        # joins (docs/roadmap.md).
+        KubeCPUOvercommit:
+          enabled: false
+        KubeMemoryOvercommit:
+          enabled: false
+        # Cilium: its description calls `value` without an argument, which fails when the alert
+        # is rendered (not caught by `vmalert -dryRun`, which only parses it).
+        RunningOutOfCiliumClusterIdentities:
+          enabled: false
+      groups:
+        # The CoreDNS mixin selects the job `kube-dns`: here the cluster DNS (kube-system) and
+        # k8s-gateway (network), both CoreDNS. With both in one selector, CoreDNSDown fires only
+        # when both are down.
+        coredns:
+          labelRewrites:
+            job:
+              match: kube-dns
+              value: coredns-metrics|k8s-gateway-metrics
+        coredns_forward:
+          labelRewrites:
+            job:
+              match: kube-dns
+              value: coredns-metrics|k8s-gateway-metrics
+        # Cilium: not used here (the IPAM of the cloud providers, Cluster Mesh).
+        Cilium IPAM:
+          enabled: false
+        Cilium Clustermesh:
+          enabled: false
+        Cilium Kvstoremesh:
+          enabled: false
+        # Cilium: its only rule, CiliumAgentHighDeniedRate, duplicates NetworkPolicyDroppedFlows
+        # (kubernetes/apps/kube-system/cilium/app/prometheusrule.yaml), which has the namespaces.
+        Cilium Drops:
+          enabled: false
       sources:
         # Follows kubeEtcd.enabled, disabled below.
         etcd:
           enabled: true
+        # The mixins of the applications that have one (monitoring-mixins), followed as the
+        # default rules: from master, at each install and upgrade of the stack
+        # (docs/observability/README.md#alerting).
+        cert-manager:
+          url: https://raw.githubusercontent.com/monitoring-mixins/website/master/assets/cert-manager/alerts.yaml
+        coredns:
+          url: https://raw.githubusercontent.com/monitoring-mixins/website/master/assets/coredns/alerts.yaml
+        # The mixin of Isovalent, on the metrics of the open-source agent and operator.
+        cilium:
+          url: https://raw.githubusercontent.com/monitoring-mixins/website/master/assets/cilium-enterprise/alerts.yaml
 
     # Never enabled here: the CoreDNS chart has its own monitor, and Talos runs etcd outside any
     # pod (the VMNodeScrape of ../config instead).
@@ -183,6 +315,49 @@ spec:
 
     # The defaults of the subchart already meet `restricted`.
     kube-state-metrics:
+      # The ReplicationSources of VolSync, for its rules
+      # (kubernetes/apps/backups/volsync/app/prometheusrule.yaml): their creation, their last
+      # sync (0 before the first one) and their pause, the dates as Unix timestamps.
+      customResourceState:
+        enabled: true
+        config:
+          kind: CustomResourceStateMetrics
+          spec:
+            resources:
+              - groupVersionKind:
+                  group: volsync.backube
+                  version: v1alpha1
+                  kind: ReplicationSource
+                metricNamePrefix: kube_volsync_replicationsource
+                labelsFromPath:
+                  namespace: [metadata, namespace]
+                  name: [metadata, name]
+                metrics:
+                  - name: created
+                    help: Unix creation timestamp.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [metadata, creationTimestamp]
+                  - name: status_last_sync_time
+                    help: Unix timestamp of the last successful sync, 0 before the first one.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [status, lastSyncTime]
+                        nilIsZero: true
+                  - name: spec_paused
+                    help: Whether the ReplicationSource is paused.
+                    each:
+                      type: Gauge
+                      gauge:
+                        path: [spec, paused]
+                        nilIsZero: true
+      rbac:
+        extraRules:
+          - apiGroups: [volsync.backube]
+            resources: [replicationsources]
+            verbs: [list, watch]
       # To resize from the metrics.
       resources:
         requests:
@@ -232,8 +407,8 @@ spec:
               tlsConfig:
                 insecureSkipVerify: true
 
-    # Downloads the default dashboards (and the rules from stage 4) from upstream at each install
-    # or upgrade, and creates them as ConfigMaps and VMRules outside Helm and Flux. The sources
+    # Downloads the default dashboards and rules from upstream at each install or upgrade, and
+    # creates them as ConfigMaps and VMRules outside Helm and Flux. The sources
     # stay on their default branches (docs/observability/evaluations.md#sources-of-the-rules-and-dashboards).
     syncJob:
       podSecurityContext:
@@ -335,12 +510,8 @@ spec:
       # docs/observability/README.md#alerting. Rendered as is into the configuration Secret (no
       # Helm templating): the `{{ }}` are templates of the Alertmanager.
       config:
-        global:
-          # Flux events carry no end time: an alert of Flux resolves after this.
-          resolve_timeout: 1h
         route:
-          # Default receiver: an alert without a known severity (the Flux events are
-          # `severity=error`) still rings.
+          # Default receiver: an alert without a known severity still rings.
           receiver: pushover-warning
           group_by: [alertname, namespace]
           repeat_interval: 12h
@@ -352,17 +523,41 @@ spec:
               group_wait: 0s
               group_interval: 30s
               repeat_interval: 1m
+            # Fires (severity `none`, general.rules) as long as any `info` alert fires, to
+            # inhibit them in a setup that notifies them. Ours never does.
+            - matchers: ['alertname="InfoInhibitor"']
+              receiver: "null"
             - matchers: ['severity="critical"']
               receiver: pushover-critical
             # Visible in Grafana only.
             - matchers: ['severity="info"']
               receiver: "null"
         # A critical alert silences the warning of the same name (the two thresholds of a
-        # rule, as in kube-prometheus).
+        # rule). Beyond [alertname, namespace] (kube-prometheus), the labels that tell apart
+        # the instances of an alert whose namespace is the one of its exporter (a disk, a node,
+        # a PVC, a certificate, a storage pool): without them, a critical on one would hide
+        # the warnings of all the others. A label missing on both sides counts as equal: each
+        # one added can only narrow the inhibition. To recheck at each new source of rules
+        # (docs/observability/README.md#alerting).
         inhibit_rules:
           - source_matchers: ['severity="critical"']
             target_matchers: ['severity="warning"']
-            equal: [alertname, namespace]
+            equal:
+              - alertname
+              - namespace
+              - instance
+              - mountpoint
+              - persistentvolumeclaim
+              - exported_namespace
+              - name
+              - node
+              - storage_pool
+        # Both Pushover receivers share the same short template: the status, the name and the
+        # namespace in the title; one line per alert in the body (its summary, else its
+        # description); the link to the notifications of the group in Grafana (Alerting, the
+        # Alertmanager data source), from where "See source" opens the generatorURL (an Explore
+        # of the expression) and "Silence" silences it. Not the generatorURL itself: often over
+        # the 512 characters of Pushover.
         receivers:
           - name: "null"
           - name: pushover-warning
@@ -370,6 +565,10 @@ spec:
               - user_key_file: /etc/vm/secrets/alertmanager/pushover-user-key
                 token_file: /etc/vm/secrets/alertmanager/pushover-token
                 priority: "0"
+                title: '[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.alertname }}{{ with .GroupLabels.namespace }} ({{ . }}){{ end }}'
+                message: '{{ range .Alerts }}{{ if eq .Status "resolved" }}[resolved] {{ end }}{{ or .Annotations.summary .Annotations.description "(no details)" }}{{ "\n" }}{{ end }}'
+                url: 'https://grafana.shelltopia.org/alerting/groups?alertmanager=Alertmanager&queryString={{ printf "alertname=%q" .GroupLabels.alertname | urlquery }}{{ with .GroupLabels.namespace }}{{ printf ",namespace=%q" . | urlquery }}{{ end }}'
+                url_title: Grafana
           - name: pushover-critical
             pushover_configs:
               - user_key_file: /etc/vm/secrets/alertmanager/pushover-user-key
@@ -377,6 +576,10 @@ spec:
                 # Priority 1 (bypasses the quiet hours of Pushover, not the do-not-disturb
                 # mode of the phone), 0 for the resolution.
                 priority: '{{ if eq .Status "firing" }}1{{ else }}0{{ end }}'
+                title: '[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.alertname }}{{ with .GroupLabels.namespace }} ({{ . }}){{ end }}'
+                message: '{{ range .Alerts }}{{ if eq .Status "resolved" }}[resolved] {{ end }}{{ or .Annotations.summary .Annotations.description "(no details)" }}{{ "\n" }}{{ end }}'
+                url: 'https://grafana.shelltopia.org/alerting/groups?alertmanager=Alertmanager&queryString={{ printf "alertname=%q" .GroupLabels.alertname | urlquery }}{{ with .GroupLabels.namespace }}{{ printf ",namespace=%q" . | urlquery }}{{ end }}'
+                url_title: Grafana
           - name: healthchecks
             webhook_configs:
               - url_file: /etc/vm/secrets/alertmanager/healthchecks-url

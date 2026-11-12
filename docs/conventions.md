@@ -9,7 +9,7 @@ How the repository is organised and the habits that the manifests, the Talos con
 | `talos/` | The machine configs of the nodes, [render layers](../talos/README.md#render-layers) |
 | `bootstrap/` | `just bootstrap cluster`: the stages up to Flux, [cluster](cluster/README.md#overview) |
 | `kubernetes/apps/` | Everything Flux deploys, one folder per namespace |
-| `kubernetes/components/` | Kustomize components shared by the applications, such as `volsync`, `network-policies` and `flux-alerts` |
+| `kubernetes/components/` | Kustomize components shared by the applications, such as `volsync` and `network-policies` |
 | `kubernetes/mod.just` | The `just kube` recipes of the workstation |
 | `tofu/` | OpenTofu stacks: `cloudflare` and `backblaze`, [tofu/README.md](../tofu/README.md) |
 | `docs/` | This documentation, [format](README.md#format) |
@@ -22,7 +22,7 @@ Flux follows `kubernetes/apps` (`sync.path` of the `flux-instance` HelmRelease).
 
 ```text
 kubernetes/apps/<namespace>/
-├── kustomization.yaml        # namespace.yaml, the ks.yaml of every application, the network-policies and flux-alerts components
+├── kustomization.yaml        # namespace.yaml, the ks.yaml of every application, the network-policies component
 ├── namespace.yaml
 └── <app>/
     ├── ks.yaml               # the Flux Kustomization(s) of the application
@@ -56,7 +56,7 @@ kubernetes/apps/<namespace>/
 - `kustomize.toolkit.fluxcd.io/prune: disabled` on every namespace created by the repository: a refactoring that drops a Kustomization must never delete a namespace and its volumes.
 - `kube-system` is created by Kubernetes and not managed. It is exempt from Pod Security ([cluster](cluster/README.md#pod-security)).
 - An application goes in its own namespace, or in one shared with the applications that need the same Pod Security level; never in `default`.
-- The `kustomization.yaml` of every namespace, `kube-system` included, has `components: [../../components/network-policies, ../../components/flux-alerts]`: the pods of the namespace reach each other ([network policies](#network-policies)), and the failed reconciliations of its Flux objects reach the Alertmanager ([observability](observability/README.md#alerting): a Flux `Alert` only sees its own namespace).
+- The `kustomization.yaml` of every namespace, `kube-system` included, has `components: [../../components/network-policies]`: the pods of the namespace reach each other ([network policies](#network-policies)). The failed Flux objects need nothing per namespace: the alerts read the metrics of the flux-operator, which sees the whole cluster ([observability](observability/README.md#alerting)).
 - A namespace is `restricted` by default ([cluster](cluster/README.md#pod-security)), without Pod Security labels. If its pods cannot run so, it gets the lowest level that works (`baseline` before `privileged`): `pod-security.kubernetes.io/enforce`, `audit` and `warn` set to it, without `-version` (`latest`), and a comment naming the pods and the reason (`piraeus-datastore` and `debug`: privileged).
 - A namespace whose applications are exposed on the internet carries `shelltopia.net/gateway-external: "true"` ([ingress](ingress/runbook.md#exposing-an-application)).
 

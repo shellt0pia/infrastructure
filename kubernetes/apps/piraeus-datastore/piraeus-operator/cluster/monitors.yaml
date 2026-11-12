@@ -1,7 +1,8 @@
 ---
-# Monitors of the LINSTOR cluster, from config/extras/monitoring of piraeus-operator (v2.12.0),
-# without its PrometheusRule (docs/observability/README.md#metrics). The names are those of
-# upstream: its alert rules select the jobs `linstor-controller` and `.*/linstor-satellite`.
+# Monitors of the LINSTOR cluster, from config/extras/monitoring of piraeus-operator (v2.12.0).
+# Its PrometheusRule is applied as it is, from upstream (the Kustomization piraeus-alerts,
+# docs/observability/README.md#alerting). The names are those of upstream: its alert rules
+# select the jobs `linstor-controller` and `.*/linstor-satellite`.
 # Next to the LinstorCluster, which defines the pods.
 #
 # The LINSTOR controller: /metrics on its API port (3370, plain HTTP without authentication, no

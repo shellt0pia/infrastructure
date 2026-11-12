@@ -1,20 +1,4 @@
 ---
-# The notification-controller (namespace flux-system) sends the Flux events to the Alertmanager
-# (Provider of the flux-alerts component, kubernetes/components/flux-alerts).
-apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
-metadata:
-  name: alertmanager
-spec:
-  endpointSelector:
-    matchLabels:
-      app.kubernetes.io/name: vmalertmanager
-  ingress:
-    - fromEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: flux-system
-            app.kubernetes.io/component: notification-controller
----
 # The Vector agent (namespace observability-agents) sends the pod logs and the Hubble flows to
 # VictoriaLogs. The aggregator and Grafana are in this namespace (network-policies component).
 apiVersion: cilium.io/v2

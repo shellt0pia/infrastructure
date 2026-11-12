@@ -16,6 +16,10 @@ spec:
     remediation:
       retries: 3
   values:
+    # The refresh of flux_resource_info, which the Flux alerts read (prometheusrule.yaml): 30s, as
+    # the documentation of the operator advises when its metrics are scraped (default 5m).
+    reporting:
+      interval: 30s
     serviceMonitor:
       create: true
     web:

@@ -34,3 +34,21 @@ spec:
     namespace: flux-system
   targetNamespace: piraeus-datastore
   wait: true
+---
+# The upstream alert rules of Piraeus (docs/observability/README.md#alerting), from the
+# GitRepository created by piraeus-operator (./app).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: piraeus-alerts
+spec:
+  dependsOn:
+    - name: piraeus-operator
+  interval: 1h
+  path: ./config/extras/monitoring
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: piraeus-operator
+  targetNamespace: piraeus-datastore
+  wait: true

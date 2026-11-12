@@ -1,0 +1,26 @@
+---
+# The upstream alert rules of Piraeus (config/extras/monitoring/alerts.yaml), applied unmodified
+# by the Kustomization piraeus-alerts (../ks.yaml) and following the operator: the tag of the
+# chart, updated by Renovate in the same PR (.renovaterc.json5). Only that file is kept: the
+# upstream kustomization.yaml (with the monitors and the dashboard, ours in ../cluster) is
+# dropped, Flux generates one (docs/observability/README.md#alerting).
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: piraeus-operator
+spec:
+  interval: 1h
+  url: https://github.com/piraeusdatastore/piraeus-operator
+  ref:
+    tag: v2.12.0
+  # gitignore syntax: a file cannot be re-included under an excluded directory, so each level
+  # is re-included, then emptied.
+  ignore: |
+    /*
+    !/config/
+    /config/*
+    !/config/extras/
+    /config/extras/*
+    !/config/extras/monitoring/
+    /config/extras/monitoring/*
+    !/config/extras/monitoring/alerts.yaml

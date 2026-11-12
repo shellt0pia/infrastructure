@@ -5,7 +5,6 @@ kind: Kustomization
 namespace: piraeus-datastore
 components:
   - ../../components/network-policies
-  - ../../components/flux-alerts
 resources:
   - ./namespace.yaml
   - ./piraeus-operator/ks.yaml

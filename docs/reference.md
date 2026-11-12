@@ -70,7 +70,7 @@ Every LoadBalancer Service pins its addresses (`lbipam.cilium.io/ips`), allocate
 
 ## Namespaces
 
-Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: disabled`, so that a refactoring never deletes it with its content, and includes the `network-policies` component, which allows the traffic between its pods, and the `flux-alerts` component, which sends the failed reconciliations of its Flux objects to the Alertmanager ([conventions](conventions.md#namespaces)). `kube-system` is created by Kubernetes and not managed there. [Pod Security](cluster/README.md#pod-security) is `restricted` by default: only the namespaces at a lower level carry labels.
+Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: disabled`, so that a refactoring never deletes it with its content, and includes the `network-policies` component, which allows the traffic between its pods ([conventions](conventions.md#namespaces)). `kube-system` is created by Kubernetes and not managed there. [Pod Security](cluster/README.md#pod-security) is `restricted` by default: only the namespaces at a lower level carry labels.
 
 | Namespace | Content | Pod Security | Described in |
 | --- | --- | --- | --- |

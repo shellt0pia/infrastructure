@@ -1,0 +1,30 @@
+---
+# The rules of the certificates in addition to the cert-manager mixin of the stack
+# (docs/observability/README.md#alerting). Converted to a VMRule by the operator of the stack.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cert-manager
+spec:
+  groups:
+    - name: cert-manager-expiry
+      rules:
+        # The critical threshold of the upstream CertManagerCertExpirySoon (a warning at 0.7 of
+        # the renewal window): same name and same labels, so that it inhibits it. Fires when a
+        # renewal has been failing for weeks.
+        - alert: CertManagerCertExpirySoon
+          expr: |
+            avg by (exported_namespace, namespace, name) (
+              (certmanager_certificate_expiration_timestamp_seconds - time())
+              and on (exported_namespace, namespace, name)
+              (certmanager_certificate_ready_status{condition="True"} == 1)
+            ) < 7 * 86400
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: "The cert `{{ $labels.name }}` ({{ $labels.exported_namespace }}) expires in {{ $value | humanizeDuration }}."
+            description: >-
+              The certificate {{ $labels.exported_namespace }}/{{ $labels.name }} expires in
+              less than 7 days and has not been renewed: `kubectl describe certificate`, and the
+              logs of cert-manager.

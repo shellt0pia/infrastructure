@@ -18,7 +18,7 @@ The manifests are in `kubernetes/apps/backups` (VolSync controller, monitoring) 
 | Application volumes (SQLite, files) | VolSync (restic mover) from the `linstor` CSI snapshots, B2 | Deployed, [tested](bootstrap.md#2-test-volsync) with a throwaway application, no real application uses it yet |
 | PostgreSQL (CloudNativePG) | CNPG Barman Cloud plugin | Proposed, implemented with CNPG ([options](evaluations.md#postgresql-options)) |
 | NAS data (documents, photos, mail, calendar, media) | Backrest as a TrueNAS App, B2 | Decided, [to set up](bootstrap.md#3-nas-data-backrest) on the NAS |
-| Monitoring | healthchecks.io (`volsync-monitor` CronJob, Backrest hooks), then Alertmanager | Deployed for VolSync |
+| Monitoring | healthchecks.io (`volsync-monitor` CronJob, Backrest hooks), and Alertmanager for VolSync | Deployed for VolSync; `volsync-monitor` removed at the noise pass of the alerts |
 | Restricted B2 keys | Keys without `deleteFiles` + lifecycle rule | [Tested](evaluations.md#restricted-b2-key-test) on 2026-10-25: works |
 | Restores | `just kube volsync-*` recipes, [procedures](runbook.md#restores) | Tested on the test application |
 | Restore tests | Automated in a throwaway namespace | [To do](evaluations.md#open-points) |
@@ -145,6 +145,15 @@ healthchecks.io (the online service: the self-hosted instance on the Hetzner VM 
 | VolSync | `kube-cluster01-volsync` | CronJob `volsync-monitor` (`backups` namespace) at 09:00: success when every ReplicationSource synced in the last 26 hours, `/fail` with the late ones otherwise (a paused ReplicationSource is late) |
 | NAS documents, groupware, media | (Backrest hooks, on the NAS) | Backrest |
 
-Alertmanager takes over once configured (VolSync exposes `volsync_volume_out_of_sync`), healthchecks may then be dropped.
+Alertmanager watches VolSync as well since [stage 4 of the observability](../observability/bootstrap.md#4-alert-rules-and-the-dead-mans-switch) (`kubernetes/apps/backups/volsync/app/prometheusrule.yaml`, [alerting](../observability/README.md#alerting)):
+
+| Alert | Severity | Fires when |
+| --- | --- | --- |
+| `VolSyncVolumeOutOfSync` | `warning` | VolSync reports an object out of sync (`volsync_volume_out_of_sync`) for an hour: its last synchronization failed or did not run |
+| `VolSyncMissedIntervals` | `warning` | A synchronization was still running at its next scheduled time, over the last day (`volsync_missed_intervals_total`) |
+| `VolSyncBackupLate` | `warning` | No successful sync of a ReplicationSource for 26 hours, counted from its creation before the first sync: the rule of `volsync-monitor` |
+| `VolSyncBackupPaused` | `info` (not sent to Pushover) | A ReplicationSource paused for an hour; `VolSyncBackupLate` follows after 26 hours |
+
+The last two read the ReplicationSources exported by kube-state-metrics (its `customResourceState`, in the release of the stack): their last sync and their pause, the same view as `volsync-monitor`. The failed mover Jobs also raise `KubeJobFailed` (default rules). `volsync-monitor` and its healthchecks.io check run in parallel until the noise pass of the alerts ([roadmap](../roadmap.md#observability)), then go away; the Backrest checks stay (the NAS is outside the cluster).
 
 Limit: these checks look at the jobs, not at the content of the repositories. A malicious `forget` (every snapshot hidden with the cluster key) leaves the next backups successful. A check reading the repositories is an [open point](evaluations.md#open-points).

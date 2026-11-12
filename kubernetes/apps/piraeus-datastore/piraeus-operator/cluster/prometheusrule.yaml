@@ -1,0 +1,24 @@
+---
+# Our additions to the upstream rules of Piraeus (applied by the Kustomization piraeus-alerts,
+# docs/observability/README.md#alerting). Converted to a VMRule by the operator of the stack.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: linstor
+spec:
+  groups:
+    - name: linstor
+      rules:
+        # The critical threshold of the upstream linstorStoragePoolAtCapacity (a warning at
+        # 20 % free): same name and same labels (one alert per `node` and `storage_pool`), so
+        # that it inhibits it.
+        - alert: linstorStoragePoolAtCapacity
+          expr: |
+            linstor_storage_pool_capacity_free_bytes / linstor_storage_pool_capacity_total_bytes < 0.10
+          labels:
+            severity: critical
+          annotations:
+            summary: "The storage pool {{ $labels.storage_pool }} of {{ $labels.node }} is {{ $value | humanizePercentage }} free."
+            description: >-
+              The LINSTOR storage pool {{ $labels.storage_pool }} on {{ $labels.node }} has less
+              than 10 % free space: once the thin pool is full, the writes of its volumes fail.

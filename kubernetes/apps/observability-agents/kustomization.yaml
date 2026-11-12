@@ -8,7 +8,6 @@ kind: Kustomization
 namespace: observability-agents
 components:
   - ../../components/network-policies
-  - ../../components/flux-alerts
 resources:
   - ./namespace.yaml
   - ./vector-agent/ks.yaml

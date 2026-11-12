@@ -11,3 +11,4 @@ resources:
   - ./volumesnapshotclass.yaml
   - ./ciliumnetworkpolicy.yaml
   - ./monitors.yaml
+  - ./prometheusrule.yaml

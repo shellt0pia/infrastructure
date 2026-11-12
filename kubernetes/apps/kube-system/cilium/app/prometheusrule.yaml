@@ -1,0 +1,70 @@
+---
+# The flows denied by the network policies (docs/cluster/README.md#network-policies), from the
+# policy verdicts of Hubble: `audit` while a namespace is in audit mode (the flows its policies
+# would drop), `dropped` once they are enforced. The namespace of the alert is the one whose policy
+# decides: the destination for an ingress verdict, the source for an egress one. The other drops
+# of Cilium (hubble_drop_total) carry no namespace and are not alerted. The rest of Cilium: its
+# mixin, in the stack (docs/observability/README.md#alerting). Converted to a VMRule by the
+# operator of the stack.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: network-policies
+spec:
+  groups:
+    - name: network-policies
+      rules:
+        # Any audited flow over the last hour, without `for`: a rare flow (a daily CronJob, a
+        # single connection) is the one to find before the enforcement. Visible for an hour
+        # after it, in Grafana only (`info`). increase_pure: a verdict series is created at its
+        # first flow, and `increase` ignores the first value of a new series when it is too big.
+        - alert: NetworkPolicyAuditedFlows
+          expr: |
+            label_replace(
+              sum by (direction, source_namespace, source, destination_namespace, destination) (
+                increase_pure(hubble_policy_verdicts_total{action="audit", direction="ingress"}[1h])
+              ),
+              "namespace", "$1", "destination_namespace", "(.+)"
+            ) > 0
+            or
+            label_replace(
+              sum by (direction, source_namespace, source, destination_namespace, destination) (
+                increase_pure(hubble_policy_verdicts_total{action="audit", direction="egress"}[1h])
+              ),
+              "namespace", "$1", "source_namespace", "(.+)"
+            ) > 0
+          labels:
+            severity: info
+          annotations:
+            summary: "{{ $value | humanize }} {{ $labels.direction }} flows from {{ $labels.source }} to {{ $labels.destination }} over the last hour would be dropped."
+            description: >-
+              No policy allows the {{ $labels.direction }} flows from
+              {{ $labels.source_namespace }}/{{ $labels.source }} to
+              {{ $labels.destination_namespace }}/{{ $labels.destination }}: they will be dropped
+              once the policies are enforced. `hubble observe --verdict AUDIT`.
+        # A sustained drop only: this one notifies.
+        - alert: NetworkPolicyDroppedFlows
+          expr: |
+            label_replace(
+              sum by (direction, source_namespace, source, destination_namespace, destination) (
+                rate(hubble_policy_verdicts_total{action="dropped", direction="ingress"}[10m])
+              ),
+              "namespace", "$1", "destination_namespace", "(.+)"
+            ) > 0
+            or
+            label_replace(
+              sum by (direction, source_namespace, source, destination_namespace, destination) (
+                rate(hubble_policy_verdicts_total{action="dropped", direction="egress"}[10m])
+              ),
+              "namespace", "$1", "source_namespace", "(.+)"
+            ) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.direction }} flows from {{ $labels.source }} to {{ $labels.destination }} dropped by the policies."
+            description: >-
+              The policies drop the {{ $labels.direction }} flows from
+              {{ $labels.source_namespace }}/{{ $labels.source }} to
+              {{ $labels.destination_namespace }}/{{ $labels.destination }} for 10 minutes.
+              `hubble observe --verdict DROPPED`.

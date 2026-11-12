@@ -1,0 +1,74 @@
+---
+# The alerts of the Vector aggregator (docs/observability/README.md#alerting). The same rules as
+# the agents (kubernetes/apps/observability-agents/vector-agent/app/prometheusrule.yaml), on the
+# job of the aggregator. Converted to a VMRule by the operator of the stack.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: vector-aggregator
+spec:
+  groups:
+    - name: vector-aggregator
+      rules:
+        # increase_pure: Vector creates its error counters at the first error, and `increase`
+        # ignores the first value of a new series when it is too big.
+        - alert: VectorComponentErrors
+          expr: |
+            sum by (namespace, pod, component_id) (
+              increase_pure(vector_component_errors_total{job="vector-aggregator"}[15m])
+            ) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.pod }}: {{ $value | humanize }} errors in {{ $labels.component_id }} over 15 minutes."
+            description: >-
+              The component {{ $labels.component_id }} of {{ $labels.pod }} reports errors: its
+              logs, and VictoriaLogs reachable.
+        - alert: VectorDiscardedEvents
+          expr: |
+            sum by (namespace, pod, component_id) (
+              increase_pure(vector_component_discarded_events_total{job="vector-aggregator"}[15m])
+            ) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.pod }}: {{ $value | humanize }} events discarded by {{ $labels.component_id }} over 15 minutes."
+            description: >-
+              The component {{ $labels.component_id }} of {{ $labels.pod }} drops events: logs
+              lost.
+        # A sink that cannot deliver retries without limit and keeps the events in its disk
+        # buffer: no component error, and the buffer takes days to fill. Events entering the
+        # buffer, none sent.
+        - alert: VectorSinkStalled
+          expr: |
+            sum by (namespace, pod, component_id) (
+              increase(vector_buffer_received_events_total{job="vector-aggregator", buffer_type="disk"}[10m])
+            ) > 0
+            unless
+            sum by (namespace, pod, component_id) (
+              increase(vector_component_sent_events_total{job="vector-aggregator", component_kind="sink"}[10m])
+            ) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.pod }}: {{ $labels.component_id }} has delivered nothing for 15 minutes."
+            description: >-
+              The sink {{ $labels.component_id }} of {{ $labels.pod }} receives events but sends
+              none: its destination is unreachable (Vector retries, see its logs). The events
+              wait in its disk buffer.
+        # The disk buffers of the sinks, the only ones with a maximum: full, the sink blocks
+        # its sources. Vector creates the size gauge at the first event of a buffer: one that
+        # never received any has no ratio, and is empty.
+        - alert: VectorBufferFillingUp
+          expr: |
+            vector_buffer_size_bytes{job="vector-aggregator"}
+              / vector_buffer_max_size_bytes{job="vector-aggregator"} > 0.8
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.pod }}: the buffer of {{ $labels.component_id }} is {{ $value | humanizePercentage }} full."
+            description: >-
+              The disk buffer of {{ $labels.component_id }} on {{ $labels.pod }} is over 80 %
+              for 10 minutes: its destination is down or too slow.

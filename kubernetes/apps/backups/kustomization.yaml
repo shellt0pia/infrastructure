@@ -5,9 +5,7 @@ kind: Kustomization
 namespace: backups
 components:
   - ../../components/network-policies
-  - ../../components/flux-alerts
 resources:
   - ./namespace.yaml
-
   - ./volsync/ks.yaml
   - ./volsync-monitor/ks.yaml
