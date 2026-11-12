@@ -22,6 +22,7 @@ The sections of [To implement](#to-implement) are by topic, in the order they ar
    - [Cluster tools](#cluster-tools): resource and priority conventions, kubelet certificates and metrics-server, Headlamp, the Flux web UI and OIDC.
    - [Backups](#backups): NAS data (independent of the cluster, can be done at any time) and PostgreSQL.
    - [Storage](#storage): NFS access to the NAS.
+   - [PostgreSQL](#postgresql): CloudNativePG, before the applications that have a database.
 2. **[Migration](#migration).** `home` first (it becomes kube-02, and the 2-node etcd has no fault tolerance until then), then the Hetzner VM.
 3. **After kube-02 joins.** The items marked *once kube-02 joins*: [Storage](#storage) and [Backups](#backups) tests, the end of the [Ingress](#ingress) migration, the descheduler, and the whole of [Upgrades](#upgrades) (PDBs, power outage test, Renovate, tuppr), then the first Talos upgrades.
 4. **Later.** [Kubernetes recipes](#kubernetes-recipes) and [Remote node management](#remote-node-management).
@@ -89,6 +90,10 @@ Architecture and status: [backups/README.md](backups/README.md#status). Order: v
 - [ ] NFS access to the NAS, through static PersistentVolumes ([runbook](storage/runbook.md#mounting-a-nas-share)): the exports must allow the nodes subnet, then the [read-ahead check](nodes/runbook.md#checking-the-nfs-read-ahead).
 - [ ] NFS access to the NAS, through truenas-csi or democratic-csi for the storage of Nextcloud and Immich.
 - [ ] Once kube-02 joins: the tie-breakers of the existing volumes, then the [failover test](storage/bootstrap.md#3-failover-test) ([status](storage/README.md#status)).
+
+### PostgreSQL
+
+- [ ] A PostgreSQL cluster with CloudNativePG, before the applications that have a database: the operator, then the cluster, with its backups ([Barman Cloud plugin](#backups)). To decide first: one cluster shared by the applications or one per application, the number of instances, and the storage class (`local`, CloudNativePG replicating itself). Its metrics and alerts as for the other components ([alerting](observability/README.md#alerting)).
 
 ### Migration
 
