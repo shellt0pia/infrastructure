@@ -337,7 +337,7 @@ Spegel is installed by `just bootstrap apps` (after CoreDNS) and by Flux ([READM
 
 ### Network policies
 
-Not tested yet. The policies are first deployed in audit mode (`policyAuditMode: true` in `kubernetes/apps/kube-system/cilium/app/helmrelease.yaml`): the denied flows are reported, nothing is dropped. Enforce them once the flows are understood and the observability stack can show the drops ([README](README.md#network-policies)).
+The policies were first deployed in audit mode (`policyAuditMode: true` in `kubernetes/apps/kube-system/cilium/app/helmrelease.yaml`): the denied flows are reported, nothing is dropped. They are enforced once the flows are understood and the observability stack shows the drops ([README](README.md#network-policies)). A new cluster gets them enforced: if they changed since, return to audit mode first ([runbook](runbook.md#network-policies)).
 
 - [x] **Deployment:**
 
@@ -412,9 +412,16 @@ Not tested yet. The policies are first deployed in audit mode (`policyAuditMode:
   flux get ks -A
   ```
 
-  Then run the test pod above again, and check the Gateways from the LAN, the internal DNS ([dns/bootstrap.md](../dns/bootstrap.md#1-deploy-and-check)) and a volume attached on another node than its LINSTOR controller.
+  Then run the test pod above again, with `--verdict DROPPED`, and check the Gateways from the LAN, the internal DNS ([dns/bootstrap.md](../dns/bootstrap.md#1-deploy-and-check)) and a volume attached on another node than its LINSTOR controller. Look in Hubble UI as well. Last, the alert of the drops ([observability](../observability/bootstrap.md#4-alert-rules-and-the-dead-mans-switch)): a flow no policy allows, repeated for 25 minutes, then the pod deleted:
 
-  Expected: `false`. The four connections of the test pod time out, DNS and HTTPS work. No other `DROPPED` flow with `Policy denied`, and every Kustomization stays `Ready`. Then update the status in the [README](README.md#status) and the [roadmap](../roadmap.md#security).
+  ```sh
+  kubectl -n debug run np-alert-test --image=docker.io/library/busybox --restart=Never --command -- \
+    sh -c 'while true; do nc -zv -w 3 vmsingle-victoria-metrics-k8s-stack.observability.svc 8428; sleep 30; done'
+  hubble observe -P --verdict DROPPED --from-pod debug/np-alert-test -f
+  kubectl -n debug delete pod np-alert-test
+  ```
+
+  Expected: `false`. The four connections of the test pod time out, DNS and HTTPS work. No other `DROPPED` flow with `Policy denied`, and every Kustomization stays `Ready`. `NetworkPolicyDroppedFlows` fires within 25 minutes (`for: 20m`), `direction="ingress"`, `namespace="observability"`, and notifies on the phone (`warning`); it resolves about 10 minutes after the pod is deleted (the `rate` window). No more `NetworkPolicyAuditedFlows`. Then update the status in the [README](README.md#status) and the [roadmap](../roadmap.md#security).
 
 ### Pod Security
 

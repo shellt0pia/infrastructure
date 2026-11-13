@@ -8,7 +8,7 @@ What is left to build on the Kubernetes cluster, and the questions still open. T
 | --- | --- |
 | Talos machine configs (`talos/`) | Done: Secure Boot, TPM disk encryption, disks and NIC selectors, dynamic network, NTP, NUT, watchdog, i915, DRBD, image verification. Pod Security `restricted` by default, not applied yet ([checks](cluster/bootstrap.md#pod-security)). |
 | Bootstrap (`bootstrap/`, `just bootstrap cluster`) | Done: Cilium (+ BGP and LB pools), CoreDNS, External Secrets, Flux. Spegel added, not run yet. |
-| GitOps (`kubernetes/apps`) | In use: Flux, External Secrets, Cilium, CoreDNS, cert-manager, Envoy Gateway and the Gateways, the application DNS, the storage, the backups and Reloader. Spegel added, [checks](cluster/bootstrap.md#spegel) not run yet. Cilium network policies deployed in audit mode. The status of each is in its [topic](README.md#list). |
+| GitOps (`kubernetes/apps`) | In use: Flux, External Secrets, Cilium, CoreDNS, cert-manager, Envoy Gateway and the Gateways, the application DNS, the storage, the backups and Reloader. Spegel added, [checks](cluster/bootstrap.md#spegel) not run yet. Cilium network policies enforced, [checks](cluster/bootstrap.md#network-policies) in progress. The status of each is in its [topic](README.md#list). |
 | OpenTofu (`tofu/`) | States in B2 (encrypted, no locking). `backblaze`: buckets and keys of the backups, applied, keys pushed to 1Password. `cloudflare`: records not managed from the cluster (mail, CAA, PikaPods), SSL settings and DNSSEC, applied. |
 | First bootstrap | In progress, with kube-01 and kube-03 only. |
 
@@ -48,7 +48,7 @@ Architecture and status: [observability/README.md](observability/README.md#statu
 
 The plan, its decisions and its steps: [hubble-security.md](hubble-security.md).
 
-- [ ] Cilium network policies: enforce them once the [observability](#observability) stack runs (the denied flows in the logs, the alert on the drops). Until then, they stay in audit mode: run the [checks](cluster/bootstrap.md#network-policies) and read the audited flows (exported on each node, then in the logs), then set `policyAuditMode: false`. The host firewall, the baseline of the pods, the exceptions and Hubble Relay are deployed ([cluster](cluster/README.md#network-policies)).
+- [ ] Cilium network policies: enforced on 2026-11-13 (`policyAuditMode: false`), once the audited flows were read and the [observability](#observability) stack showed the drops. Left: the [checks](cluster/bootstrap.md#network-policies) of the enforcement. The host firewall, the baseline of the pods, the exceptions and Hubble Relay are deployed ([cluster](cluster/README.md#network-policies)).
 - [x] Hubble UI, as `hubble.shelltopia.org` on the `internal` Gateway, behind a login on the Pocket ID done by Envoy (Relay and the `hubble` CLI are in place). Deployed on 2026-11-13 ([cluster](cluster/README.md#network-policies)).
 
 ### Cluster tools

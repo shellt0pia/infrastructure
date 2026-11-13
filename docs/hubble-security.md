@@ -117,7 +117,7 @@ The flows it needs are already allowed by the baseline ([cluster](cluster/README
 
   Expected: `302` to `https://id.shelltopia.org/authorize`, with `code_challenge` or not (PKCE, prerequisites). In a browser: a member of `kubernetes_admins` lands on Hubble UI, picks a namespace and sees its flows; a user outside of it is refused by the Pocket ID. `/logout` clears the cookies, the next visit goes through the Pocket ID again. Done: with `code_challenge`.
 
-- [ ] **Session**, an hour later (lifetime of the ID token, to check in the Pocket ID): the open page still receives flows (refreshed tokens).
+- [x] **Session**, an hour later (lifetime of the ID token, to check in the Pocket ID): the open page still receives flows (refreshed tokens). Done: hours later, the page opened again without a visible login. A silent new login on the session of the Pocket ID would look the same: the refresh itself is only seen in the network tab of the browser.
 - [x] **Flows.** None of the flows of Hubble UI is audited:
 
   ```sh

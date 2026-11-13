@@ -90,9 +90,10 @@ spec:
     # hostNetwork pods included), the policies are in ../policies.
     hostFirewall:
       enabled: true
-    # Audit mode: the denied flows are only reported by Hubble (verdict AUDIT), nothing is
-    # dropped. Set to false once the checks of docs/cluster/bootstrap.md#network-policies are done.
-    policyAuditMode: true
+    # Enforced: the denied flows are dropped. true is the audit mode (reported by Hubble with the
+    # verdict AUDIT, nothing dropped), to roll out a change of the policies or to diagnose, see
+    # docs/cluster/runbook.md#network-policies.
+    policyAuditMode: false
 
     # Hubble (enabled by default), its Relay for the `hubble` CLI (`hubble observe` sees the flows
     # of every node) and its UI, behind a login on the Pocket ID done by Envoy
