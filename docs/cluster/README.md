@@ -15,7 +15,7 @@ How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap he
 | Bootstrap (`bootstrap/`, `just bootstrap cluster`) | `talosctl`, helmfile | Done: Cilium (+ BGP and LB pools), CoreDNS, External Secrets, Flux |
 | GitOps (`kubernetes/apps`) | Flux, Kustomize, Renovate | In use, Renovate and the upgrades by tuppr [to deploy](../roadmap.md#upgrades) |
 | CNI, kube-proxy replacement | Cilium | In use ([below](#cilium)) |
-| Network policies, Hubble Relay and UI | Cilium | Deployed in audit mode, nothing dropped: enforced after the observability stack, [checks](bootstrap.md#network-policies) in progress ([below](#network-policies)). Hubble UI written, not deployed |
+| Network policies, Hubble Relay and UI | Cilium | Deployed in audit mode, nothing dropped: enforced after the observability stack, [checks](bootstrap.md#network-policies) in progress ([below](#network-policies)). Hubble UI deployed |
 | Pod Security | Pod Security Admission | `restricted` by default, to apply (Talos and Flux), [checks](bootstrap.md#pod-security) in progress ([below](#pod-security)) |
 | Cluster DNS | CoreDNS | In use ([below](#coredns)) |
 | GPU | Intel device plugin | In use on kube-01 ([below](#gpu)) |

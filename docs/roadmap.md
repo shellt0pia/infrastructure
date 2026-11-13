@@ -49,7 +49,7 @@ Architecture and status: [observability/README.md](observability/README.md#statu
 The plan, its decisions and its steps: [hubble-security.md](hubble-security.md).
 
 - [ ] Cilium network policies: enforce them once the [observability](#observability) stack runs (the denied flows in the logs, the alert on the drops). Until then, they stay in audit mode: run the [checks](cluster/bootstrap.md#network-policies) and read the audited flows (exported on each node, then in the logs), then set `policyAuditMode: false`. The host firewall, the baseline of the pods, the exceptions and Hubble Relay are deployed ([cluster](cluster/README.md#network-policies)).
-- [ ] Optional: Hubble UI, on the `internal` Gateway (Relay and the `hubble` CLI are in place). Written, not deployed: the client in the Pocket ID and its item first ([plan](hubble-security.md#prerequisites)).
+- [x] Hubble UI, as `hubble.shelltopia.org` on the `internal` Gateway, behind a login on the Pocket ID done by Envoy (Relay and the `hubble` CLI are in place). Deployed on 2026-11-13 ([cluster](cluster/README.md#network-policies)).
 
 ### Cluster tools
 

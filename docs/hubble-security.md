@@ -31,14 +31,14 @@ Answered on 2026-11-13. To move to the documents of their topics with the steps 
 | `externalTrafficPolicy: Local` of the `internal` Gateway | Kept, its comment updated: only the allow-list of step 1 needed it, but it still avoids a hop between the nodes and keeps the client address in the logs of Envoy. |
 | Next UIs without a login of their own | A `SecurityPolicy` with `oidc` on their route: a convention, written at step 4. |
 | Resources of Hubble UI | Requests and a memory limit on both containers, *to resize from the metrics* as Grafana, before the convention of [Cluster tools](roadmap.md#cluster-tools). |
-| Audited flows | Read: the only `AUDIT` flows come with a new tool or manifest, until its exceptions are written. The other drops are not verdicts of the policies (step 3). |
+| Audited flows | Read: the only `AUDIT` flows come with a new tool or manifest, until its exceptions are written, or go to the address of a pod just deleted. The other drops are not verdicts of the policies (step 3). |
 
 ## Prerequisites
 
 | Step | Prerequisite | How | Status |
 | --- | --- | --- | --- |
 | 2 | The group `kubernetes_admins` in the Pocket ID, with its members. | Pocket ID | Done |
-| 2 | A confidential OIDC client *Hubble UI*: callback `https://hubble.shelltopia.org/oauth2/callback`, logout callback `https://hubble.shelltopia.org/` (to check: Envoy may send no `post_logout_redirect_uri`), allowed groups: `kubernetes_admins`. PKCE only if Envoy sends a `code_challenge` (to check in the first redirect to the Pocket ID), off otherwise. | Pocket ID | Done |
+| 2 | A confidential OIDC client *Hubble UI*: callback `https://hubble.shelltopia.org/oauth2/callback`, logout callback `https://hubble.shelltopia.org/` (to check: Envoy may send no `post_logout_redirect_uri`), allowed groups: `kubernetes_admins`. PKCE on: Envoy sends a `code_challenge`. | Pocket ID | Done |
 | 2 | Item `pocket-id-hubble` (`kubernetes` vault): `username` is the client id, `credential` the secret. | 1Password | Done |
 | 2 | The HMAC secret of the OIDC filter, created by the certgen Job of the Envoy Gateway chart: `kubectl -n envoy-gateway-system get secret envoy-oidc-hmac`. | Check | OK |
 | 3 | The audited flows read, each one allowed or explained. | [cluster](cluster/bootstrap.md#network-policies) | Done |
@@ -53,7 +53,7 @@ Answered on 2026-11-13. To move to the documents of their topics with the steps 
 
   Expected: `0`. Done.
 
-- [ ] **Check**, once Flux has reconciled:
+- [x] **Check**, once Flux has reconciled:
 
   ```sh
   kubectl -n network get securitypolicy
@@ -88,7 +88,7 @@ The flows it needs are already allowed by the baseline ([cluster](cluster/README
 
   Expected: valid, the `HTTPRoute`, the `SecurityPolicy` and the `ExternalSecret` in `kube-system`. And the chart rendered with the values (`helm template`, [AGENTS.md](../AGENTS.md#checking-a-change)): the Deployment and the Service `hubble-ui`. Done: the 7 resources valid (with `cilium/ks.yaml`); the Service `hubble-ui` on port 80 to 8081, the resources on both containers, a read-only `ClusterRole`, no Kubernetes `NetworkPolicy` from the chart.
 
-- [ ] **Deployment**, once Flux has reconciled:
+- [x] **Deployment**, once Flux has reconciled:
 
   ```sh
   flux -n kube-system get ks cilium cilium-hubble-ui
@@ -100,7 +100,7 @@ The flows it needs are already allowed by the baseline ([cluster](cluster/README
 
   Expected: both Kustomizations `Ready`, the pod `Running` with its two containers, `SecretSynced`, the route and the policy `Accepted`, no error about the OIDC provider (discovery of the endpoints).
 
-- [ ] **Name.** From the LAN, then from a public resolver:
+- [x] **Name.** From the LAN, then from a public resolver:
 
   ```sh
   dig +short hubble.shelltopia.org
@@ -109,16 +109,16 @@ The flows it needs are already allowed by the baseline ([cluster](cluster/README
 
   Expected: the addresses of the `internal` Gateway from the LAN (k8s-gateway reads the route), nothing in public.
 
-- [ ] **Login.**
+- [x] **Login.**
 
   ```sh
   curl -sI https://hubble.shelltopia.org
   ```
 
-  Expected: `302` to `https://id.shelltopia.org/authorize`, with `code_challenge` or not (PKCE, prerequisites). In a browser: a member of `kubernetes_admins` lands on Hubble UI, picks a namespace and sees its flows; a user outside of it is refused by the Pocket ID. `/logout` clears the cookies, the next visit goes through the Pocket ID again.
+  Expected: `302` to `https://id.shelltopia.org/authorize`, with `code_challenge` or not (PKCE, prerequisites). In a browser: a member of `kubernetes_admins` lands on Hubble UI, picks a namespace and sees its flows; a user outside of it is refused by the Pocket ID. `/logout` clears the cookies, the next visit goes through the Pocket ID again. Done: with `code_challenge`.
 
 - [ ] **Session**, an hour later (lifetime of the ID token, to check in the Pocket ID): the open page still receives flows (refreshed tokens).
-- [ ] **Flows.** None of the flows of Hubble UI is audited:
+- [x] **Flows.** None of the flows of Hubble UI is audited:
 
   ```sh
   hubble observe -P --verdict AUDIT --namespace kube-system --last 1000 | grep -E 'hubble-ui|envoy'
@@ -127,7 +127,7 @@ The flows it needs are already allowed by the baseline ([cluster](cluster/README
 
   Expected: nothing.
 
-- [ ] **Docs:** written with the files: [cluster](cluster/README.md#network-policies) (Hubble UI next to Relay, its login, the status), [cluster bootstrap](cluster/bootstrap.md#network-policies) (the check of Hubble UI, to tick once deployed), [cluster runbook](cluster/runbook.md#network-policies) (*Find the drop*), [reference](reference.md#1password-items) (the item, the uses of the Pocket ID), [roadmap](roadmap.md#cluster-tools) (the client of Hubble UI next to that of Grafana). Left once deployed: the status in the cluster README and the roadmap.
+- [x] **Docs:** written with the files: [cluster](cluster/README.md#network-policies) (Hubble UI next to Relay, its login, the status), [cluster bootstrap](cluster/bootstrap.md#network-policies) (the check of Hubble UI, to tick once deployed), [cluster runbook](cluster/runbook.md#network-policies) (*Find the drop*), [reference](reference.md#1password-items) (the item, the uses of the Pocket ID), [roadmap](roadmap.md#cluster-tools) (the client of Hubble UI next to that of Grafana). Done once deployed: the status in the cluster README and the roadmap, the check ticked.
 
 ## 3. Enforce the network policies
 
@@ -137,7 +137,9 @@ The steps are those of the [cluster bootstrap](cluster/bootstrap.md#network-poli
   - `INVALID_SOURCE_IP`, ICMPv6, from almost every namespace, sporadic: already known.
   - `UNKNOWN_L3_TARGET_ADDRESS`, at the deployment of new tools.
   - `FORBIDDEN_ICMPV6_MESSAGE`, from `kube-apiserver`.
-- [ ] **Enforce**, the checkbox of the cluster bootstrap: `policyAuditMode: false`, then its checks. Look in Hubble UI as well as with the CLI. The alert of the denied flows switches from `action="audit"` to `action="dropped"` ([alerting](observability/README.md#alerting)): check that the rule follows.
+
+  The audited flows to `world` on addresses of the pod CIDR go to pods just deleted ([observability](observability/evaluations.md#open-points)). From 2026-11-09 to 11-10, the Alertmanager retried the old address of its peer every 10 s for 6 hours: once enforced, `NetworkPolicyDroppedFlows` would have notified at each replacement of a replica. Before the enforcement: `cluster.reconnect-timeout: 1m` on the Alertmanager, and `for: 20m` on the alert ([alerting](observability/README.md#alerting)).
+- [ ] **Enforce**, the checkbox of the cluster bootstrap, once the change above is deployed: `policyAuditMode: false`, then its checks. Look in Hubble UI as well as with the CLI. The alert of the denied flows switches from `action="audit"` to `action="dropped"` ([alerting](observability/README.md#alerting)): check that the rule follows.
 - [ ] **Docs:** [cluster](cluster/README.md#status) (status of the network policies), [roadmap](roadmap.md#security).
 
 ## 4. Conventions and clean-up
