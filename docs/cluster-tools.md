@@ -7,7 +7,7 @@ Temporary document: the plan of the [Cluster tools](roadmap.md#cluster-tools) of
 | Step | Roadmap items | Why in this order | Status |
 | --- | --- | --- | --- |
 | [1](#1-resources-and-priorities) | Resources and `PriorityClass`es: the convention, the classes, the checks | The convention first: every tool deployed after it (metrics-server, VPA, Headlamp) follows it from the start. | Done |
-| [2](#2-kubelet-serving-certificates-metrics-server-and-vpa) | kubelet serving certificates, metrics-server, VPA and Goldilocks | Grouped: metrics-server needs the verified kubelet certificates, the VPA recommender needs metrics-server. | In progress |
+| [2](#2-kubelet-serving-certificates-metrics-server-and-vpa) | kubelet serving certificates, metrics-server, VPA and Goldilocks | Grouped: metrics-server needs the verified kubelet certificates, the VPA recommender needs metrics-server. | Done |
 | [3](#3-sizing) | Resources and `PriorityClass`es: the sizing | From the recommendations of step 2, checked against the history of VictoriaMetrics (since 2026-11-03). | To do |
 | [4](#4-oidc-authentication) | Kubernetes OIDC authentication | Before the UIs: both log in through it, and their rights are the bindings of its groups. | To do |
 | [5](#5-flux-web-ui-and-headlamp) | Flux web UI, Headlamp | Grouped: same pattern (a client in the Pocket ID, an `HTTPRoute` on the `internal` Gateway, the groups of step 4). The Flux UI first: nothing to deploy. | To do |
@@ -162,9 +162,60 @@ One commit per item, pushed after the checks of the previous one. Every release:
 - [x] **metrics-server and the scrapes.** Its release, TCP 10250 from its pods in the host firewall, and the kubelet `VMNodeScrape`s of the stack verified (`kubelet.vmScrape.spec.tlsConfig.insecureSkipVerify: false`). Check: `kubectl top nodes`, the targets of `VMAgent` up.
 - [x] **VPA recommender.** Admission controller and updater disabled, checkpoints, the minimums of [decision 5](#answers), the restricted `securityContext` (none by default). Check: a test VPA in `debug` gets a recommendation.
 - [x] **Goldilocks.** Controller and dashboard (`on-by-default` on both, `enable-cost: false`, `pullPolicy: IfNotPresent`), the class by `postRenderers`. The `HTTPRoute` `goldilocks.shelltopia.org` on the `internal` Gateway, the `SecurityPolicy`, the `ExternalSecret` of `pocket-id-goldilocks` ([UI pattern](ingress/runbook.md#a-ui-without-a-login-of-its-own)). Before the push, by Victor: the Pocket ID client (group `kubernetes_admins`, callback `https://goldilocks.shelltopia.org/oauth2/callback`) and the 1Password item. Check: a VPA per workload, its errors in the logs of the controller (owners without a scale subresource, such as the VolSync movers: `ignore-controller-kind` if needed), the dashboard after the login. Written: `rbac.enableArgoproj: false` too (no Argo Rollouts). After the check: `ignore-controller-kind: Job`, and the `VMAgent` readable by both (the only resource of an operator with a `scale` subresource).
-- [ ] **Docs**, with each commit: [cluster](cluster/README.md) (decisions, status, checks in [bootstrap](cluster/bootstrap.md)), [talos](../talos/README.md) if needed, [observability](observability/README.md) (the verified scrapes), [reference](reference.md) (namespace, ports, 1Password item, name), the [roadmap](roadmap.md#cluster-tools) item ticked at the end.
+- [x] **Docs**, with each commit: [cluster](cluster/README.md) (decisions, status, checks in [bootstrap](cluster/bootstrap.md)), [talos](../talos/README.md) if needed, [observability](observability/README.md) (the verified scrapes), [reference](reference.md) (namespace, ports, 1Password item, name), the [roadmap](roadmap.md#cluster-tools) item ticked at the end.
 
 ## 3. Sizing
+
+Roadmap item ([roadmap](roadmap.md#cluster-tools)): the requests, the memory limits and the classes of the components already deployed, from their real usage.
+
+### Before the sizing
+
+- **The values today**: the [inventory](#inventory) of step 1. The tools of step 2 at estimated values.
+- **VictoriaMetrics**: the usage of every container since 2026-11-03, every 30 s (cAdvisor, 90 days of retention). An init container or a Job only shows if it runs through a scrape. The bootstrap is in it: installs, restarts, the Talos applies.
+- **VPA recommender**, since 2026-11-13: for each workload, a target at the 90th percentile, plus 15 %. For the CPU, of the samples of each minute; for the memory, of the peak of each day over 8 days. Half-life of 24 h. Below the peak by design, where the [convention](conventions.md#resources-and-priorities) asks for the peak plus about 20 %.
+- **No VPA**: the Jobs (the hooks of the charts, the VolSync movers of Grafana), the init containers, the static pods (out of scope, the settings of Talos).
+- **A usage that follows the limit**: VMSingle and VLSingle size their caches at 60 % of the memory they see, so their usage reflects their limit, not their need. The LINSTOR controller and satellites run in a JVM, whose default heap is 25 % of the memory it sees: the node without a limit, the limit with one. To check.
+- **Shared with the bootstrap**: the helmfile reads the values of the HelmReleases of Cilium, CoreDNS, Spegel, kubelet-csr-approver, External Secrets, flux-operator and flux-instance. A change also applies at the next bootstrap.
+
+### Queries
+
+In Grafana, *Explore*, data source VictoriaMetrics, *Instant*, the time range on the window. *Inspect → Data → Download CSV*, into `.scratch/sizing/`. Per workload and container, the pods without a workload (the static pods) left out.
+
+The owners, from the recording rule of the stack (kube-prometheus `k8s.rules.pod_owner`), first checked:
+
+```promql
+count by (workload_type) (namespace_workload_pod:kube_pod_owner:relabel)
+```
+
+The peak of the memory (`memory-peak.csv`):
+
+```promql
+max by (namespace, workload_type, workload, container) (
+  max_over_time(container_memory_working_set_bytes{container!="", container!="POD"}[$__range])
+  * on (namespace, pod) group_left (workload_type, workload)
+    max_over_time(namespace_workload_pod:kube_pod_owner:relabel[$__range])
+)
+```
+
+The 95th percentile of the CPU, in cores (`cpu-p95.csv`):
+
+```promql
+max by (namespace, workload_type, workload, container) (
+  quantile_over_time(0.95, rate(container_cpu_usage_seconds_total{container!="", container!="POD"}[5m])[$__range:5m])
+  * on (namespace, pod) group_left (workload_type, workload)
+    max_over_time(namespace_workload_pod:kube_pod_owner:relabel[$__range])
+)
+```
+
+The recommendations and the values in the cluster:
+
+```sh
+kubectl get verticalpodautoscalers -A -l source=goldilocks -o json > .scratch/sizing/vpa.json
+```
+
+And the command of the [inventory](#from-the-cluster), into `.scratch/sizing/live.tsv`.
+
+### Sizing plan
 
 - [ ] **Recommendations.** Goldilocks, after 8 days of data for the VPA recommender, against the history of VictoriaMetrics (the peak of `container_memory_working_set_bytes`, the 95th percentile of the CPU), so that the nightly backups and the reconciliations are in it. The queries kept here.
 - [ ] **Apply**, one namespace per commit, the network and the storage first. The requests, the limits and the class of each component, with `dependsOn` `priority-classes` on its Kustomization. The class of the convention where the chart or the operator sets another: Spegel (`system-node-critical`, its section of [cluster](cluster/README.md#spegel) with it), the Flux controllers, the Piraeus operator and the affinity controller to `infrastructure`; the LINSTOR controller and the CSI controller to `system-cluster-critical`. After each push: no pod `Pending`, the requests per node (`kubectl describe node`), no OOM kill.

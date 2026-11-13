@@ -750,3 +750,5 @@ A VPA per workload and the dashboard behind the Pocket ID ([README](README.md#go
   ```
 
   Expected: `SecretSynced`, the route and the policy `Accepted`, no error about the OIDC provider. `302` to `https://id.shelltopia.org/authorize`. In a browser, a member of `kubernetes_admins` sees the namespaces and their recommendations, another user is refused by the Pocket ID.
+
+  Done on 2026-11-13: the three checks as expected, after a second run with `ignore-controller-kind: Job` and the `VMAgent` readable. Only the CronJobs `volsync-monitor` and `hubble-generate-certs` without a recommendation between two runs. In the logs, the resources of VictoriaMetrics, LINSTOR and the Intel GPU plugin, at each event of a pod of their namespace.
