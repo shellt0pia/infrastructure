@@ -49,6 +49,16 @@ spec:
         - ports:
             - port: "4244"
               protocol: TCP
+    # metrics-server reads the resource usage of the pods and nodes from each kubelet
+    # (docs/cluster/README.md#metrics-server).
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: cluster-tools
+            app.kubernetes.io/name: metrics-server
+      toPorts:
+        - ports:
+            - port: "10250"
+              protocol: TCP
     # VMAgent scrapes the metrics of the nodes and of the hostNetwork pods
     # (docs/observability/README.md#network-and-pod-security): the kubelet (and cAdvisor), etcd,
     # the scheduler, the controller-manager, node-exporter, the Cilium agent and operator, Hubble,

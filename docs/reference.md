@@ -62,6 +62,7 @@ Every LoadBalancer Service pins its addresses (`lbipam.cilium.io/ips`), allocate
 | TCP 4244 | Hubble Relay → Hubble server of each Cilium agent | [cluster](cluster/README.md#network-policies) |
 | TCP 4245 | Workstation → Hubble Relay, through `kubectl port-forward` (`hubble -P`) | [cluster](cluster/runbook.md#network-policies) |
 | TCP 10250 (kubelet), 2381 (etcd), 10259 (scheduler), 10257 (controller-manager), 9100 (node-exporter), 9962 (Cilium agent), 9963 (Cilium operator), 9965 (Hubble), 9942 (drbd-reactor) | `VMAgent` → nodes (host firewall) | [observability](observability/README.md#network-and-pod-security) |
+| TCP 10250 (kubelet) | metrics-server → nodes (host firewall) | [cluster](cluster/README.md#metrics-server) |
 | TCP and UDP 514 (to the pod port 5514): syslog | Devices → Vector aggregator (`syslog.kubecluster-01.shelltopia.net`) | [observability](observability/README.md#logs) |
 | TCP 6050 (Talos kernel logs), 6051 (Talos service logs), on `127.0.0.1` (IPv4 only) | Talos → the hostPorts of the Vector agent of the same node | [observability](observability/README.md#logs) |
 | TCP 9100 and 8443 (`fw-01`, the web UI for the API), TCP 8729 (`sw-01`), UDP 161 (`ap-01`), TCP 3493 (`ups-01-dmz`) | Nodes (the exporters, `VMAgent`) → the scraped devices, IPv6 (`AAAA` only) | [observability](observability/README.md#external-devices) |
@@ -82,7 +83,7 @@ Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: dis
 | `observability` | `victoria-metrics-k8s-stack` (operator, `VMSingle`, `VLSingle`, `VMAgent`, `VMAlert`, `VMAlertmanager`, kube-state-metrics), Grafana, `prometheus-operator-crds`, the Vector aggregator. Deployed by stage ([status](observability/README.md#status)) | `restricted` | [observability](observability/README.md#network-and-pod-security) |
 | `observability-agents` | node-exporter (from the stack), the Vector agent | `privileged` | [observability](observability/README.md#network-and-pod-security) |
 | `debug` | Throwaway test pods, `kubectl debug node` | `privileged` | [cluster](cluster/README.md#pod-security) |
-| `cluster-tools` | kubelet-csr-approver | `restricted` | [cluster](cluster/README.md#pod-security) |
+| `cluster-tools` | kubelet-csr-approver, metrics-server | `restricted` | [cluster](cluster/README.md#pod-security) |
 | `kube-system` | Cilium, CoreDNS, Intel device plugin, Reloader, snapshot-controller, Spegel | exempt | [cluster](cluster/README.md) |
 
 A namespace whose applications are exposed on the internet carries the label `shelltopia.net/gateway-external: "true"` ([ingress](ingress/runbook.md#exposing-an-application)).

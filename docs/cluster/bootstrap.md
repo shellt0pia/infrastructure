@@ -536,7 +536,7 @@ The class `infrastructure` and the alerts of the convention ([README](README.md#
 
 ### Kubelet serving certificates
 
-The approver, then `serverTLSBootstrap` ([README](README.md#kubelet-serving-certificates)). Not tested yet.
+The approver, then `serverTLSBootstrap` ([README](README.md#kubelet-serving-certificates)).
 
 - [x] **Approver.** Push, then once Flux has reconciled:
 
@@ -595,9 +595,9 @@ The approver, then `serverTLSBootstrap` ([README](README.md#kubelet-serving-cert
   curl -s localhost:8428/api/v1/query --data-urlencode 'query=up{job="kubelet"}' | jq -c '.data.result[] | [.metric.node, .metric.metrics_path, .value[1]]'
   ```
 
-  Expected: one series per node, about a year of seconds: the rule `KubeletServerCertificateExpiration` now has data. Every kubelet target at `1` (still `insecureSkipVerify` until metrics-server).
+  Expected: one series per node, about a year of seconds: the rule `KubeletServerCertificateExpiration` now has data. Every kubelet target at `1` (still `insecureSkipVerify` at this step, verified with [metrics-server](#metrics-server)).
 
-- [ ] **Talos config of the API server**, once both nodes have their certificate. The diff, then one node (kube-01, then kube-03 once the checks below pass on kube-01):
+- [x] **Talos config of the API server**, once both nodes have their certificate. The diff, then one node (kube-01, then kube-03 once the checks below pass on kube-01):
 
   ```sh
   just talos diff
@@ -607,7 +607,7 @@ The approver, then `serverTLSBootstrap` ([README](README.md#kubelet-serving-cert
 
   Expected: the diff only adds `kubelet-certificate-authority` to the `extraArgs` of the `KubeAPIServerConfig` of each node, next to its `certExtraSANs`. The API server restarts with the flag, the node does not reboot.
 
-- [ ] **API server to kubelet, verified**, through the API server of the node, on a pod of each node:
+- [x] **API server to kubelet, verified**, through the API server of the node, on a pod of each node:
 
   ```sh
   kubectl get pods -A -o wide --field-selector spec.nodeName=kube-03
@@ -616,3 +616,47 @@ The approver, then `serverTLSBootstrap` ([README](README.md#kubelet-serving-cert
   ```
 
   Expected: both work, for a pod of kube-01 and a pod of kube-03. `x509: certificate signed by unknown authority` means a kubelet still serves its self-signed certificate (its CSR, above).
+
+  Done on 2026-11-13: the checks as expected, on both nodes, through each API server.
+
+### metrics-server
+
+The release, and the kubelet scrapes of `VMAgent` verified ([README](README.md#metrics-server)). After the [kubelet serving certificates](#kubelet-serving-certificates).
+
+- [x] **Release.** Push, then once Flux has reconciled:
+
+  ```sh
+  flux -n cluster-tools get ks metrics-server
+  flux -n cluster-tools get hr metrics-server
+  kubectl -n cluster-tools get certificate,pods
+  kubectl -n cluster-tools logs deploy/metrics-server
+  ```
+
+  Expected: both `Ready`. The `Certificate` `metrics-server` `Ready`, one pod `Running`. No `x509` error in its logs: it would mean a kubelet it cannot verify.
+
+- [x] **APIService**, verified by the API server:
+
+  ```sh
+  kubectl get apiservice v1beta1.metrics.k8s.io
+  kubectl get apiservice v1beta1.metrics.k8s.io -o jsonpath='{.spec.insecureSkipTLSVerify} {.spec.caBundle}' | cut -c1-40
+  ```
+
+  Expected: `Available` `True`. No `insecureSkipTLSVerify` (empty or `false`), a `caBundle` set by cainjector.
+
+- [x] **`kubectl top`:**
+
+  ```sh
+  kubectl top nodes
+  kubectl top pods -A --sort-by=memory
+  ```
+
+  Expected: both nodes, and the pods of both nodes.
+
+- [x] **Kubelet scrapes verified**, through `VMSingle`, a few minutes after the reconciliation of the stack:
+
+  ```sh
+  kubectl -n observability port-forward svc/vmsingle-victoria-metrics-k8s-stack 8428
+  curl -s localhost:8428/api/v1/query --data-urlencode 'query=up{job="kubelet"}' | jq -c '.data.result[] | [.metric.node, .metric.metrics_path, .value[1]]'
+  ```
+
+  Expected: every target at `1`, for both nodes and the three paths (`/metrics`, `/metrics/cadvisor`, `/metrics/probes`). A target at `0` means a kubelet `VMAgent` cannot verify: the error is on its *Targets* page.

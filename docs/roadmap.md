@@ -46,10 +46,8 @@ Architecture and status: [observability/README.md](observability/README.md#statu
 ### Cluster tools
 
 - [ ] Resource requests and limits on every workload, and `PriorityClass`es so that the storage (LINSTOR, DRBD) and network (Cilium, CoreDNS, Envoy) components win against the applications under memory pressure. Done: the [convention](conventions.md#resources-and-priorities), the class `infrastructure` and the alerts `ContainerWithoutMemoryLimit` and `ContainerOOMKilled`, deployed on 2026-11-13, and the inventory of the current resources. Left: the sizing from the real usage with the VPA recommender and Goldilocks ([plan](cluster-tools.md)).
-- [ ] kubelet serving certificates and metrics-server. The kubelets use self-signed serving certificates (no `serverTLSBootstrap` in `KubeletConfig`), which nothing verifies today.
-  - Set `serverTLSBootstrap: true` in `KubeletConfig` and deploy `kubelet-serving-cert-approver`, otherwise the serving CSRs stay `Pending`. Deploy the approver first, then change the Talos config, so that no node is left without a valid certificate.
-  - Deploy metrics-server (`kubectl top`, resource usage in Headlamp, and the real utilization for the descheduler). It is not a source for the monitoring stack: that one scrapes the kubelet `/metrics/resource` endpoint and cAdvisor itself, with the verified TLS. It needs the kubelet port TCP 10250 from its pods in `kubernetes/apps/kube-system/cilium/policies/host.yaml`.
-  - Can wait for the metrics stack and be done together.
+- [x] kubelet serving certificates and metrics-server. Deployed on 2026-11-13: `serverTLSBootstrap` with `kubelet-csr-approver`, the kubelets verified by the API server, metrics-server and `VMAgent`, and metrics-server verified by the API server ([cluster](cluster/README.md#kubelet-serving-certificates), [checks](cluster/bootstrap.md#metrics-server), [plan](cluster-tools.md)).
+  - metrics-server serves `kubectl top`, the VPA recommender, later Headlamp and the descheduler. It is not a source for the monitoring stack, which scrapes the kubelets itself.
 - [ ] Web UI to view the cluster, with simple actions (restart a workload, look at logs and events): Headlamp (kubernetes-sigs), chosen. Flux has its own UI (next item), so no Flux plugin.
   - Why: general purpose, plugins, native OIDC login, and the actions follow the RBAC of the logged-in user, so the pod itself needs no rights.
   - Not chosen: Kubernetes Dashboard (retired, repository archived in `kubernetes-retired` in January 2026), Rancher and Portainer (much heavier than needed).

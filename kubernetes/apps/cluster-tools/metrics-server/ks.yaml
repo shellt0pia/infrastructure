@@ -1,0 +1,23 @@
+---
+# metrics-server serves the metrics.k8s.io API (kubectl top, the VPA recommender). Needs
+# cert-manager for the certificate of the APIService. Details:
+# docs/cluster/README.md#metrics-server.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: metrics-server
+spec:
+  dependsOn:
+    - name: priority-classes
+      namespace: kube-system
+    - name: cert-manager
+      namespace: cert-manager
+  interval: 1h
+  path: ./kubernetes/apps/cluster-tools/metrics-server/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: cluster-tools
+  wait: true

@@ -8,3 +8,4 @@ components:
 resources:
   - ./namespace.yaml
   - ./kubelet-csr-approver/ks.yaml
+  - ./metrics-server/ks.yaml

@@ -464,7 +464,15 @@ spec:
         limits:
           memory: 64Mi
 
-    # The kubelet (and cAdvisor) and the API server: the scrapes of the chart as they are.
+    # The API server: the scrape of the chart as it is. The kubelet (and cAdvisor): verified, its
+    # serving certificate is signed by the cluster CA (the caFile of the chart) and holds the
+    # InternalIP that VMAgent targets (docs/cluster/README.md#kubelet-serving-certificates).
+    # Helm merges maps: the rest of the scrape of the chart is kept.
+    kubelet:
+      vmScrape:
+        spec:
+          tlsConfig:
+            insecureSkipVerify: false
     # The scheduler and the controller-manager: the Service of the chart selects their static
     # pods by the label `component`, which Talos sets too. They serve /metrics on 0.0.0.0 with
     # a self-signed certificate (no --tls-cert-file on Talos): no verification.

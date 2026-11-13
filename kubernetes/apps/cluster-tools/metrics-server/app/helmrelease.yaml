@@ -1,0 +1,44 @@
+---
+# The resource usage of the pods and nodes, read from the kubelets, for kubectl top and the VPA
+# recommender. Not a source of the monitoring: VMAgent scrapes the kubelets itself. TLS is
+# verified both ways, see docs/cluster/README.md#metrics-server.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: metrics-server
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: metrics-server
+      version: 3.14.0
+      sourceRef:
+        kind: HelmRepository
+        name: metrics-server
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    fullnameOverride: metrics-server
+    # The API server verifies metrics-server: a certificate from a self-signed Issuer of the
+    # chart, whose CA cainjector writes in the caBundle of the APIService.
+    tls:
+      type: cert-manager
+    apiService:
+      insecureSkipTLSVerify: false
+    # metrics-server verifies the kubelets with the cluster CA of its ServiceAccount (no
+    # --kubelet-insecure-tls): their certificates are signed by it and hold their InternalIPs,
+    # the address it uses (kubelet-csr-approver, docs/cluster/README.md#kubelet-serving-certificates).
+    # The chart default is system-cluster-critical: kubectl top and the VPA can wait.
+    priorityClassName: infrastructure
+    replicas: 1
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 128Mi
