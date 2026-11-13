@@ -215,10 +215,46 @@ kubectl get verticalpodautoscalers -A -l source=goldilocks -o json > .scratch/si
 
 And the command of the [inventory](#from-the-cluster), into `.scratch/sizing/live.tsv`.
 
+The reservations of Talos, per node, read-only. `MemPeak` is since the boot. `init` and `system` (the Talos services) and `podruntime` (etcd, kubelet, containerd, per the *Cgroups Resource Analysis* of Talos) against `systemReserved` (1 GiB) and `kubeReserved` (512 MiB) of `talos/patches/kubernetes.yaml.j2`, whose comment puts etcd in `systemReserved`. The static pods are in `kubepods`, with their own requests:
+
+```sh
+talosctl -n kube-01.shelltopia.net cgroups --preset=memory
+talosctl -n kube-03.shelltopia.net cgroups --preset=memory
+```
+
+Their history, if the kubelet exports these cgroups (`memory-system.csv`, may be empty):
+
+```promql
+max by (node, id) (
+  max_over_time(container_memory_working_set_bytes{id=~"/(init|system|podruntime)(/[^/]+)?"}[$__range])
+)
+```
+
+The heap of the JVM of LINSTOR, its flags and their effect:
+
+```sh
+kubectl -n piraeus-datastore exec deploy/linstor-controller -- sh -c 'for p in /proc/[0-9]*; do tr "\0" " " < "$p/cmdline" 2>/dev/null | grep java; done'
+kubectl -n piraeus-datastore exec deploy/linstor-controller -- sh -c 'java -XX:+PrintFlagsFinal -version 2>/dev/null | grep -E " (MaxHeapSize|InitialHeapSize|MaxRAMPercentage) "'
+```
+
+The same in a satellite (`ds/linstor-satellite.kube-01 -c linstor-satellite`). In Grafana, the heap used, if LINSTOR exports it: `{__name__=~"jvm_memory.*", namespace="piraeus-datastore"}`.
+
+### Sizing answers
+
+1. **Now, from VictoriaMetrics.** Its history is the source; the VPA, younger, is the check. The [convention](conventions.md#resources-and-priorities) says so, in the same commit.
+2. **Window**: the whole history, since 2026-11-03, bootstrap included: the peaks of a start come back at each upgrade or reboot. A peak far above the target of the VPA is read case by case (a one-off, such as the first reconciliation of the whole cluster).
+3. **Formula**: memory request = peak × 1.2, limit = 2 × request; CPU request = 95th percentile. Rounded up: the CPU by 5m up to 50m, then by 10m; the memory by 16Mi up to 256Mi, by 64Mi up to 1Gi, then by 256Mi. At least 5m and 16Mi (the minimums of the VPA).
+4. **VMSingle and VLSingle**: their current limits (1536Mi, 1Gi) as request and limit.
+5. **LINSTOR**: `JAVA_OPTS` only holds `-Djdk.tls.acknowledgeCloseNotify=true` in the controller and the satellites: no heap set. The process 1 is `pause` (shared process namespace). The java command line and its heap read before a limit ([queries](#queries)).
+6. **Jobs and init containers**: their values in VictoriaMetrics when they show, else 10m / 32Mi, limit 128Mi. The VolSync movers: a default in `kubernetes/components/volsync`, from the peak of the movers of Grafana, to override per application later.
+7. **One pass, one commit**: the table of every component at once, then applied in a `wip` commit, amended and pushed by Victor, one wave after another, with the checks after each push. Its final message at the end.
+8. **The reservations of Talos** checked: the usage of `init`, `system` and `podruntime` against `systemReserved` and `kubeReserved`. Changed in Talos only if far off, then applied by Victor.
+
 ### Sizing plan
 
-- [ ] **Recommendations.** Goldilocks, after 8 days of data for the VPA recommender, against the history of VictoriaMetrics (the peak of `container_memory_working_set_bytes`, the 95th percentile of the CPU), so that the nightly backups and the reconciliations are in it. The queries kept here.
-- [ ] **Apply**, one namespace per commit, the network and the storage first. The requests, the limits and the class of each component, with `dependsOn` `priority-classes` on its Kustomization. The class of the convention where the chart or the operator sets another: Spegel (`system-node-critical`, its section of [cluster](cluster/README.md#spegel) with it), the Flux controllers, the Piraeus operator and the affinity controller to `infrastructure`; the LINSTOR controller and the CSI controller to `system-cluster-critical`. After each push: no pod `Pending`, the requests per node (`kubectl describe node`), no OOM kill.
+- [ ] **Data.** The CSVs, `vpa.json` and `live.tsv` in `.scratch/sizing/` (Victor), the reservations and the JVM read ([queries](#queries)).
+- [ ] **Table.** Per component and container: the peak, the 95th percentile, the target of the VPA, the values today, the new requests and limit, its class, the totals per namespace and against the 28 GiB.
+- [ ] **Apply**, in waves of the same `wip` commit, the network and the storage first. The requests, the limits and the class of each component, with `dependsOn` `priority-classes` on its Kustomization. The class of the convention where the chart or the operator sets another: Spegel (`system-node-critical`, its section of [cluster](cluster/README.md#spegel) with it), the Flux controllers, the Piraeus operator and the affinity controller to `infrastructure`; the LINSTOR controller and the CSI controller to `system-cluster-critical`. After each push: no pod `Pending`, the requests per node (`kubectl describe node`), no OOM kill.
 - [ ] **Alert** `ContainerWithoutMemoryLimit` to `warning`, once it no longer fires.
 - [ ] **Check** two weeks later: the usage against the requests and limits, adjusted.
 - [ ] **Docs:** the status in [cluster](cluster/README.md), the item ticked in the [roadmap](roadmap.md#cluster-tools).
