@@ -92,6 +92,16 @@ releases:
     needs:
       - kube-system/coredns
 
+  # Approves the kubelet serving certificates (serverTLSBootstrap): without them, no kubectl logs
+  # nor exec until Flux deploys it. Needs no DNS (bypassDnsResolution), only the CNI.
+  - name: kubelet-csr-approver
+    namespace: cluster-tools
+    {{- template "chart" (dict "name" "kubelet-csr-approver" "namespace" "cluster-tools") }}
+    inherit:
+      - template: default
+    needs:
+      - kube-system/cilium
+
   - name: external-secrets
     namespace: external-secrets
     {{- template "chart" (dict "name" "external-secrets" "namespace" "external-secrets") }}

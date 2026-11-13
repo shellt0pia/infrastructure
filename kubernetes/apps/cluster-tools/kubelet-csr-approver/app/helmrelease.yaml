@@ -1,0 +1,49 @@
+---
+# The kubelets ask the API server for a serving certificate signed by the cluster CA
+# (serverTLSBootstrap), and Kubernetes leaves these CSRs pending: a node could otherwise get a
+# certificate for any name or address. The approver checks each one before approving it, see
+# docs/cluster/README.md#kubelet-serving-certificates.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kubelet-csr-approver
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: kubelet-csr-approver
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    fullnameOverride: kubelet-csr-approver
+    # The single DNS name of the certificate: the node name (registerWithFQDN: false,
+    # talos/patches/hostname.yaml.j2).
+    providerRegex: ^kube-0[1-9]$
+    # The IP addresses of the certificate: the IPv4 and ULA nodes subnets (network.* in
+    # talos/vars.yaml, docs/reference.md#addresses), the InternalIPs of the nodes. Without them,
+    # any address would be approved, the ClusterIP of the API server included.
+    providerIpPrefixes:
+      - 192.168.15.0/24
+      - fd38:4c4d:8f66:f::/64
+    # The node names are short and the nodes have no search domain: kube-01 does not resolve
+    # from a pod, the check of its addresses by DNS would deny every CSR. The prefixes above
+    # check them instead.
+    bypassDnsResolution: true
+    # A single replica without leader election: a pending CSR waits for the restart, the kubelet
+    # keeps its current certificate until it expires (a year).
+    replicas: 1
+    leaderElection: false
+    priorityClassName: infrastructure
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        # Helm merges maps: null removes the CPU limit of the chart.
+        cpu: null
+        memory: 64Mi

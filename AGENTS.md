@@ -59,5 +59,5 @@ Renovate updates the versions of the charts, images and tools (`.renovaterc.json
 ## Do not
 
 - Commit secrets: they live in 1Password (`ExternalSecret` in the cluster). `ansible/inventories/production.yml` is encrypted with `ansible-vault`, never decrypt or rewrite it.
-- Hardcode addresses in manifests or Talos patches (use FQDNs), except the pinned LoadBalancer addresses allocated in `docs/reference.md`.
+- Hardcode an address in manifests or Talos patches where a name works (use FQDNs). Where the tool takes no name, only the stable addresses and subnets of `docs/reference.md` (nodes subnets, cluster ranges, LoadBalancer pools and pinned addresses), with a comment ([conventions](docs/conventions.md#addresses)).
 - Leave the documentation behind: a change to the infrastructure updates its topic document in the same commit.

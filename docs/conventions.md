@@ -66,7 +66,7 @@ kubernetes/apps/<namespace>/
 Every pod is in default deny ([cluster](cluster/README.md#network-policies)). Without anything more, an application reaches the cluster and the internet, and receives traffic from its namespace, its kubelet, the API server and the Gateways (its routes).
 
 - Anything else it needs is a `CiliumNetworkPolicy` in `ciliumnetworkpolicy.yaml`, next to the application (in `app/`), with a comment that says which flow it allows and why.
-- An egress from a pod to the internal network (NAS, OPNsense, a LAN or VLAN device) is filtered by name, never by address or subnet: a `toFQDNs` rule (`matchName`, or `matchPattern`) on the application that needs it, next to a DNS rule that lets Cilium learn the addresses behind the name (the example below). The names are those of the internal DNS, so every device that a pod reaches has a record. `toCIDR` only for a peer that has no name, with a comment saying why. The addresses stay out of the manifests, as everywhere else in the repository ([network](network/README.md#principles)).
+- An egress from a pod to the internal network (NAS, OPNsense, a LAN or VLAN device) is filtered by name, never by address or subnet: a `toFQDNs` rule (`matchName`, or `matchPattern`) on the application that needs it, next to a DNS rule that lets Cilium learn the addresses behind the name (the example below). The names are those of the internal DNS, so every device that a pod reaches has a record. `toCIDR` only for a peer that has no name, with a comment saying why. A name follows the device when its address changes ([addresses](#addresses)).
 - The DNS rule sends every DNS query of the pod through the DNS proxy of Cilium, which refuses the names it does not list. It lists the device names only when the pod resolves nothing else (an exporter of one device). A pod that also resolves other names (Services, the internet) has `matchPattern: "*"` there instead, as `VMAgent`: its `toFQDNs` rule still decides where it connects.
 - Select the peers, not the ports: `fromEntities` (`world`, `cluster`, `remote-node`...) or `fromEndpoints` with labels, and no `toPorts`. The only `toPorts` is the DNS rule of an FQDN egress, which Cilium requires to see the answers. A port that changes with an upgrade then breaks nothing, and a pod only exposes the ports it listens on. Only the host firewall (`cilium/policies/host.yaml`) filters by port, the ports of the nodes being fixed.
 - Labels that stay stable across upgrades (`app.kubernetes.io/name`, the labels set by the repository), and `io.kubernetes.pod.namespace` to select a pod of another namespace.
@@ -200,11 +200,20 @@ Every container has requests and a memory limit, and each component of the platf
 - The name of a receiver of the infrastructure (the devices send to it) is `<service>.kubecluster-01.shelltopia.net`, `A` and `AAAA` host overrides in Unbound, created by hand and kept in sync with the addresses ([dns](dns/runbook.md#where-to-create-a-record)). The names of the applications stay in `shelltopia.org`, served from the routes.
 - The GUA addresses of the `external` pool are pinned too. They are in the stable Milkywan /48 and do not change with the ISP prefix ([network](network/milkywan.md)).
 
+## Addresses
+
+The addressing of the cluster is stable: the nodes subnets, the cluster ranges and the LoadBalancer pools do not change ([reference](reference.md#addresses)).
+
+- A name rather than an address wherever the tool takes one: an FQDN of the internal DNS, which follows the device when its address changes ([network](network/README.md#principles)).
+- Where the tool takes no name (the IP addresses that the approver of the kubelet certificates checks, the pools of Cilium), a stable address or subnet of the [reference](reference.md#addresses): the nodes subnets, the cluster ranges, the LoadBalancer pools and the pinned addresses ([above](#loadbalancer-addresses)). The subnet rather than the addresses of the nodes: it does not change when a node joins.
+- A comment next to it says what it is and points to the reference. A new one is added to the reference in the same commit.
+- Never the ISP GUA prefix of the LAN, which may change, except where its [prefix change](network/runbook.md#ipv6-prefix-change) updates it (the baseline of the pods).
+
 ## Talos
 
 - Plain machine config documents. Common settings in `talos/patches/`, hardware settings in `talos/nodes/<node>.yaml`, versions and shared values in `talos/vars.yaml` with a `# renovate:` comment on the line before each version.
 - A 1Password reference (`op://...`) only in a `.yaml.j2` patch, never in a comment ([gotchas](../talos/README.md#gotchas)).
-- Everything dynamic, nothing hardcoded that the network can give: FQDN rather than address ([network](network/README.md#principles)). The LoadBalancer addresses of the cluster are the exception, all pinned ([above](#loadbalancer-addresses)).
+- Everything dynamic, nothing hardcoded that the network can give: no address of a node in the machine config, an FQDN rather than an address. The stable subnets where a setting takes no name (`network.*` in `talos/vars.yaml`, [addresses](#addresses)).
 - No search domain on the nodes, so none in the pods: always an FQDN, never a short name ([network](network/README.md#nodes-subnet)).
 - After a refactoring that should not change anything, `just talos diff` is empty on every node ([checking a change](../talos/README.md#checking-a-change)).
 

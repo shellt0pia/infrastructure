@@ -29,6 +29,7 @@ The choices considered and set aside, and what is still to check or watch. The r
 | A `LimitRange` per namespace, with default requests and limits | It invents values for what has none, and hides the forgotten ones. |
 | A class below the applications (negative, `preemptionPolicy: Never`) | No workload to put there today: the backups and the exporters matter more than the applications. To add if one shows up. |
 | A `globalDefault` class for the applications | The default of a pod without class is already 0, below `infrastructure`. |
+| `alex1989hu/kubelet-serving-cert-approver` | Checks the form of a CSR (user, CN, usages), not its names and addresses: a node could get a certificate for any of them. Tested up to Kubernetes 1.36 only. `postfinance/kubelet-csr-approver` instead ([README](README.md#kubelet-serving-certificates)). |
 | The classes of the charts and operators (`system-cluster-critical` for the Flux controllers, the Piraeus operator and the affinity controller) | A system class is never evicted by the kubelet and preempts `infrastructure`: only for what the network or the volumes of the running pods depend on ([README](README.md#resources-and-priorities)). |
 
 ## Intel DRA driver

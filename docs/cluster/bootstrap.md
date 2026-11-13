@@ -533,3 +533,26 @@ The class `infrastructure` and the alerts of the convention ([README](README.md#
   Expected: `OOMKilled`. The alert `firing` for `debug/oom-test` at the next evaluation (no `for`), notified on the phone (`warning`); it resolves once the pod is deleted.
 
   Done on 2026-11-13: the four checks as expected.
+
+### Kubelet serving certificates
+
+The approver, then `serverTLSBootstrap` ([README](README.md#kubelet-serving-certificates)). Not tested yet.
+
+- [ ] **Approver.** Push, then once Flux has reconciled:
+
+  ```sh
+  kubectl get namespace cluster-tools --show-labels
+  flux -n cluster-tools get hr kubelet-csr-approver
+  kubectl -n cluster-tools get pods -l app.kubernetes.io/name=kubelet-csr-approver
+  kubectl -n cluster-tools logs deploy/kubelet-csr-approver
+  ```
+
+  Expected: the namespace without Pod Security label. The HelmRelease is `Ready`, one pod `Running`, no error in its logs.
+
+- [ ] **No CSR denied:**
+
+  ```sh
+  kubectl get csr --field-selector spec.signerName=kubernetes.io/kubelet-serving
+  ```
+
+  Expected: none before `serverTLSBootstrap`, then one `Approved,Issued` per node and none `Denied`.

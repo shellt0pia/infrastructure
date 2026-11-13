@@ -1,0 +1,10 @@
+---
+# The cluster-wide tools that need no access to the host: restricted (the default, no Pod
+# Security label), unlike kube-system, which is exempt (docs/cluster/README.md#pod-security).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cluster-tools
+  annotations:
+    # Never delete a namespace (and everything in it) because of a refactoring.
+    kustomize.toolkit.fluxcd.io/prune: disabled

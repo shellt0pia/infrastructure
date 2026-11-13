@@ -18,7 +18,7 @@ The names, addresses, ports, namespaces, items and schedules scattered in the to
 
 | What | IPv4 | IPv6 | Described in |
 | --- | --- | --- | --- |
-| Nodes subnet | `192.168.15.0/24` | `fd38:4c4d:8f66:f::/64` (ULA), `2a0e:e701:2132:f::/64` (GUA, Milkywan /48) | [network](network/README.md#nodes-subnet) |
+| Nodes subnet | `192.168.15.0/24` | `fd38:4c4d:8f66:f::/64` (ULA), `2a0e:e701:2132:f::/64` (GUA, Milkywan /48) | [network](network/README.md#nodes-subnet), the IP addresses of the kubelet certificates ([cluster](cluster/README.md#kubelet-serving-certificates)) |
 | `kube-01`, `kube-02`, `kube-03` | `192.168.15.11`, `.12`, `.13` | EUI-64 ULA addresses, in the table of the nodes subnet | [network](network/README.md#nodes-subnet) |
 | `internal` LB pool | `192.168.19.0/25` | `fd38:4c4d:8f66:13::/64` | [network](network/README.md#bgp) |
 | `external` LB pool | `192.168.19.128/25` | `2a0e:e701:2132:13::/64` (GUA, Milkywan /48) | [network](network/README.md#bgp) |
@@ -28,7 +28,7 @@ The names, addresses, ports, namespaces, items and schedules scattered in the to
 | Cluster DNS | `10.96.0.10` | `fd1b:654d:9afe:200::a` | [cluster](cluster/README.md#coredns) |
 | NAS main interface | `192.168.14.0/24` | | [network](network/README.md#nas-no-asymmetric-path) |
 
-The cluster ranges and the Milkywan /48 are permanent, the ISP GUA prefix of the LAN may change: [what to update](network/runbook.md#ipv6-prefix-change).
+The cluster ranges and the Milkywan /48 are permanent, the ISP GUA prefix of the LAN may change: [what to update](network/runbook.md#ipv6-prefix-change). A manifest or a Talos patch only holds an address of this section where its tool takes no name ([conventions](conventions.md#addresses)).
 
 BGP: OPNsense is AS `64512`, the nodes share AS `64513` ([network](network/README.md#bgp)).
 
@@ -82,6 +82,7 @@ Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: dis
 | `observability` | `victoria-metrics-k8s-stack` (operator, `VMSingle`, `VLSingle`, `VMAgent`, `VMAlert`, `VMAlertmanager`, kube-state-metrics), Grafana, `prometheus-operator-crds`, the Vector aggregator. Deployed by stage ([status](observability/README.md#status)) | `restricted` | [observability](observability/README.md#network-and-pod-security) |
 | `observability-agents` | node-exporter (from the stack), the Vector agent | `privileged` | [observability](observability/README.md#network-and-pod-security) |
 | `debug` | Throwaway test pods, `kubectl debug node` | `privileged` | [cluster](cluster/README.md#pod-security) |
+| `cluster-tools` | kubelet-csr-approver | `restricted` | [cluster](cluster/README.md#pod-security) |
 | `kube-system` | Cilium, CoreDNS, Intel device plugin, Reloader, snapshot-controller, Spegel | exempt | [cluster](cluster/README.md) |
 
 A namespace whose applications are exposed on the internet carries the label `shelltopia.net/gateway-external: "true"` ([ingress](ingress/runbook.md#exposing-an-application)).

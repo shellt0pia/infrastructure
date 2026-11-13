@@ -1,0 +1,22 @@
+---
+# kubelet-csr-approver approves the CSRs of the kubelet serving certificates (serverTLSBootstrap,
+# talos/patches/kubernetes.yaml.j2) once it has checked their names and addresses. Also
+# installed by the bootstrap helmfile, Flux adopts the release. Details:
+# docs/cluster/README.md#kubelet-serving-certificates.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: kubelet-csr-approver
+spec:
+  dependsOn:
+    - name: priority-classes
+      namespace: kube-system
+  interval: 1h
+  path: ./kubernetes/apps/cluster-tools/kubelet-csr-approver/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: cluster-tools
+  wait: true

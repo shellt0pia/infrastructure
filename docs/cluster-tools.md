@@ -7,7 +7,7 @@ Temporary document: the plan of the [Cluster tools](roadmap.md#cluster-tools) of
 | Step | Roadmap items | Why in this order | Status |
 | --- | --- | --- | --- |
 | [1](#1-resources-and-priorities) | Resources and `PriorityClass`es: the convention, the classes, the checks | The convention first: every tool deployed after it (metrics-server, VPA, Headlamp) follows it from the start. | Done |
-| [2](#2-kubelet-serving-certificates-metrics-server-and-vpa) | kubelet serving certificates, metrics-server, VPA and Goldilocks | Grouped: metrics-server needs the verified kubelet certificates, the VPA recommender needs metrics-server. | Questions |
+| [2](#2-kubelet-serving-certificates-metrics-server-and-vpa) | kubelet serving certificates, metrics-server, VPA and Goldilocks | Grouped: metrics-server needs the verified kubelet certificates, the VPA recommender needs metrics-server. | In progress |
 | [3](#3-sizing) | Resources and `PriorityClass`es: the sizing | From the recommendations of step 2, checked against the history of VictoriaMetrics (since 2026-11-03). | To do |
 | [4](#4-oidc-authentication) | Kubernetes OIDC authentication | Before the UIs: both log in through it, and their rights are the bindings of its groups. | To do |
 | [5](#5-flux-web-ui-and-headlamp) | Flux web UI, Headlamp | Grouped: same pattern (a client in the Pocket ID, an `HTTPRoute` on the `internal` Gateway, the groups of step 4). The Flux UI first: nothing to deploy. | To do |
@@ -143,24 +143,20 @@ Checked on 2026-11-13.
 ### Answers
 
 1. **Approver**: `postfinance/kubelet-csr-approver`. `bypassDnsResolution: true` (the short node name does not resolve), `providerRegex` `^kube-0[1-9]$`, `providerIpPrefixes` the nodes subnets, IPv4 and ULA: without them, a node could get a certificate for any address, `10.96.0.1` included, that the pods trust through the CA of the cluster. The rule on addresses is relaxed first (Victor, the cluster addressing being stable now).
-2. **Namespace**: to answer ([below](#open-questions)).
+2. **Namespace**: `cluster-tools`, `restricted`, for the four tools (and later Headlamp and the descheduler). `kube-system` is exempt from Pod Security for Cilium, Spegel and the GPU plugin only: in their own namespace, Pod Security refuses a chart that turns privileged, and the same-namespace policy no longer lets an exposed UI (Goldilocks) reach Hubble Relay (every flow, no authentication) or the other pods of `kube-system`. Only the `RoleBinding` of metrics-server to `extension-apiserver-authentication-reader` stays in `kube-system` (fixed by the chart, needed by every aggregated API). Reloader and snapshot-controller may move there later, in a commit of their own.
 3. **metrics-server**: verified both ways. It verifies the kubelets with the CA of the cluster, the API server verifies it (`tls.type: cert-manager`, `insecureSkipTLSVerify: false`, `dependsOn` cert-manager).
 4. **VPA history**: checkpoints (default). VictoriaMetrics stays the cross-check of [step 3](#3-sizing).
 5. **VPA minimums** lowered: `--pod-recommendation-min-cpu-millicores=5`, `--pod-recommendation-min-memory-mb=16`.
 6. **Goldilocks access**: `kubernetes_admins`, as Hubble UI.
 7. **Monitoring**: the existing rules only. A failed approval shows as `KubeletServerCertificateRenewalErrors`, metrics-server as `KubeAggregatedAPIDown`; VPA and Goldilocks are covered by the generic rules (`KubePodCrashLooping`, `FluxResourceNotReady`).
 8. **The API server verifies the kubelets** as soon as both nodes have their certificate: `kubelet-certificate-authority` in a `KubeAPIServerConfig`. Not in the same apply as `serverTLSBootstrap`: the API server of a node would refuse the kubelet of the other until its certificate is signed.
-
-### Open questions
-
-- **Namespace.** `kube-system` is exempt from Pod Security for Cilium, Spegel and the GPU plugin only. A namespace of their own, `restricted`, for the four tools (and later Headlamp and the descheduler): Pod Security refuses a chart that turns privileged, and the same-namespace policy no longer lets an exposed UI (Goldilocks) reach Hubble Relay (every flow, no authentication) or the other pods of `kube-system`. Only the `RoleBinding` of metrics-server to `extension-apiserver-authentication-reader` stays in `kube-system` (fixed by the chart, needed by every aggregated API). Its name. Reloader, snapshot-controller: the same reasoning, moved later.
-- **Bootstrap.** With `serverTLSBootstrap` in the Talos config, a new cluster has no kubelet serving certificate until the approver runs: no `kubectl logs` nor `exec` before Flux. The approver in the bootstrap helmfile after CoreDNS, as Spegel?
+9. **Approver at bootstrap**: with `serverTLSBootstrap` in the Talos config, a new cluster has no kubelet serving certificate until the approver runs (no `kubectl logs` nor `exec` before Flux). In the bootstrap helmfile, after Cilium: it needs no DNS (`bypassDnsResolution`).
 
 ### Commits
 
 One commit per item, pushed after the checks of the previous one. Every release: the conventions (requests, a memory limit, no CPU limit, class `infrastructure` and `dependsOn` `priority-classes`, `restricted` securityContext, 1 replica and no PDB).
 
-- [ ] **Approver.** Its release, values of [decision 1](#answers). Check: running, no CSR denied.
+- [x] **Approver.** The namespace `cluster-tools`, its release and the bootstrap helmfile, values of [decision 1](#answers), the rule on addresses relaxed ([conventions](conventions.md#addresses)). Check: running, no CSR denied ([bootstrap](cluster/bootstrap.md#kubelet-serving-certificates)).
 - [ ] **Talos: kubelets.** `serverTLSBootstrap: true` in `KubeletConfig`. Applied by Victor, `just talos diff` then one node, then the other. Check per node: its `kubelet-serving` CSR `Approved,Issued`, the certificate signed by the cluster CA with the IPv4 and ULA addresses, `kubectl logs` of a pod of the node.
 - [ ] **Talos: API server.** `KubeAPIServerConfig` `extraArgs` `kubelet-certificate-authority: /system/secrets/kubernetes/kube-apiserver/ca.crt`, merged with the one of `cluster-rename.yaml` (`just talos diff`). One node, then the other. Check through each API server: `kubectl logs` and `exec` of a pod of each node.
 - [ ] **metrics-server and the scrapes.** Its release, TCP 10250 from its pods in the host firewall, and the kubelet `VMNodeScrape`s of the stack verified (`kubelet.vmScrape.spec.tlsConfig.insecureSkipVerify: false`). Check: `kubectl top nodes`, the targets of `VMAgent` up.

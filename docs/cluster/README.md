@@ -1,6 +1,6 @@
 # Cluster: Kubernetes, Cilium and Flux
 
-How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap helmfile, Cilium and its network policies, Pod Security, the resources and priorities, CoreDNS, External Secrets and Flux, which then deploys everything in `kubernetes/apps`, and the cluster-wide tools (Spegel, Reloader). The nodes are in [nodes](../nodes/README.md), the network around the cluster in [network](../network/README.md). The decisions are [below](#decisions).
+How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap helmfile, Cilium and its network policies, Pod Security, the resources and priorities, CoreDNS, External Secrets and Flux, which then deploys everything in `kubernetes/apps`, and the cluster-wide tools (Spegel, Reloader, the approver of the kubelet serving certificates). The nodes are in [nodes](../nodes/README.md), the network around the cluster in [network](../network/README.md). The decisions are [below](#decisions).
 
 | Document | Content |
 | --- | --- |
@@ -22,6 +22,7 @@ How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap he
 | GPU | Intel device plugin | In use on kube-01 ([below](#gpu)) |
 | Registry mirror between the nodes | Spegel | Deployed by the bootstrap and Flux, [checks](bootstrap.md#spegel) not run yet ([below](#spegel)) |
 | Restart on configuration change | Reloader | Deployed by Flux, [checks](bootstrap.md#reloader) not run yet ([below](#reloader)) |
+| Kubelet serving certificates | kubelet-csr-approver | Approver deployed by the bootstrap and Flux, `serverTLSBootstrap` and the verification by the API server [to apply](../cluster-tools.md#commits) ([below](#kubelet-serving-certificates)) |
 | First bootstrap | | In progress, with kube-01 and kube-03 only ([test phase](../nodes/README.md#test-phase-2-nodes)) |
 
 ## Overview
@@ -43,7 +44,7 @@ flowchart TD
 The `apps` stage installs, in this order, the minimum needed for Flux to take over:
 
 1. **Cilium**, then its BGP sessions and LoadBalancer pools (`kubernetes/apps/kube-system/cilium/networking`). The nodes stay `NotReady` until the CNI runs: Flannel, kube-proxy and the CoreDNS of Talos are disabled in the Talos configuration. The `observability` namespace is created just before: the chart puts its Grafana dashboards there ([observability](../observability/README.md#the-release-of-the-stack)). The priority classes of the repository too, for the releases that name them ([below](#resources-and-priorities)). Flux adopts both later.
-2. **CoreDNS**.
+2. **CoreDNS**, and in parallel **kubelet-csr-approver**, which needs no DNS: until it approves their serving certificates, the kubelets serve no logs nor exec ([below](#kubelet-serving-certificates)).
 3. **Spegel**, in parallel with External Secrets and before Flux, so that the images pulled by Flux already go through it ([below](#spegel)).
 4. **External Secrets** and the `onepassword` ClusterSecretStore ([secrets](../secrets/README.md)).
 5. **flux-operator** and **flux-instance**.
@@ -120,6 +121,7 @@ Cilium policies, fail-closed: every pod is in default deny, and every flow it ne
 - **`flux-system`** is owned by flux-operator, which sets `warn: restricted` on it: the same as the default, nothing to add.
 - **Version `latest`** (no `-version` label): the profiles follow the version of the API server. A Kubernetes minor can make a profile stricter; with the automated upgrades (tuppr), a pod accepted the day before would then be refused at its next restart. Read the changes of the [Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/) in the release notes, and check the running pods after a minor ([runbook](runbook.md#upgrading-kubernetes-by-hand)). A refused pod shows up as a `FailedCreate` event ([runbook](runbook.md#pod-security)).
 - **`kube-system` is exempt** (the Talos default, kept): Cilium, Spegel and the GPU plugin need privileged pods, and the namespace is created by Kubernetes, not managed by the repository. `default`, `kube-public`, `kube-node-lease` and `cilium-secrets` get the default, `restricted`.
+- **`cluster-tools`**, `restricted`: the cluster-wide tools that need no access to the host (kubelet-csr-approver, then metrics-server, the VPA recommender and Goldilocks, [plan](../cluster-tools.md)). Out of `kube-system`: Pod Security refuses a chart that turns privileged, and the same-namespace policy does not let an exposed UI reach Hubble Relay or the other pods of `kube-system`. Reloader and snapshot-controller may move there later.
 - **Applications**: in their own namespace, or one shared with the applications that need the same level. An application that cannot run `restricted` gets a namespace at the lowest level that works (`baseline` before `privileged`). The images that start as root to drop their privileges themselves (s6-overlay, linuxserver.io) need `baseline`.
 - **NAS shares**: `restricted` forbids the inline `nfs` volumes. A share is mounted through a static PersistentVolume and its PersistentVolumeClaim ([storage](../storage/README.md#decisions)).
 - **Refused pods**: only the pods are enforced. A Deployment, StatefulSet, DaemonSet or Job is accepted (with a warning), but its pods are refused: they never exist, and only show up as `FailedCreate` events on the ReplicaSet, StatefulSet, DaemonSet or Job. The HelmRelease or Kustomization then waits until its timeout ([runbook](runbook.md#pod-security)).
@@ -147,7 +149,7 @@ A component wins under memory pressure with a request that covers its real use, 
   | --- | --- |
   | `system-node-critical` | Cilium agent and Envoy, LINSTOR satellites, CSI node plugin |
   | `system-cluster-critical` | CoreDNS, Cilium operator, LINSTOR controller, CSI controller, HA controller |
-  | `infrastructure` | Flux, External Secrets, cert-manager, Envoy Gateway and the Envoy proxies of the Gateways, VolSync, snapshot-controller, Spegel, Reloader, external-dns, k8s-gateway, cloudflare-ddns, Hubble Relay and UI, the Piraeus operator and the LINSTOR affinity controller, the Intel device plugin operator, the observability (`VMSingle`, `VLSingle`, `VMAgent`, `VMAlert`, Alertmanager, Grafana, Vector, kube-state-metrics, node-exporter, the VictoriaMetrics operator) and the exporters of the devices, `volsync-monitor` |
+  | `infrastructure` | Flux, External Secrets, cert-manager, Envoy Gateway and the Envoy proxies of the Gateways, VolSync, snapshot-controller, Spegel, Reloader, kubelet-csr-approver, external-dns, k8s-gateway, cloudflare-ddns, Hubble Relay and UI, the Piraeus operator and the LINSTOR affinity controller, the Intel device plugin operator, the observability (`VMSingle`, `VLSingle`, `VMAgent`, `VMAlert`, Alertmanager, Grafana, Vector, kube-state-metrics, node-exporter, the VictoriaMetrics operator) and the exporters of the devices, `volsync-monitor` |
   | None (0) | The applications. The Intel GPU plugin: its operator sets no class |
 
 - **The class of the convention, not the default of the chart or operator**: the system classes only for what the network or the volumes of the running pods depend on. The charts take the highest class that exists everywhere; here, `infrastructure` already puts a component above the applications, and a system class only adds that the kubelet never evicts it (a leak then evicts the others) and that it preempts `infrastructure`. So the Flux controllers, the Piraeus operator and the affinity controller, `system-cluster-critical` upstream, are in `infrastructure`: the cluster keeps running without them. Within the system classes too, the convention wins (the LINSTOR controller and the CSI controller, `system-node-critical` from the operator), so that the class reads in the table.
@@ -187,3 +189,14 @@ Kubernetes does not restart a pod when a ConfigMap or Secret it uses changes: en
 - Not needed for Jobs and CronJobs (each run reads the current values), nor for the tools that read the Secret at each use (cert-manager and its issuers, the VolSync movers).
 - Blind spot: a Secret read through the Kubernetes API (by an operator) is not a reference of the pod spec, `auto` does not see it.
 - Opted in today: external-dns and cloudflare-ddns (Cloudflare tokens in env vars).
+
+## Kubelet serving certificates
+
+The kubelet serves its API (TCP 10250: logs, exec, metrics) with a self-signed certificate by default, which nobody can verify. With `serverTLSBootstrap` (`KubeletConfig`, `talos/patches/kubernetes.yaml.j2`), it asks for a certificate signed by the cluster CA instead, through a CSR (signer `kubernetes.io/kubelet-serving`), and renews it before it expires. Kubernetes never approves these CSRs by itself: their names and addresses come from the node, which could ask for any.
+
+- **kubelet-csr-approver** ([postfinance](https://github.com/postfinance/kubelet-csr-approver), `cluster-tools/kubelet-csr-approver`) approves a CSR after checking it: the signer, the user `system:node:<node>`, a single DNS name, the node name, matching `^kube-0[1-9]$`, and the IP addresses in the nodes subnets, IPv4 and ULA (the InternalIPs, `nodeIP.validSubnets`). It denies the others: without the subnets, a node could get a certificate for any address, the ClusterIP of the API server included, which the pods trust through the cluster CA.
+- **No DNS check** (`bypassDnsResolution`): the node names are short and the nodes have no search domain, `kube-01` does not resolve from a pod. The subnets check the addresses instead.
+- **A single replica**, without leader election: while it is down, a CSR waits. A kubelet keeps its certificate until it expires (a year), and asks for the next one well before.
+- **Installed at bootstrap**, after Cilium and before Flux, then adopted by Flux ([above](#overview)).
+- **Alerts**: the kube-prometheus rules of the stack, `KubeletServerCertificateRenewalErrors` (a CSR not approved) and `KubeletServerCertificateExpiration`.
+- `alex1989hu/kubelet-serving-cert-approver` was rejected ([evaluations](evaluations.md#rejected-options)).
