@@ -1,0 +1,20 @@
+---
+# Temporary, during the rename of the cluster (docs/cluster-rename.md), deleted at the end of it.
+# Step 2: the endpoint is the new name. Every API server still accepts the old name:
+# - in its serving certificate (the endpoint name is added by Talos);
+# - as an issuer and an audience of the service account tokens (both default to the endpoint):
+#   the tokens signed with the old issuer stay valid until the kubelets replace them.
+#   The first audience is the new one: the default audience of the new tokens.
+apiVersion: v1alpha1
+kind: KubeAPIServerConfig
+certExtraSANs:
+  - kube-cluster01.shelltopia.net
+---
+apiVersion: v1alpha1
+kind: KubeServiceAccountConfig
+accepted:
+  issuers:
+    - https://kube-cluster01.shelltopia.net:6443
+  audiences:
+    - https://kubecluster-01.shelltopia.net:6443
+    - https://kube-cluster01.shelltopia.net:6443

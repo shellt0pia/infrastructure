@@ -1,8 +1,8 @@
 ---
 # Public DNS records of the applications, in Cloudflare:
 # - one CNAME per hostname of the HTTPRoutes attached to the `external` Gateway, pointing to
-#   gateway-external.kube-cluster01.shelltopia.net (target annotation of the Gateway);
-# - the AAAA record of gateway-external.kube-cluster01.shelltopia.net, from the public IPv6
+#   gateway-external.kubecluster-01.shelltopia.net (target annotation of the Gateway);
+# - the AAAA record of gateway-external.kubecluster-01.shelltopia.net, from the public IPv6
 #   address of the Envoy Service of that Gateway (hostname annotation, envoyproxy-external.yaml).
 #   Its A record is the WAN address, managed by cloudflare-ddns.
 # The rest of the zones (infrastructure, names still served by `home`) is managed by OpenTofu
@@ -50,8 +50,10 @@ spec:
     # Deletes the records of the routes that are removed (only the records it owns).
     policy: sync
     registry: txt
-    # Never change it: the existing ownership records would no longer be recognized.
-    txtOwnerId: kube-cluster01
+    # Changed only with `--migrate-from-txt-owner` set to the old owner, for one cycle (it updates
+    # every record at each cycle): otherwise the existing ownership records are no longer
+    # recognized.
+    txtOwnerId: kubecluster-01
     extraArgs:
       gateway-name: external
       # Only LoadBalancer Services: the Envoy Service of the `external` Gateway.
@@ -59,7 +61,7 @@ spec:
       # The zones and the names external-dns may touch: every name of shelltopia.org, and only
       # the entry name in shelltopia.net (plus its apex, to select the zone). A plain domain
       # filter on the entry name would exclude the shelltopia.net zone itself.
-      regex-domain-filter: '^(.+\.)?shelltopia\.org$|^(gateway-external\.kube-cluster01\.)?shelltopia\.net$'
+      regex-domain-filter: '^(.+\.)?shelltopia\.org$|^(gateway-external\.kubecluster-01\.)?shelltopia\.net$'
       # It never publishes A records (the IPv4 addresses are private, the CNAMEs carry the
       # names). Excluding the type also hides the A record of the entry name, owned by
       # cloudflare-ddns: the planner skips every creation on a name that has a record owned by
@@ -72,6 +74,6 @@ spec:
         - 172.16.0.0/12
         - 192.168.0.0/16
         - fc00::/7
-      cloudflare-record-comment: managed by external-dns (kube-cluster01)
+      cloudflare-record-comment: managed by external-dns (kubecluster-01)
     serviceMonitor:
       enabled: true

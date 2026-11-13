@@ -180,7 +180,7 @@ spec:
 - Every LoadBalancer Service pins its addresses, IPv4 and IPv6, with the `lbipam.cilium.io/ips` annotation, in its pool. Cilium LB IPAM gives a Service without annotation the lowest free address, which can be the one that another Service pins: that one then gets no address at all. And what points to these addresses (Unbound, the OPNsense rules, the devices, the DNS records) needs them stable.
 - The addresses are allocated in the [reference](reference.md#pinned-loadbalancer-addresses), updated in the same commit. The same host part in both families (`192.168.19.2` and `fd38:4c4d:8f66:13::2`). Check that a new address is free first: `kubectl get svc -A --field-selector spec.type=LoadBalancer -o wide`.
 - A comment next to the annotation says what depends on the addresses, to update with them.
-- The name of a receiver of the infrastructure (the devices send to it) is `<service>.kube-cluster01.shelltopia.net`, `A` and `AAAA` host overrides in Unbound, created by hand and kept in sync with the addresses ([dns](dns/runbook.md#where-to-create-a-record)). The names of the applications stay in `shelltopia.org`, served from the routes.
+- The name of a receiver of the infrastructure (the devices send to it) is `<service>.kubecluster-01.shelltopia.net`, `A` and `AAAA` host overrides in Unbound, created by hand and kept in sync with the addresses ([dns](dns/runbook.md#where-to-create-a-record)). The names of the applications stay in `shelltopia.org`, served from the routes.
 - The GUA addresses of the `external` pool are pinned too. They are in the stable Milkywan /48 and do not change with the ISP prefix ([network](network/milkywan.md)).
 
 ## Talos

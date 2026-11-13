@@ -281,7 +281,7 @@ spec:
         # On every series: the dashboards and rules that expect a `cluster` label (the
         # clusterLabel of the chart) get one.
         externalLabels:
-          cluster: kube-cluster01
+          cluster: kubecluster-01
         podDisruptionBudget:
           minAvailable: 1
         # ScheduleAnyway: with 2 nodes, a strict constraint would leave a replica Pending while a

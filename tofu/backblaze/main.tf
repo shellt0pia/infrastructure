@@ -5,7 +5,7 @@ locals {
   s3_endpoint   = "https://s3.eu-central-003.backblazeb2.com"
 
   restic_repositories = {
-    "kube-cluster01-volsync" = {
+    "kubecluster-01-volsync" = {
       vault = "kubernetes"
       item  = "restic-volsync"
     }

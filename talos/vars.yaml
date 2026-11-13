@@ -12,9 +12,9 @@
 domain: shelltopia.net
 
 cluster:
-  name: main
+  name: kubecluster-01
   # DNS round-robin: one AAAA record (ULA address) per node.
-  endpoint: https://kube-cluster01.shelltopia.net:6443
+  endpoint: https://kubecluster-01.shelltopia.net:6443
   # Dual-stack, IPv4 first (primary family): single-stack Services get an IPv4 ClusterIP and
   # the kubelet probes target the IPv4 pod address, so applications listening on 0.0.0.0 only
   # keep working. Services that must be reachable over IPv6 use `ipFamilyPolicy:

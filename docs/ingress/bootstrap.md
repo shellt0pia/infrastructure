@@ -2,7 +2,7 @@
 
 Deploying the Gateways on a new cluster, the checks to run, and the OPNsense rules in front of them. Architecture: [README.md](README.md). The DNS records of the applications have their own [first deployment](../dns/bootstrap.md).
 
-Create every prerequisite of a step before starting it, then follow the steps in order. The statuses and checkboxes track `kube-cluster01`.
+Create every prerequisite of a step before starting it, then follow the steps in order. The statuses and checkboxes track `kubecluster-01`.
 
 ## Prerequisites
 

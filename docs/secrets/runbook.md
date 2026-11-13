@@ -76,7 +76,7 @@ The permissions of a service account cannot be changed after its creation, and i
 | --- | --- | --- |
 | Workstation service account | `personal` vault | Every recipe, [rotation above](#rotating-the-workstation-token) |
 | `kubernetes-external-secrets` service account | `kubernetes/1password-external-secrets-operator` | External Secrets |
-| Docker Hub personal access token | `infrastructure/docker-hub-kube-cluster01` | containerd of the nodes (rate limit) |
+| Docker Hub personal access token | `infrastructure/docker-hub-kubecluster-01` | containerd of the nodes (rate limit) |
 
 | Cloudflare tokens | `kubernetes/cloudflare-cert-manager`, `kubernetes/cloudflare-external-dns`, `kubernetes/cloudflare-ddns`, `infrastructure/cloudflare-tofu` | cert-manager, external-dns, cloudflare-ddns, OpenTofu |
 | B2 keys | `kubernetes/restic-volsync`, `infrastructure/restic-nas`, `infrastructure/backblaze-b2-tofu-*` | VolSync, Backrest, OpenTofu (the `restic-*` keys are managed by OpenTofu, see [tofu/README.md](../../tofu/README.md)) |

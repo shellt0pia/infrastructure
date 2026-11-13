@@ -1,6 +1,6 @@
 # Observability: first deployment
 
-Deploying the observability stack on the cluster, in five stages, each one useful without the next. Architecture: [README.md](README.md). Nothing below was run yet (*Not tested yet*): the commands and the checks are to adjust to the names of the real resources, and the checkboxes track `kube-cluster01`.
+Deploying the observability stack on the cluster, in five stages, each one useful without the next. Architecture: [README.md](README.md). Nothing below was run yet (*Not tested yet*): the commands and the checks are to adjust to the names of the real resources, and the checkboxes track `kubecluster-01`.
 
 Create every prerequisite of a stage before starting it, then follow the stages in order. The order was chosen so that the alerts come first (they also carry the Flux notifications), the network policies are enforced as early as the logs allow, and the external devices come last. Each stage is one push, checked before the next one.
 
@@ -11,13 +11,13 @@ The release `victoria-metrics-k8s-stack` is deployed at stage 1 with only the op
 | Stage | Prerequisite | How | Status |
 | --- | --- | --- | --- |
 | 1 | Pushover account, one application (token) for the Alertmanager, and the user key. Item `pushover-alertmanager` (`kubernetes` vault: `username`->pushover `user-key`, `credential`->pushover `token`). | Pushover, 1Password | Done |
-| 1 | A healthchecks.io check for the dead man's switch, its ping URL in the `kube-cluster01-alertmanager` field of the `healthchecks` item. Period 1 minute, grace 3 minutes. | healthchecks.io, 1Password | Done |
+| 1 | A healthchecks.io check for the dead man's switch, its ping URL in the `kubecluster-01-alertmanager` field of the `healthchecks` item. Period 1 minute, grace 3 minutes. | healthchecks.io, 1Password | Done |
 | 2 | The Flux application `observability/prometheus-operator-crds`, and its release in `bootstrap/helmfile/crds.yaml.gotmpl` (the template reads its `ocirepository.yaml`), both written. Then `just bootstrap crds` on the existing cluster **before the push of stage 2**: the monitors enabled in the other charts need the CRDs, and Flux takes them over at the install of the release. | [cluster](../cluster/bootstrap.md) | To do |
 | 2 | In the Pocket ID: the groups `grafana_admins` and `grafana_viewers` with their members, and a confidential OIDC client for Grafana (callback `https://grafana.shelltopia.org/login/generic_oauth`, scopes `openid profile email groups`). Item `pocket-id-grafana` (`kubernetes` vault, [naming](../secrets/README.md#naming-of-the-items)): `username` is the client id, `credential` the secret. No local password. | Pocket ID, 1Password | Done |
 | 2 | The URLs of the endpoints of the Pocket ID, read from its `.well-known/openid-configuration`: `https://id.shelltopia.org/authorize`, `/api/oidc/token`, `/api/oidc/userinfo`, PKCE `S256` supported. | Pocket ID | Done |
 | 2 | The sources of the rules and dashboards pinned or not: not pinned ([why](evaluations.md#sources-of-the-rules-and-dashboards)). | Decision | Done |
 | 3 | The pinned addresses of the receiver: `192.168.19.2` and `fd38:4c4d:8f66:13::2`, free: only `.1` and `.53` are in use ([reference](../reference.md#pinned-loadbalancer-addresses)). | Decision | Done |
-| 3 | Host overrides in Unbound, `A` and `AAAA`: `syslog.kube-cluster01.shelltopia.net` to the addresses above ([dns](../dns/runbook.md#where-to-create-a-record)). | OPNsense | Done |
+| 3 | Host overrides in Unbound, `A` and `AAAA`: `syslog.kubecluster-01.shelltopia.net` to the addresses above ([dns](../dns/runbook.md#where-to-create-a-record)). | OPNsense | Done |
 | 5 | The SNMPv3 user of the access point (read-only), item `ap-01-snmp` in the `kubernetes` vault ([naming](../secrets/README.md#naming-of-the-items): an *API* item, `username` and `credential`, plus the privacy password in a custom field `privacy_key`). | Access point | Done |
 | 5 | The items `sw-01-mktxp` (a *Login*: `username` and `password`) and `fw-01-opnsense-exporter` (`username` and `credential`), in the `kubernetes` vault, created with their users in the steps of the switch and the firewall. | 1Password | Done |
 | 5 | OPNsense, from the nodes subnet to the scraped devices (by aliases of their names): `fw-01` TCP 9100 and 8443 (the web UI listening on the interface of the nodes), `sw-01` TCP 8729, `ap-01` UDP 161, `ups-01-dmz` TCP 3493 (already open for `upsmon`). | OPNsense | Done |
@@ -74,7 +74,7 @@ The first slice of the stack, so that the alert path exists before anything else
 
   Expected: no flow (every scrape is allowed).
 
-- [x] **Deploy.** The `observability-agents` namespace (`privileged`, with the comment). In the stack: `vmsingle` (50 Gi `replicated`, 90 days, `-dedup.minScrapeInterval=30s`), `vmagent` (two replicas, every 30 s, the external label `cluster: kube-cluster01`), kube-state-metrics, node-exporter (in `observability-agents`), the scrapes of the kubelet, cAdvisor, the API server, the scheduler and the controller-manager, the data sources and the default dashboards (ConfigMaps for Grafana, the Job of the stack). The default rules stay disabled until [stage 4](#4-alert-rules-and-the-dead-mans-switch): the dashboards of kube-prometheus that read their recording rules stay empty until then, the others (Kubernetes views, node-exporter, VictoriaMetrics) do not need them. The Grafana release (its sidecars reading those ConfigMaps, login by OIDC only with `disable_initial_admin_creation` set from the first start, [Grafana](README.md#grafana), the `volsync` component for its volume, a route on the `internal` Gateway). In the second Kustomization (`victoria-metrics-k8s-stack-config`): the `VMNodeScrape` of etcd.
+- [x] **Deploy.** The `observability-agents` namespace (`privileged`, with the comment). In the stack: `vmsingle` (50 Gi `replicated`, 90 days, `-dedup.minScrapeInterval=30s`), `vmagent` (two replicas, every 30 s, the external label `cluster: kubecluster-01`), kube-state-metrics, node-exporter (in `observability-agents`), the scrapes of the kubelet, cAdvisor, the API server, the scheduler and the controller-manager, the data sources and the default dashboards (ConfigMaps for Grafana, the Job of the stack). The default rules stay disabled until [stage 4](#4-alert-rules-and-the-dead-mans-switch): the dashboards of kube-prometheus that read their recording rules stay empty until then, the others (Kubernetes views, node-exporter, VictoriaMetrics) do not need them. The Grafana release (its sidecars reading those ConfigMaps, login by OIDC only with `disable_initial_admin_creation` set from the first start, [Grafana](README.md#grafana), the `volsync` component for its volume, a route on the `internal` Gateway). In the second Kustomization (`victoria-metrics-k8s-stack-config`): the `VMNodeScrape` of etcd.
 
   ```sh
   flux -n observability get ks
@@ -115,7 +115,7 @@ The first slice of the stack, so that the alert path exists before anything else
   kubectl -n observability get vlsingle,pods -o wide
   kubectl -n observability-agents get pods -o wide
   kubectl -n observability get svc vector-aggregator -o wide
-  dig +short syslog.kube-cluster01.shelltopia.net A syslog.kube-cluster01.shelltopia.net AAAA
+  dig +short syslog.kubecluster-01.shelltopia.net A syslog.kubecluster-01.shelltopia.net AAAA
   ```
 
   Expected: the Kustomizations `Ready`, a Vector agent per node, the Service of the aggregator on its pinned addresses (without address, another Service holds one of them), the names resolving to them. The data source *VictoriaLogs* in Grafana (Grafana restarted by Reloader). In *Explore*, VictoriaLogs:
@@ -147,8 +147,8 @@ The first slice of the stack, so that the alert path exists before anything else
 - [x] **Source address of the syslog** (`externalTrafficPolicy: Local`). From the workstation (the OPNsense rules must let it reach the aggregator on 514), over TCP then UDP:
 
   ```sh
-  logger --tcp -n syslog.kube-cluster01.shelltopia.net -P 514 'stage 3 test, TCP'
-  logger --udp -n syslog.kube-cluster01.shelltopia.net -P 514 'stage 3 test, UDP'
+  logger --tcp -n syslog.kubecluster-01.shelltopia.net -P 514 'stage 3 test, TCP'
+  logger --udp -n syslog.kubecluster-01.shelltopia.net -P 514 'stage 3 test, UDP'
   ```
 
   Expected: in *Explore*, `log_source:syslog "stage 3 test"` returns both lines, `source_ip` being the address of the workstation (not a node address).
@@ -558,13 +558,13 @@ One device at a time, in this order: the NAS syslog and the UPS, the MikroTik sw
 - [x] **Host names and counter (5b).** In the aggregator (`vector-aggregator/app/helmrelease.yaml`): `host` normalized in `syslog_normalized` (lower case, the domain removed: each device sends its short name or its FQDN; an address kept whole), a `log_to_metric` transform `syslog_events` (a counter `syslog_events_total` per `host`) as an input of `prom_exporter` (`flush_period_secs` 8 days). Pushed first, so that the week of measure of the silent hosts starts. Then, from the workstation:
 
   ```sh
-  logger --tcp -n syslog.kube-cluster01.shelltopia.net -P 514 'stage 5 test'
+  logger --tcp -n syslog.kubecluster-01.shelltopia.net -P 514 'stage 5 test'
   curl -s localhost:8428/api/v1/query --data-urlencode 'query=sum by (host) (increase_pure(syslog_events_total[15m]))' | jq -c '.data.result[] | [.metric.host, .value[1]]'
   ```
 
   Expected: the HelmRelease `Ready`, `log_source:syslog "stage 5 test"` in *Explore* with the short name of the workstation as `host`, the same `host` in the counter (the sum of the two replicas: one TCP connection lands on one of them).
 
-- [x] **NAS syslog (5b).** TrueNAS, *System → Advanced Settings → Syslog*: server `syslog.kube-cluster01.shelltopia.net:514`, transport TCP, level `Info`, *Include Audit Logs* on. Hostname `nas-01` (*Network → Global Configuration*).
+- [x] **NAS syslog (5b).** TrueNAS, *System → Advanced Settings → Syslog*: server `syslog.kubecluster-01.shelltopia.net:514`, transport TCP, level `Info`, *Include Audit Logs* on. Hostname `nas-01` (*Network → Global Configuration*).
 
   Expected: `_time:15m host:nas-01` returns the logs of the NAS (a login to the web UI makes one), `syslog_events_total{host="nas-01"}` growing, `source_ip` the address of the NAS.
 
@@ -590,7 +590,7 @@ One device at a time, in this order: the NAS syslog and the UPS, the MikroTik sw
   /ip service disable api
   /snmp community remove [find where name=<the user of sw-01-snmp>]
   /snmp set enabled=no
-  /system logging action add name=vector target=remote remote=syslog.kube-cluster01.shelltopia.net remote-port=514 \
+  /system logging action add name=vector target=remote remote=syslog.kubecluster-01.shelltopia.net remote-port=514 \
     remote-protocol=udp remote-log-format=syslog add-topics-string=yes syslog-time-format=iso8601 syslog-facility=daemon
   /system logging add topics=info action=vector
   /system logging add topics=warning action=vector
@@ -624,7 +624,7 @@ One device at a time, in this order: the NAS syslog and the UPS, the MikroTik sw
 - [x] **OPNsense, device side (5e).** On `fw-01`:
   - *System → Firmware → Plugins*: `os-node_exporter`, listening on `0.0.0.0:9100`.
   - *System → Access → Users*: a user `opnsense-exporter` without login, with the privileges of the [README](README.md#external-devices) only (System: Gateways; Diagnostics: Firewall statistics; Lobby: Dashboard; System: Status; Reporting: Traffic; Diagnostics: Netstat; Status: Services; VPN: WireGuard), an API key: the key in `username`, the secret in `credential` of `fw-01-opnsense-exporter`.
-  - *System → Settings → Logging → Remote*: a destination `TCP(4)` or `TCP(6)` (the name has both records; the family only changes `source_ip`) to `syslog.kube-cluster01.shelltopia.net:514`, RFC 5424, levels `info` and above, no application nor facility selected (all).
+  - *System → Settings → Logging → Remote*: a destination `TCP(4)` or `TCP(6)` (the name has both records; the family only changes `source_ip`) to `syslog.kubecluster-01.shelltopia.net:514`, RFC 5424, levels `info` and above, no application nor facility selected (all).
   - Hostname `fw-01` (*System → Settings → General*).
 
   Expected: `curl -s http://fw-01.shelltopia.net:9100/metrics` answers from the nodes subnet, `_time:15m host:fw-01` returns the logs of the firewall.
@@ -663,7 +663,7 @@ One device at a time, in this order: the NAS syslog and the UPS, the MikroTik sw
 
   Expected: the module generated without error, no diff on `snmp-gwn.yml`: the system info, the status, channel and power of the radios, the WLAN and client tables, the text columns as labels, the client index fixed (a `gauge` index, the MAC lookup last), `max_repetitions: 1`.
 
-- [x] **Access point (5f).** On `ap-01`: the device name `ap-01`, syslog over TCP to `syslog.kube-cluster01.shelltopia.net:514`, level `Info`. `observability/snmp-exporter/`: the release (chart `prometheus-snmp-exporter` 9.21.1, `nameOverride: snmp-exporter`; the default modules of the image, `snmp-gwn.yml` and `snmp-auths.yml` as more `--config.file`, `--config.expand-environment-variables` with the variables from the `ExternalSecret` `ap-01-snmp`; Reloader through a post-renderer), two `ServiceMonitor` (target `ap-01.shelltopia.net.`, the auth `ap-01`, `instance` `ap-01`): `snmp-exporter-ap-01` (`system`, `if_mib`, `hrDevice` and `ucd_la_table`, 30 s) and `snmp-exporter-ap-01-wifi` (`gwn_ap`, 5 min, [why](README.md#external-devices)), its egress, the rule `SNMPTargetDown`, the dashboard 20347 (revision 2, vendored in `snmp-device.json`, [why](README.md#the-release-of-the-stack)) and the Wi-Fi dashboard of the repository (`wifi.json`). Push, then:
+- [x] **Access point (5f).** On `ap-01`: the device name `ap-01`, syslog over TCP to `syslog.kubecluster-01.shelltopia.net:514`, level `Info`. `observability/snmp-exporter/`: the release (chart `prometheus-snmp-exporter` 9.21.1, `nameOverride: snmp-exporter`; the default modules of the image, `snmp-gwn.yml` and `snmp-auths.yml` as more `--config.file`, `--config.expand-environment-variables` with the variables from the `ExternalSecret` `ap-01-snmp`; Reloader through a post-renderer), two `ServiceMonitor` (target `ap-01.shelltopia.net.`, the auth `ap-01`, `instance` `ap-01`): `snmp-exporter-ap-01` (`system`, `if_mib`, `hrDevice` and `ucd_la_table`, 30 s) and `snmp-exporter-ap-01-wifi` (`gwn_ap`, 5 min, [why](README.md#external-devices)), its egress, the rule `SNMPTargetDown`, the dashboard 20347 (revision 2, vendored in `snmp-device.json`, [why](README.md#the-release-of-the-stack)) and the Wi-Fi dashboard of the repository (`wifi.json`). Push, then:
 
   ```sh
   flux -n observability get ks,hr

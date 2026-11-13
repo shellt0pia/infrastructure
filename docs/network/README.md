@@ -41,7 +41,7 @@ The nodes get their addresses from OPNsense and open the BGP sessions towards it
 - **Everything dynamic, FQDN wherever possible**: DHCPv4 static mappings, SLAAC with EUI-64 addresses, `ntp-01.shelltopia.net`, `ups-01-dmz.shelltopia.net`. The only exception is the LoadBalancer addresses of the cluster, all pinned and listed in the [reference](../reference.md#pinned-loadbalancer-addresses): Unbound only forwards to addresses (k8s-gateway), the OPNsense rules of the device VLANs target them (syslog), and a Service left dynamic could take the address that another one pins ([conventions](../conventions.md#loadbalancer-addresses)).
 - **The ISP GUA prefix may change**: only the LAN subnets use it, and it is never used in the configs of the cluster. The nodes subnet and the `external` LB pool use the stable Milkywan /48 ([Milkywan](milkywan.md)), everything else the ULA prefix ([prefix change](runbook.md#ipv6-prefix-change)).
 - Node names have **A and AAAA records** (IPv4 and ULA) with their PTR. Clients prefer IPv4 (RFC 6724 ranks ULA below IPv4) until the nodes get a stable GUA.
-- Cluster endpoint: DNS round-robin `kube-cluster01.shelltopia.net` (one AAAA per node).
+- Cluster endpoint: DNS round-robin `kubecluster-01.shelltopia.net` (one AAAA per node).
 - OPNsense filters everything entering the nodes subnet: no Talos ingress firewall ([nodes](../nodes/README.md#decisions)). The traffic of the pods to the nodes and to the LAN is filtered by the Cilium network policies ([cluster](../cluster/README.md#network-policies)).
 
 ## Nodes subnet
@@ -53,7 +53,7 @@ Nodes subnet: `192.168.15.0/24`, `fd38:4c4d:8f66:f::/64` (ULA) and `2a0e:e701:21
 
 The nodes have **no search domain**: Talos drops the domain name of DHCP and does not derive one from its FQDN (`ResolverConfig` in `talos/patches/network.yaml.j2`). The kubelet copies the search domains of the node into every pod, and `shelltopia.net` there broke the Alpine images ([DNS](../dns/README.md#search-domain-and-musl)). Every name is used as an FQDN anyway.
 
-The nodes are reached by name (`kube-0X.shelltopia.net`, `kube-cluster01.shelltopia.net`): the node names have A and AAAA records (IPv4 and ULA), the cluster endpoint AAAA records only. Inside the cluster, IPv4 is the primary family: the primary Kubernetes node IPs are the IPv4 addresses, the ULA addresses come second. etcd peers use both.
+The nodes are reached by name (`kube-0X.shelltopia.net`, `kubecluster-01.shelltopia.net`): the node names have A and AAAA records (IPv4 and ULA), the cluster endpoint AAAA records only. Inside the cluster, IPv4 is the primary family: the primary Kubernetes node IPs are the IPv4 addresses, the ULA addresses come second. etcd peers use both.
 
 | Node | MAC address | Reserved IPv4 | ULA address (EUI-64) | Interface identifier (GUA alias) |
 | --- | --- | --- | --- | --- |
@@ -68,7 +68,7 @@ kube-02 is still the `home` host, which already uses this MAC address: create it
 ### Names
 
 - Host overrides `kube-01` and `kube-03` in `shelltopia.net`: an **A record** (reserved IPv4) and an **AAAA record** (ULA address) of the table, with their PTR. The A records came with the first design of the Talos logs, which named the node from the PTR of the sender ([observability](../observability/evaluations.md#to-verify)); no longer needed for that, they stay: the IPv4 address of a node resolves back to its name.
-- Host overrides **with the same name** `kube-cluster01.shelltopia.net`, one AAAA record per node (ULA address). This DNS round-robin is the `cluster.endpoint`.
+- Host overrides **with the same name** `kubecluster-01.shelltopia.net`, one AAAA record per node (ULA address). This DNS round-robin is the `cluster.endpoint`.
 - **Not** on Cloudflare: the Kubernetes and Talos APIs must stay internal.
 
 The cluster endpoint needs no A record:

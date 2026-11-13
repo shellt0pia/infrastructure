@@ -39,7 +39,7 @@ The cluster only ever sees the `kubernetes` vault. The workstation sees both vau
 
 | Vault | Content | Read by |
 | --- | --- | --- |
-| `infrastructure` | Secrets of the workstation and of the infrastructure, never synced to the cluster: `talos-secrets` (Talos secrets bundle), `docker-hub-kube-cluster01`, `nas-01-nut-server`, the OpenTofu items (`tofu-state-encryption`, `backblaze-b2-tofu-state`, `backblaze-b2-tofu-admin`, `cloudflare-tofu`), `restic-nas` | The workstation service account |
+| `infrastructure` | Secrets of the workstation and of the infrastructure, never synced to the cluster: `talos-secrets` (Talos secrets bundle), `docker-hub-kubecluster-01`, `nas-01-nut-server`, the OpenTofu items (`tofu-state-encryption`, `backblaze-b2-tofu-state`, `backblaze-b2-tofu-admin`, `cloudflare-tofu`), `restic-nas` | The workstation service account |
 | `kubernetes` | Secrets synced to the cluster: `1password-external-secrets-operator` (token of the store), `cloudflare-cert-manager`, `cloudflare-external-dns`, `cloudflare-ddns`, `pushover-alertmanager`, `restic-volsync`, `healthchecks`, `backblaze-b2-cnpg`, `pocket-id-grafana`, `ap-01-snmp`, `sw-01-mktxp`, `fw-01-opnsense-exporter` | External Secrets, and the workstation service account |
 | `personal` | The token of the workstation service account | The personal account only |
 
@@ -51,7 +51,7 @@ Items are named after what they connect, in lowercase with hyphens. Three forms:
 
 | Form | For | Examples |
 | --- | --- | --- |
-| `<provider>-<app>` | A secret that authenticates a tool of the repository to an external service: the service, then the tool that uses it (the name of its folder in `kubernetes/apps`, or of the component for a release that bundles several, as `alertmanager` in `victoria-metrics-k8s-stack`). When the user is the cluster itself, not a tool, the name of the cluster. | `cloudflare-external-dns`, `cloudflare-cert-manager`, `pushover-alertmanager`, `pocket-id-grafana` (its OIDC client), `backblaze-b2-cnpg`, `backblaze-b2-tofu-admin`, `docker-hub-kube-cluster01` (the nodes pull with it), `1password-external-secrets-operator` (the token of its store) |
+| `<provider>-<app>` | A secret that authenticates a tool of the repository to an external service: the service, then the tool that uses it (the name of its folder in `kubernetes/apps`, or of the component for a release that bundles several, as `alertmanager` in `victoria-metrics-k8s-stack`). When the user is the cluster itself, not a tool, the name of the cluster. | `cloudflare-external-dns`, `cloudflare-cert-manager`, `pushover-alertmanager`, `pocket-id-grafana` (its OIDC client), `backblaze-b2-cnpg`, `backblaze-b2-tofu-admin`, `docker-hub-kubecluster-01` (the nodes pull with it), `1password-external-secrets-operator` (the token of its store) |
 | `<host>-<service>` | The credentials of a service exposed by one of our own devices: the host, then the service. | `sw-01-mktxp`, `fw-01-opnsense-exporter`, `ap-01-snmp`, `nas-01-nut-server` |
 | `<tool>-<purpose>` | The settings of a tool for one use, when it is not a connection to a provider. | `restic-volsync`, `restic-nas` (the restic repository of VolSync and of Backrest) |
 

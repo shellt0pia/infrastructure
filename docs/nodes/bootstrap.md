@@ -2,7 +2,7 @@
 
 Preparing the machines and booting them on the Talos ISO, then checking each node once the cluster is bootstrapped. Architecture: [README.md](README.md). The order of the whole bootstrap is in [first-bootstrap.md](../first-bootstrap.md): the BIOS and the image come first, the first boot comes after the [network](../network/bootstrap.md) is ready, the checks come after `just bootstrap cluster`.
 
-Create every prerequisite of a step before starting it, then follow the steps in order. The statuses and checkboxes track `kube-cluster01`.
+Create every prerequisite of a step before starting it, then follow the steps in order. The statuses and checkboxes track `kubecluster-01`.
 
 ## Prerequisites
 

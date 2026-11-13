@@ -1,5 +1,5 @@
 ---
-# A record of gateway-external.kube-cluster01.shelltopia.net, the target of the CNAME records of
+# A record of gateway-external.kubecluster-01.shelltopia.net, the target of the CNAME records of
 # the public applications (external-dns): the dynamic IPv4 address of the WAN, where HAProxy (then
 # a plain port forwarding) sends the traffic to the `external` Gateway. The address is detected
 # with Cloudflare (`cloudflare.trace`, over HTTPS): the pods leave through the NAT of OPNsense.
@@ -47,14 +47,14 @@ spec:
                   name: cloudflare-ddns
                   key: api-token
             - name: IP4_DOMAINS
-              value: gateway-external.kube-cluster01.shelltopia.net
+              value: gateway-external.kubecluster-01.shelltopia.net
             # `none` leaves the existing AAAA records alone (owned by external-dns).
             - name: IP6_PROVIDER
               value: none
             - name: PROXIED
               value: "false"
             - name: RECORD_COMMENT
-              value: managed by cloudflare-ddns (kube-cluster01)
+              value: managed by cloudflare-ddns (kubecluster-01)
             - name: EMOJI
               value: "false"
           securityContext:

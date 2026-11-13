@@ -144,7 +144,7 @@ The points of each topic are kept in its `evaluations.md`.
 - [ ] Network: ECMP and multi-WAN on OPNsense, the NAS *Pre Init* script, the ISP prefix change, the Milkywan WireGuard tunnel (in place, left: DNS), Cilium `bpf.masquerade`: [network/evaluations.md](network/evaluations.md#open-points).
 - [ ] Nodes: watchdog, `nfsrahead`, Talos firmware updates, firmware reset to the factory Secure Boot keys, serial of SATA disks, `EthernetConfig` alias, TPM unlock failure seen once on kube-01, Dell *Microsoft UEFI CA*, reboot of kube-03 stuck on `error closing encrypted volume` (`r-storage`): [nodes/evaluations.md](nodes/evaluations.md#open-points).
 - [ ] Cluster: Intel DRA driver, network policies (Talos host DNS), ICMPv6 drops `INVALID_SOURCE_IP` seen by Hubble on every pod: [cluster/evaluations.md](cluster/evaluations.md#open-points).
-- [ ] Storage: LINSTOR thin pool oversubscription, Talos and the LINSTOR VG, Piraeus `talos-loader-override`: [storage/evaluations.md](storage/evaluations.md#open-points).
+- [ ] Storage: LINSTOR thin pool oversubscription, Talos and the LINSTOR VG, Piraeus `talos-loader-override`, restarts of the LINSTOR controller (lost lease, `linstorControllerOffline`): [storage/evaluations.md](storage/evaluations.md#open-points).
 - [ ] Ingress: Envoy Gateway listeners after an upgrade (`ecdhCurves`): [ingress/evaluations.md](ingress/evaluations.md#open-points).
 - [ ] Backups: Kopiur, to look at again in early 2027 ([checklist](backups/evaluations.md#kopiur-evaluated-to-revisit)).
 - [ ] Token expirations: Docker Hub, GitHub (Flux, Renovate), Cloudflare (cert-manager, external-dns, cloudflare-ddns, OpenTofu), see the [tokens to renew](secrets/runbook.md#tokens-to-renew).

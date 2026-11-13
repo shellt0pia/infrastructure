@@ -2,7 +2,7 @@
 
 The Git repository, the checks before the bootstrap, `just bootstrap cluster` and the checks of the cluster, of the network policies and of Pod Security. Architecture: [README.md](README.md). The order of the whole bootstrap is in [first-bootstrap.md](../first-bootstrap.md).
 
-Create every prerequisite of a step before starting it, then follow the steps in order. The statuses and checkboxes track `kube-cluster01`.
+Create every prerequisite of a step before starting it, then follow the steps in order. The statuses and checkboxes track `kubecluster-01`.
 
 ## Prerequisites
 

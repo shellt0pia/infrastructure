@@ -12,7 +12,7 @@ metadata:
     # external-dns publishes every public route as a CNAME to this name (its A and AAAA records
     # are managed by cloudflare-ddns and external-dns, see envoyproxy-external.yaml). Only read
     # on the Gateway, ignored on the routes.
-    external-dns.kubernetes.io/target: gateway-external.kube-cluster01.shelltopia.net
+    external-dns.kubernetes.io/target: gateway-external.kubecluster-01.shelltopia.net
 spec:
   gatewayClassName: external
   infrastructure:

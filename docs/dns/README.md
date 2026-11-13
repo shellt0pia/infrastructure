@@ -41,8 +41,8 @@ flowchart TD
 | Name | Records | Managed by |
 | --- | --- | --- |
 | `<app>.shelltopia.org`, internal (Unbound) | `A` + `AAAA` → `internal` Gateway (IPv4, ULA) | k8s-gateway, from the routes attached to the `internal` Gateway |
-| `<app>.shelltopia.org`, public (Cloudflare) | `CNAME` → `gateway-external.kube-cluster01.shelltopia.net` | external-dns, from the routes attached to the `external` Gateway |
-| `gateway-external.kube-cluster01.shelltopia.net` (Cloudflare) | `A` → WAN IPv4 (HAProxy, then port forwarding) | cloudflare-ddns |
+| `<app>.shelltopia.org`, public (Cloudflare) | `CNAME` → `gateway-external.kubecluster-01.shelltopia.net` | external-dns, from the routes attached to the `external` Gateway |
+| `gateway-external.kubecluster-01.shelltopia.net` (Cloudflare) | `A` → WAN IPv4 (HAProxy, then port forwarding) | cloudflare-ddns |
 | | `AAAA` → IPv6 of the `external` Gateway | external-dns, from the Envoy Service (hostname annotation in `envoyproxy-external.yaml`) |
 | Everything else in `shelltopia.net` and `shelltopia.org` (Cloudflare): mail, CAA, applications hosted by PikaPods | | OpenTofu (`tofu/cloudflare`, [README](../../tofu/README.md#cloudflare)). Resolved on the LAN too: k8s-gateway forwards the names without route to Cloudflare |
 | `A` and `AAAA` of `shelltopia.net` (hosts, firewall, WireGuard endpoints), historical CNAMEs of `shelltopia.org` to the Ansible hosts (Cloudflare) | | ddns-updater or by hand; the historical CNAMEs are removed during the migration |
@@ -52,7 +52,7 @@ A public route is attached to both Gateways: k8s-gateway answers for every route
 Rules:
 
 - A route must list its `hostnames`. k8s-gateway ignores a route without hostname. external-dns would fall back to the hostname of the listener and publish a wildcard `*.shelltopia.org`: the HTTPS redirect route of the external Gateway carries `external-dns.kubernetes.io/gateway-hostname-source: defined-hosts-only` for that reason.
-- external-dns only changes or deletes the records it owns: ownership TXT records `cname-<name>` and `aaaa-<name>`, owner `kube-cluster01`. Policy `sync`: removing a route from the external Gateway removes its CNAME.
+- external-dns only changes or deletes the records it owns: ownership TXT records `cname-<name>` and `aaaa-<name>`, owner `kubecluster-01` (changed only through `--migrate-from-txt-owner`, for one cycle: otherwise the existing records are no longer recognized). Policy `sync`: removing a route from the external Gateway removes its CNAME.
 - external-dns ignores the `A` records (`exclude-record-types`): it never publishes any, and the `A` of the entry name belongs to cloudflare-ddns. Without that, this `A` would block the `AAAA`: external-dns creates nothing on a name that has a record owned by someone else, whatever its type.
 - A CNAME cannot coexist with another record of the same name. A name that already has records (created by hand, by OpenTofu, or still pointing to `home`) must lose them first. Otherwise: an existing `CNAME` or `AAAA` makes external-dns skip the name silently (only visible with `--log-level=debug`); any other record (`A`, `TXT`, ...) makes Cloudflare reject the CNAME, and external-dns logs an error every minute.
 - OpenTofu never manages the records of external-dns and cloudflare-ddns (the CNAMEs of the applications, the `cname-*`/`aaaa-*` TXT records, the `A` and `AAAA` of the entry name): never add them to `tofu/cloudflare`.
@@ -73,9 +73,9 @@ Rules:
 
 ## Public: external-dns and cloudflare-ddns
 
-- external-dns (`network`, Cloudflare provider, every minute) reads two sources: the HTTPRoutes attached to the `external` Gateway of `network` (`gateway-httproute`), and the LoadBalancer Services with a hostname annotation (`service`: the Envoy Service of the `external` Gateway). Its regex domain filter only lets it touch `shelltopia.org` and the entry name in `shelltopia.net`. The private addresses (RFC 1918, ULA) are never published. Records not proxied, with the comment `managed by external-dns (kube-cluster01)`.
-- Entry name `gateway-external.kube-cluster01.shelltopia.net`, target of every public CNAME (`external-dns.kubernetes.io/target` annotation of the Gateway):
-  - `A`: the WAN IPv4, detected through Cloudflare (`cloudflare.trace`) every 5 minutes by cloudflare-ddns (`network`), comment `managed by cloudflare-ddns (kube-cluster01)`. `IP6_PROVIDER=none`: it leaves the `AAAA` alone;
+- external-dns (`network`, Cloudflare provider, every minute) reads two sources: the HTTPRoutes attached to the `external` Gateway of `network` (`gateway-httproute`), and the LoadBalancer Services with a hostname annotation (`service`: the Envoy Service of the `external` Gateway). Its regex domain filter only lets it touch `shelltopia.org` and the entry name in `shelltopia.net`. The private addresses (RFC 1918, ULA) are never published. Records not proxied, with the comment `managed by external-dns (kubecluster-01)`.
+- Entry name `gateway-external.kubecluster-01.shelltopia.net`, target of every public CNAME (`external-dns.kubernetes.io/target` annotation of the Gateway):
+  - `A`: the WAN IPv4, detected through Cloudflare (`cloudflare.trace`) every 5 minutes by cloudflare-ddns (`network`), comment `managed by cloudflare-ddns (kubecluster-01)`. `IP6_PROVIDER=none`: it leaves the `AAAA` alone;
   - `AAAA`: the IPv6 of the Envoy Service, published by external-dns. A new delegated prefix or a recreated Gateway is followed automatically.
 - With the stable IPv4 of the Milkywan tunnel, cloudflare-ddns is removed and the `A` record becomes static in OpenTofu.
 - Cloudflare tokens, one per tool and distinct from the cert-manager and OpenTofu ones, in the `kubernetes` vault (field `credential`), with *Zone → Zone → Read* and *Zone → DNS → Edit*:

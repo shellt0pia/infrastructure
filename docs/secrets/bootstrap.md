@@ -2,7 +2,7 @@
 
 The service accounts and the 1Password items to create before the first `just bootstrap cluster`. Architecture: [README.md](README.md). The order of the whole bootstrap is in [first-bootstrap.md](../first-bootstrap.md): this setup can be done in parallel with the network and the Git repository, at any time before the bootstrap.
 
-Create every prerequisite of a step before starting it, then follow the steps in order. The statuses and checkboxes track `kube-cluster01`.
+Create every prerequisite of a step before starting it, then follow the steps in order. The statuses and checkboxes track `kubecluster-01`.
 
 ## Prerequisites
 
@@ -27,7 +27,7 @@ Create every prerequisite of a step before starting it, then follow the steps in
 ## 3. Docker Hub
 
 - [x] **Token.** Create a Docker Hub *personal access token* with the *Public Repo Read-only* scope.
-- [x] **Item.** Store it in the `infrastructure/docker-hub-kube-cluster01` item, fields `username` and `credential`, referenced by `talos/patches/containerd.yaml.j2`.
+- [x] **Item.** Store it in the `infrastructure/docker-hub-kubecluster-01` item, fields `username` and `credential`, referenced by `talos/patches/containerd.yaml.j2`.
 
 ## 4. NUT
 

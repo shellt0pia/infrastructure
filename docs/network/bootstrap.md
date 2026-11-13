@@ -2,7 +2,7 @@
 
 Configuring OPNsense for the cluster before the first boot of the nodes: DHCP, DNS, firewall and BGP, then the network tests after the bootstrap. Architecture: [README.md](README.md). The network is prepared before the first boot, so that the nodes are reachable by name from maintenance mode on.
 
-Create every prerequisite of a step before starting it, then follow the steps in order. The statuses and checkboxes track `kube-cluster01`.
+Create every prerequisite of a step before starting it, then follow the steps in order. The statuses and checkboxes track `kubecluster-01`.
 
 ## Prerequisites
 
@@ -20,11 +20,11 @@ Create every prerequisite of a step before starting it, then follow the steps in
 ## 2. DNS (Unbound, internal only)
 
 - [x] **Node names.** Add host overrides `kube-01` and `kube-03` in `shelltopia.net`: an **A record** (reserved IPv4) and an **AAAA record** (ULA address) of the [table](README.md#nodes-subnet), with their PTR. The A records were added at the [logs stage](../observability/bootstrap.md#3-logs).
-- [x] **Cluster endpoint.** Add host overrides **with the same name** `kube-cluster01.shelltopia.net`, one AAAA record per node (ULA address). This DNS round-robin is the `cluster.endpoint`.
+- [x] **Cluster endpoint.** Add host overrides **with the same name** `kubecluster-01.shelltopia.net`, one AAAA record per node (ULA address). This DNS round-robin is the `cluster.endpoint`.
 - [x] **Check the endpoint:**
 
   ```sh
-  dig +short AAAA kube-cluster01.shelltopia.net
+  dig +short AAAA kubecluster-01.shelltopia.net
   ```
 
   Expected: the ULA addresses of the nodes.
@@ -60,9 +60,9 @@ The design is in the [README](README.md#bgp).
 
   | Name | IP version | Seq | Action | Network |
   | --- | --- | --- | --- | --- |
-  | `kube-cluster01-lb-v4` | IPv4 | 10 | Permit | `192.168.19.0/24 le 32` |
-  | `kube-cluster01-lb-v6` | IPv6 | 10 | Permit | `fd38:4c4d:8f66:13::/64 le 128` |
-  | `kube-cluster01-lb-v6` | IPv6 | 20 | Permit | `2a0e:e701:2132:13::/64 le 128` |
+  | `kubecluster-01-lb-v4` | IPv4 | 10 | Permit | `192.168.19.0/24 le 32` |
+  | `kubecluster-01-lb-v6` | IPv6 | 10 | Permit | `fd38:4c4d:8f66:13::/64 le 128` |
+  | `kubecluster-01-lb-v6` | IPv6 | 20 | Permit | `2a0e:e701:2132:13::/64 le 128` |
   | `deny-all-v4` | IPv4 | 10 | Deny | `any` |
   | `deny-all-v6` | IPv6 | 10 | Deny | `any` |
 
@@ -70,16 +70,16 @@ The design is in the [README](README.md#bgp).
 
   | Name | Remote AS | Address family | Listen ranges | Prefix list in | Prefix list out |
   | --- | --- | --- | --- | --- | --- |
-  | `kube-cluster01-v4` | `64513` | IPv4 | `192.168.15.0/24` | `kube-cluster01-lb-v4` | `deny-all-v4` |
-  | `kube-cluster01-v6` | `64513` | IPv6 | `fd38:4c4d:8f66:f::/64` | `kube-cluster01-lb-v6` | `deny-all-v6` |
+  | `kubecluster-01-v4` | `64513` | IPv4 | `192.168.15.0/24` | `kubecluster-01-lb-v4` | `deny-all-v4` |
+  | `kubecluster-01-v6` | `64513` | IPv6 | `fd38:4c4d:8f66:f::/64` | `kubecluster-01-lb-v6` | `deny-all-v6` |
 
-- [x] **IPv6 prefix list.** The peer group form only offers one entry of a prefix list (`kube-cluster01-lb-v6:10` or `:20`): pick any of them. The plugin renders the reference by **name** (`neighbor kube-cluster01-v6 prefix-list kube-cluster01-lb-v6 in`), and all the entries sharing this name form a single FRR prefix list. Check:
+- [x] **IPv6 prefix list.** The peer group form only offers one entry of a prefix list (`kubecluster-01-lb-v6:10` or `:20`): pick any of them. The plugin renders the reference by **name** (`neighbor kubecluster-01-v6 prefix-list kubecluster-01-lb-v6 in`), and all the entries sharing this name form a single FRR prefix list. Check:
 
   ```sh
   vtysh -c 'show running-config'
   ```
 
-  Expected: both `ipv6 prefix-list kube-cluster01-lb-v6 seq 10/20` lines are present.
+  Expected: both `ipv6 prefix-list kubecluster-01-lb-v6 seq 10/20` lines are present.
 
 If the ISP changes the delegated prefix, the BGP configuration is not concerned: the `external` pool is in the Milkywan /48 ([milkywan.md](milkywan.md)). The [runbook](runbook.md#ipv6-prefix-change) lists what follows the ISP prefix.
 

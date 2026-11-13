@@ -2,7 +2,7 @@
 
 Deploying Piraeus/LINSTOR and checking it. Architecture: [README.md](README.md). On a fresh cluster, the first bootstrap already installs the right schematic and config ([nodes](../nodes/bootstrap.md)) and Flux deploys the storage on its own: only the checks of step 2 are needed.
 
-Create every prerequisite of a step before starting it, then follow the steps in order. The statuses and checkboxes track `kube-cluster01`.
+Create every prerequisite of a step before starting it, then follow the steps in order. The statuses and checkboxes track `kubecluster-01`.
 
 ## Prerequisites
 

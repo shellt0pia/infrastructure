@@ -82,7 +82,7 @@ Buckets, lifecycle rules and application keys are managed by OpenTofu (`tofu/bac
 
 | Bucket | Written by | 1Password item (`kubernetes` vault) |
 | --- | --- | --- |
-| `kube-cluster01-volsync-gz8j9y` | VolSync, one repository per PVC under `<bucket>/<app>` | `restic-volsync` |
+| `kubecluster-01-volsync-gz8j9y` | VolSync, one repository per PVC under `<bucket>/<app>` | `restic-volsync` |
 | To name (later) | CloudNativePG | `backblaze-b2-cnpg` (later) |
 | To name (later) | Backrest on the NAS | `restic-nas` (`infrastructure` vault: never synced to the cluster) |
 
@@ -142,7 +142,7 @@ healthchecks.io (the online service: the self-hosted instance on the Hetzner VM 
 
 | Check | Field | Pinged by |
 | --- | --- | --- |
-| VolSync | `kube-cluster01-volsync` | CronJob `volsync-monitor` (`backups` namespace) at 09:00: success when every ReplicationSource synced in the last 26 hours, `/fail` with the late ones otherwise (a paused ReplicationSource is late) |
+| VolSync | `kubecluster-01-volsync` | CronJob `volsync-monitor` (`backups` namespace) at 09:00: success when every ReplicationSource synced in the last 26 hours, `/fail` with the late ones otherwise (a paused ReplicationSource is late) |
 | NAS documents, groupware, media | (Backrest hooks, on the NAS) | Backrest |
 
 Alertmanager watches VolSync as well since [stage 4 of the observability](../observability/bootstrap.md#4-alert-rules-and-the-dead-mans-switch) (`kubernetes/apps/backups/volsync/app/prometheusrule.yaml`, [alerting](../observability/README.md#alerting)):

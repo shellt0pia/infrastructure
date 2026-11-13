@@ -9,9 +9,9 @@ The names, addresses, ports, namespaces, items and schedules scattered in the to
 | `shelltopia.org` | The services: every application name, served by the wildcard certificate `*.shelltopia.org` | [ingress](ingress/README.md#certificate) |
 | `shelltopia.net` | The infrastructure: nodes, firewall, NAS, NTP, UPS | [network](network/README.md#nodes-subnet) |
 | `kube-01`, `kube-02`, `kube-03` (`.shelltopia.net`) | The nodes, A and AAAA records (IPv4 and ULA addresses) with their PTR | [network](network/README.md#names) |
-| `kube-cluster01.shelltopia.net` | The cluster endpoint: DNS round-robin, one AAAA per node, API on port 6443 | [network](network/README.md#principles) |
-| `gateway-external.kube-cluster01.shelltopia.net` | Entry name of the external Gateway, target of the public CNAMEs | [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
-| `syslog.kube-cluster01.shelltopia.net` | The Vector aggregator: syslog of the devices. Unbound host overrides, `A` and `AAAA` to its pinned addresses | [observability](observability/README.md#logs) |
+| `kubecluster-01.shelltopia.net` | The cluster endpoint: DNS round-robin, one AAAA per node, API on port 6443 | [network](network/README.md#principles) |
+| `gateway-external.kubecluster-01.shelltopia.net` | Entry name of the external Gateway, target of the public CNAMEs | [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
+| `syslog.kubecluster-01.shelltopia.net` | The Vector aggregator: syslog of the devices. Unbound host overrides, `A` and `AAAA` to its pinned addresses | [observability](observability/README.md#logs) |
 | `ntp-01.shelltopia.net`, `ups-01-dmz.shelltopia.net` | NTP (OPNsense) and NUT server (the NAS) of the nodes | [network](network/README.md#principles) |
 
 ## Addresses
@@ -39,7 +39,7 @@ Every LoadBalancer Service pins its addresses (`lbipam.cilium.io/ips`), allocate
 | Service | Pool | IPv4 | IPv6 | Depends on it | Described in |
 | --- | --- | --- | --- | --- | --- |
 | Envoy, `internal` Gateway | `internal` | `192.168.19.1` | `fd38:4c4d:8f66:13::1` | The names of the applications (k8s-gateway), the OPNsense rules of the clients. Still dynamic, [to pin](roadmap.md#ingress) | [ingress](ingress/README.md#overview) |
-| Vector aggregator (`syslog`) | `internal` | `192.168.19.2` | `fd38:4c4d:8f66:13::2` | Host overrides `syslog.kube-cluster01.shelltopia.net`, the OPNsense rules of the device VLANs | [observability](observability/README.md#logs) |
+| Vector aggregator (`syslog`) | `internal` | `192.168.19.2` | `fd38:4c4d:8f66:13::2` | Host overrides `syslog.kubecluster-01.shelltopia.net`, the OPNsense rules of the device VLANs | [observability](observability/README.md#logs) |
 | k8s-gateway | `internal` | `192.168.19.53` | `fd38:4c4d:8f66:13::53` | The Unbound query forwarding of `shelltopia.org` | [dns](dns/README.md#internal-k8s-gateway) |
 | Envoy, `external` Gateway | `external` | `192.168.19.129` | `2a0e:e701:2132:13::1` (GUA, expected, to check once the pool is applied) | The HAProxy backends, the `wg2` rules of OPNsense. Still dynamic (IPv4 checked on 2026-11-02), [to pin](roadmap.md#ingress) | [ingress](ingress/README.md#overview) |
 
@@ -62,7 +62,7 @@ Every LoadBalancer Service pins its addresses (`lbipam.cilium.io/ips`), allocate
 | TCP 4244 | Hubble Relay → Hubble server of each Cilium agent | [cluster](cluster/README.md#network-policies) |
 | TCP 4245 | Workstation → Hubble Relay, through `kubectl port-forward` (`hubble -P`) | [cluster](cluster/runbook.md#network-policies) |
 | TCP 10250 (kubelet), 2381 (etcd), 10259 (scheduler), 10257 (controller-manager), 9100 (node-exporter), 9962 (Cilium agent), 9963 (Cilium operator), 9965 (Hubble), 9942 (drbd-reactor) | `VMAgent` → nodes (host firewall) | [observability](observability/README.md#network-and-pod-security) |
-| TCP and UDP 514 (to the pod port 5514): syslog | Devices → Vector aggregator (`syslog.kube-cluster01.shelltopia.net`) | [observability](observability/README.md#logs) |
+| TCP and UDP 514 (to the pod port 5514): syslog | Devices → Vector aggregator (`syslog.kubecluster-01.shelltopia.net`) | [observability](observability/README.md#logs) |
 | TCP 6050 (Talos kernel logs), 6051 (Talos service logs), on `127.0.0.1` (IPv4 only) | Talos → the hostPorts of the Vector agent of the same node | [observability](observability/README.md#logs) |
 | TCP 9100 and 8443 (`fw-01`, the web UI for the API), TCP 8729 (`sw-01`), UDP 161 (`ap-01`), TCP 3493 (`ups-01-dmz`) | Nodes (the exporters, `VMAgent`) → the scraped devices, IPv6 (`AAAA` only) | [observability](observability/README.md#external-devices) |
 
@@ -91,14 +91,14 @@ A namespace whose applications are exposed on the internet carries the label `sh
 | Vault | Item | Used by | Described in |
 | --- | --- | --- | --- |
 | `infrastructure` | `talos-secrets` | Talos secrets bundle, the PKI of the cluster | [secrets](secrets/bootstrap.md#2-talos-secrets) |
-| `infrastructure` | `docker-hub-kube-cluster01` | containerd of the nodes (rate limit) | [secrets](secrets/bootstrap.md#3-docker-hub) |
+| `infrastructure` | `docker-hub-kubecluster-01` | containerd of the nodes (rate limit) | [secrets](secrets/bootstrap.md#3-docker-hub) |
 | `infrastructure` | `nas-01-nut-server` | NUT client of the nodes | [secrets](secrets/bootstrap.md#4-nut) |
 | `infrastructure` | `tofu-state-encryption`, `backblaze-b2-tofu-state`, `backblaze-b2-tofu-admin`, `cloudflare-tofu` | OpenTofu | [tofu/README.md](../tofu/README.md) |
 | `infrastructure` | `restic-nas` | Backrest on the NAS, never synced to the cluster | [backups](backups/README.md#destination-backblaze-b2) |
 | `kubernetes` | `1password-external-secrets-operator` | Token of the store, injected by the bootstrap | [secrets](secrets/bootstrap.md#5-service-account-for-external-secrets) |
 | `kubernetes` | `cloudflare-cert-manager`, `cloudflare-external-dns`, `cloudflare-ddns` | cert-manager, external-dns, cloudflare-ddns (field `credential`) | [ingress](ingress/README.md#certificate), [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
 | `kubernetes` | `restic-volsync` | VolSync | [backups](backups/README.md#destination-backblaze-b2) |
-| `kubernetes` | `healthchecks` | Ping URLs of the checks, one field per check: the backups, the dead man's switch of Alertmanager (`kube-cluster01-alertmanager`) | [backups](backups/README.md#monitoring), [observability](observability/README.md#alerting) |
+| `kubernetes` | `healthchecks` | Ping URLs of the checks, one field per check: the backups, the dead man's switch of Alertmanager (`kubecluster-01-alertmanager`) | [backups](backups/README.md#monitoring), [observability](observability/README.md#alerting) |
 | `kubernetes` | `pushover-alertmanager` | Alertmanager (field `username`: the Pushover user key, `credential`: the application token) | [observability](observability/README.md#alerting) |
 | `kubernetes` | `pocket-id-grafana` | Grafana, OIDC client of the Pocket ID (`username`: the client id, `credential`: the secret) | [observability](observability/README.md#grafana) |
 | `kubernetes` | `sw-01-mktxp`, `fw-01-opnsense-exporter`, `ap-01-snmp` | The exporters of the devices: MKTXP (*Login*: `username`, `password`), opnsense-exporter (`username`: the API key, `credential`: its secret), snmp-exporter (*API*, plus `privacy_key`) | [observability](observability/README.md#external-devices) |

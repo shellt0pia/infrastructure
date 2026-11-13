@@ -52,7 +52,7 @@ New GUA prefix of a subnet = first 56 bits of the new delegated prefix + the sam
   just tofu apply cloudflare
   ```
 
-  The applications are not concerned: their names are CNAMEs to `gateway-external.kube-cluster01.shelltopia.net`, in the Milkywan /48.
+  The applications are not concerned: their names are CNAMEs to `gateway-external.kubecluster-01.shelltopia.net`, in the Milkywan /48.
 
 - [ ] **Unbound.** Host overrides with an ISP GUA address, if any (the node names and internal services use ULA addresses).
 

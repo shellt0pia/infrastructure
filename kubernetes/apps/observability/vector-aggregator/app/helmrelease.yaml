@@ -86,7 +86,7 @@ spec:
       annotations:
         # Pinned addresses of the `internal` pool, like every LoadBalancer Service
         # (docs/conventions.md#loadbalancer-addresses, allocated in docs/reference.md). Depend on
-        # them: the Unbound host overrides `syslog.kube-cluster01.shelltopia.net` (the name used
+        # them: the Unbound host overrides `syslog.kubecluster-01.shelltopia.net` (the name used
         # by the devices) and the OPNsense rules of the device VLANs. If another Service already
         # holds one of them, this Service gets no address at all: check
         # `kubectl -n observability get svc vector-aggregator`.

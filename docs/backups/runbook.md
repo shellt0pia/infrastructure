@@ -411,19 +411,19 @@ With the restricted keys, a `forget`, a `prune` or any deletion through the S3 A
 
    ```sh
    # Master key: new bucket with the lifecycle rule, a read-only key on the old one, a restricted key on the new one.
-   b2 bucket create kube-cluster01-volsync-2-gz8j9y allPrivate \
+   b2 bucket create kubecluster-01-volsync-2-gz8j9y allPrivate \
      --lifecycle-rule '{"daysFromHidingToDeleting": 30, "daysFromUploadingToHiding": null, "fileNamePrefix": ""}'
-   b2 key create --bucket kube-cluster01-volsync-gz8j9y recovery-read listBuckets,listFiles,readFiles
-   b2 key create --bucket kube-cluster01-volsync-2-gz8j9y restic-volsync-2 listBuckets,listFiles,readFiles,writeFiles
+   b2 key create --bucket kubecluster-01-volsync-gz8j9y recovery-read listBuckets,listFiles,readFiles
+   b2 key create --bucket kubecluster-01-volsync-2-gz8j9y restic-volsync-2 listBuckets,listFiles,readFiles,writeFiles
 
    # The date on the source remote only: a global RCLONE_B2_VERSION_AT would make the destination read-only too.
    export RCLONE_CONFIG_OLD_TYPE=b2 RCLONE_CONFIG_OLD_ACCOUNT=<recovery-read keyID> RCLONE_CONFIG_OLD_KEY=<key>
    export RCLONE_CONFIG_OLD_VERSION_AT=2026-10-20T00:00:00Z
    export RCLONE_CONFIG_NEW_TYPE=b2 RCLONE_CONFIG_NEW_ACCOUNT=<restic-volsync-2 keyID> RCLONE_CONFIG_NEW_KEY=<key>
-   rclone copy old:kube-cluster01-volsync-gz8j9y new:kube-cluster01-volsync-2-gz8j9y --fast-list --transfers 16 --progress
+   rclone copy old:kubecluster-01-volsync-gz8j9y new:kubecluster-01-volsync-2-gz8j9y --fast-list --transfers 16 --progress
 
    # Each repository of the copy (new key, read-write: check takes a lock).
-   RESTIC_REPOSITORY=s3:https://s3.eu-central-003.backblazeb2.com/kube-cluster01-volsync-2-gz8j9y/radarr restic check --read-data-subset 10%
+   RESTIC_REPOSITORY=s3:https://s3.eu-central-003.backblazeb2.com/kubecluster-01-volsync-2-gz8j9y/radarr restic check --read-data-subset 10%
    ```
 
    Expected: `restic check` finds no error, and `restic snapshots` on the copy lists the backups up to T0.
@@ -433,8 +433,8 @@ With the restricted keys, a `forget`, a `prune` or any deletion through the S3 A
 6. **Delete the old bucket**, once the backups run on the new one, with the master key:
 
    ```sh
-   b2 rm --versions --recursive b2://kube-cluster01-volsync-gz8j9y
-   b2 bucket delete kube-cluster01-volsync-gz8j9y
+   b2 rm --versions --recursive b2://kubecluster-01-volsync-gz8j9y
+   b2 bucket delete kubecluster-01-volsync-gz8j9y
    b2 key list --long                                      # keyIDs of the old key and of recovery-read
    b2 key delete <keyID>
    ```
