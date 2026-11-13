@@ -13,6 +13,7 @@ Every response carries the `preload` token, which is harmless on its own. Submit
 | Gateway API of Cilium | Stays disabled. Envoy Gateway is more complete (client, backend and security policies, PROXY protocol, HTTP/3) and its proxies are separate from the CNI. |
 | Plain port forwarding of 80/443 for IPv4 during the migration | `home` still serves names on the same ports: HAProxy routes on the SNI and the Host header. It goes away with `home` ([procedure](runbook.md#removing-haproxy)). |
 | HTTP/3 behind HAProxy | HAProxy cannot forward QUIC: HTTP/3 is on the internal Gateway only. |
+| Allow-list of the clients of the `internal` Gateway (`SecurityPolicy`, RFC 1918 and `fd00::/8`) | Removed on 2026-11-13. Its addresses are private already: it only protected a route attached to it by mistake while its name is public, a risk accepted. Its routes rely on the login of the application, or on a `SecurityPolicy` with `oidc` on the route when the application has none (Hubble UI). |
 
 ## Open points
 

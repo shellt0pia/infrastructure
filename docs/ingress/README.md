@@ -44,12 +44,14 @@ flowchart TD
 
 | Gateway | LB pool | Listeners | Routes accepted from |
 | --- | --- | --- | --- |
-| `internal` | `internal` (`192.168.19.0/25`, `fd38:4c4d:8f66:13::/64`) | `http` 80, `https` 443 (+ UDP 443, HTTP/3) | every namespace. Clients outside RFC 1918 and `fd00::/8` get a 403 (`SecurityPolicy`). |
+| `internal` | `internal` (`192.168.19.0/25`, `fd38:4c4d:8f66:13::/64`) | `http` 80, `https` 443 (+ UDP 443, HTTP/3) | every namespace |
 | `external` | `external` (`192.168.19.128/25`, `2a0e:e701:2132:13::/64`) | `http` 80, `https` 443, `http-proxy` 8080, `https-proxy` 8443 | namespaces labeled `shelltopia.net/gateway-external: "true"` |
 
 The `http` and `http-proxy` listeners only accept the redirect routes of `network`: a route without `sectionName` is never served in plain HTTP.
 
 Each application chooses its Gateway(s), [how](runbook.md#exposing-an-application). Only the namespaces labeled `shelltopia.net/gateway-external: "true"` can use the external one, so that exposing an application on the internet is explicit. Internet exposure is still decided by OPNsense.
+
+The `internal` Gateway does not filter its clients: its addresses are private, only the LAN and the VPN reach them. A route attached to it by mistake while its name is public is a risk accepted ([evaluations](evaluations.md#rejected-options)).
 
 ## Envoy Gateway
 

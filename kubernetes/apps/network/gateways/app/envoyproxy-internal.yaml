@@ -26,6 +26,6 @@ spec:
       envoyPDB:
         minAvailable: 1
       envoyService:
-        # Keeps the client IP (needed by the SecurityPolicy allow-list). Cilium BGP then only
-        # advertises the addresses from the nodes running a proxy.
+        # Keeps the client IP in the logs of Envoy, and avoids a hop between the nodes. Cilium BGP
+        # then only advertises the addresses from the nodes running a proxy.
         externalTrafficPolicy: Local

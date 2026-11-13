@@ -12,4 +12,3 @@ resources:
   - ./httproute-redirect.yaml
   - ./clienttrafficpolicy.yaml
   - ./backendtrafficpolicy.yaml
-  - ./securitypolicy.yaml

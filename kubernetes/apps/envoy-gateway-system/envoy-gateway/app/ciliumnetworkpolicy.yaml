@@ -1,7 +1,8 @@
 ---
 # The Envoy proxies of the Gateways (the controller only needs its namespace): from outside of
 # the cluster (LAN, internet, HAProxy) and from the pods and nodes. Same policy for both Gateways:
-# the internal one filters its clients itself (SecurityPolicy in kubernetes/apps/network/gateways).
+# the addresses of the internal one are private, only the LAN and the VPN reach them
+# (docs/ingress/README.md#overview).
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
