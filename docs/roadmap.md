@@ -67,7 +67,7 @@ Architecture and status: [observability/README.md](observability/README.md#statu
   - Workstation: `kubelogin` (`kubectl oidc-login`) in `mise`, a dedicated user in the kubeconfig, the `just` recipes unchanged.
   - `ClusterRoleBinding`s of the groups, in Git.
   - Break-glass: the Talos admin kubeconfig (`talosctl kubeconfig`) stays valid and must keep working. The apiserver only needs the Pocket ID when someone authenticates, not to start, but with PikaPods down no OIDC login is possible. Never bind a resource the cluster itself needs (Flux, ESO) to an OIDC identity.
-- [ ] Once kube-02 joins: descheduler and `topologySpreadConstraints`: spread the replicas of an application over the nodes, and rebalance the pods after a node comes back (reboot, upgrade, kube-02 joining). To be coherent with the LINSTOR volumes (the pod should follow a replica) and the `ImageLocality` choice of Spegel.
+- [ ] Once kube-02 joins: descheduler and `topologySpreadConstraints`: spread the replicas of an application over the nodes, and rebalance the pods after a node comes back (reboot, upgrade, kube-02 joining). To be coherent with the LINSTOR volumes (the pod should follow a replica) and the `ImageLocality` choice of Spegel. Also `RemoveFailedPods` for the pods left `Failed` by a node shutdown ([cluster](cluster/evaluations.md#open-points)).
 
 ### Backups
 
