@@ -138,9 +138,9 @@ The steps are those of the [cluster bootstrap](cluster/bootstrap.md#network-poli
   - `UNKNOWN_L3_TARGET_ADDRESS`, at the deployment of new tools.
   - `FORBIDDEN_ICMPV6_MESSAGE`, from `kube-apiserver`.
 
-  The audited flows to `world` on addresses of the pod CIDR go to pods just deleted ([observability](observability/evaluations.md#open-points)). From 2026-11-09 to 11-10, the Alertmanager retried the old address of its peer every 10 s for 6 hours: once enforced, `NetworkPolicyDroppedFlows` would have notified at each replacement of a replica. Before the enforcement: `cluster.reconnect-timeout: 1m` on the Alertmanager, and `for: 20m` on the alert ([alerting](observability/README.md#alerting)).
-- [ ] **Enforce**, the checkbox of the cluster bootstrap, once the change above is deployed: `policyAuditMode: false`, then its checks. Look in Hubble UI as well as with the CLI. The alert of the denied flows switches from `action="audit"` to `action="dropped"` ([alerting](observability/README.md#alerting)): check that the rule follows.
-- [ ] **Docs:** [cluster](cluster/README.md#status) (status of the network policies), [roadmap](roadmap.md#security).
+  The audited flows to `world` on addresses of the pod CIDR go to pods just deleted ([observability](observability/evaluations.md#open-points)). From 2026-11-09 to 11-10, after a rollout, the Alertmanager retried the address of a replaced replica every 10 s for 6 hours: once enforced, `NetworkPolicyDroppedFlows` would have notified at each replacement of a replica. Before the enforcement: `cluster.reconnect-timeout: 1m` on the Alertmanager, and `for: 20m` on the alert ([alerting](observability/README.md#alerting)).
+- [ ] **Enforce**, the checkbox of the cluster bootstrap, once the change above is deployed: `policyAuditMode: false`, then its checks. Look in Hubble UI as well as with the CLI. The alert of the denied flows switches from `action="audit"` to `action="dropped"` ([alerting](observability/README.md#alerting)): check that the rule follows. Pushed on 2026-11-13, checks in progress.
+- [x] **Docs:** [cluster](cluster/README.md#status) (status of the network policies, the audit mode), [cluster bootstrap](cluster/bootstrap.md#network-policies) (the check of the alert of the drops), [roadmap](roadmap.md#security). Once the checks are run: the checkbox ticked, "in progress" removed from the statuses.
 
 ## 4. Conventions and clean-up
 
