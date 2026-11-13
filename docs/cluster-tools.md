@@ -138,28 +138,35 @@ Checked on 2026-11-13.
 | metrics-server | 3.14.0 (0.9.0), `https://kubernetes-sigs.github.io/metrics-server` | Verifies the kubelets with the CA of the cluster unless `--kubelet-insecure-tls`. The API server reaches it without verification by default (`apiService.insecureSkipTLSVerify: true`); `tls.type: cert-manager` gives it a certificate and injects the CA (cainjector, deployed). Default class `system-cluster-critical`. |
 | VPA | 0.16.0 (1.8.1), `https://kubernetes.github.io/autoscaler` | `admissionController.enabled` and `updater.enabled` to `false` for the recommender alone. CRDs in the templates. Defaults: 2 replicas and a PDB `minAvailable: 1`, no seccomp profile nor container `securityContext`. History in `VerticalPodAutoscalerCheckpoint`s (default), or read from Prometheus at start (`--storage=prometheus`). Minimum recommendation per pod: 25m and 250 MiB (`--pod-recommendation-min-*`). |
 | Goldilocks | 11.2.1 (4.16.3), `https://charts.fairwinds.com/stable` | Its VPA and metrics-server subcharts disabled by default. Controller flags: `on-by-default`, `exclude-namespaces`, `ignore-controller-kind`. Dashboard on port 8080, 2 replicas, cost data from `insights.fairwinds.com` unless `enable-cost: false`. No field for the class, `pullPolicy: Always`. The VPAs it creates: `updateMode: Off`. |
+| kube-apiserver (Talos 1.14.4) | - | `kubelet-preferred-address-types` `InternalIP,ExternalIP,Hostname`, no `kubelet-certificate-authority` (accepted in `extraArgs` of `KubeAPIServerConfig`). Its `/system/secrets/kubernetes/kube-apiserver/ca.crt` holds the accepted CAs of the cluster, the one that signs the `kubelet-serving` CSRs included. |
 
-### Questions
+### Answers
 
-1. Approver: postfinance, with `bypassDnsResolution` (the short node name does not resolve), `providerRegex` `^kube-0[1-9]$`, and `providerIpPrefixes`: empty, or the nodes subnets (addresses in a manifest).
-2. Namespace of the four tools: `kube-system` (exempt from Pod Security, as Reloader and Hubble UI), or their own `restricted` namespace.
-3. metrics-server: the API server verifies it too (`tls.type: cert-manager`)?
-4. VPA history: checkpoints (recommendations after some days), or VictoriaMetrics as Prometheus source (10 days at once, needs the pod labels in kube-state-metrics)?
-5. VPA minimums: lowered (`--pod-recommendation-min-memory-mb`, `--pod-recommendation-min-cpu-millicores`) so that the small pods get their real usage?
-6. Goldilocks access: `kubernetes_admins`, as Hubble UI?
-7. Monitoring: the existing rules only, or scrapes and alerts of their own?
-8. API server to kubelet verification (`--kubelet-certificate-authority`): now, or an open point?
+1. **Approver**: `postfinance/kubelet-csr-approver`. `bypassDnsResolution: true` (the short node name does not resolve), `providerRegex` `^kube-0[1-9]$`, `providerIpPrefixes` the nodes subnets, IPv4 and ULA: without them, a node could get a certificate for any address, `10.96.0.1` included, that the pods trust through the CA of the cluster. The rule on addresses is relaxed first (Victor, the cluster addressing being stable now).
+2. **Namespace**: to answer ([below](#open-questions)).
+3. **metrics-server**: verified both ways. It verifies the kubelets with the CA of the cluster, the API server verifies it (`tls.type: cert-manager`, `insecureSkipTLSVerify: false`, `dependsOn` cert-manager).
+4. **VPA history**: checkpoints (default). VictoriaMetrics stays the cross-check of [step 3](#3-sizing).
+5. **VPA minimums** lowered: `--pod-recommendation-min-cpu-millicores=5`, `--pod-recommendation-min-memory-mb=16`.
+6. **Goldilocks access**: `kubernetes_admins`, as Hubble UI.
+7. **Monitoring**: the existing rules only. A failed approval shows as `KubeletServerCertificateRenewalErrors`, metrics-server as `KubeAggregatedAPIDown`; VPA and Goldilocks are covered by the generic rules (`KubePodCrashLooping`, `FluxResourceNotReady`).
+8. **The API server verifies the kubelets** as soon as both nodes have their certificate: `kubelet-certificate-authority` in a `KubeAPIServerConfig`. Not in the same apply as `serverTLSBootstrap`: the API server of a node would refuse the kubelet of the other until its certificate is signed.
+
+### Open questions
+
+- **Namespace.** `kube-system` is exempt from Pod Security for Cilium, Spegel and the GPU plugin only. A namespace of their own, `restricted`, for the four tools (and later Headlamp and the descheduler): Pod Security refuses a chart that turns privileged, and the same-namespace policy no longer lets an exposed UI (Goldilocks) reach Hubble Relay (every flow, no authentication) or the other pods of `kube-system`. Only the `RoleBinding` of metrics-server to `extension-apiserver-authentication-reader` stays in `kube-system` (fixed by the chart, needed by every aggregated API). Its name. Reloader, snapshot-controller: the same reasoning, moved later.
+- **Bootstrap.** With `serverTLSBootstrap` in the Talos config, a new cluster has no kubelet serving certificate until the approver runs: no `kubectl logs` nor `exec` before Flux. The approver in the bootstrap helmfile after CoreDNS, as Spegel?
 
 ### Commits
 
-Draft, to complete with the answers. One commit per item, pushed after the checks of the previous one. Every release: the conventions (requests, a memory limit, no CPU limit, class `infrastructure` and `dependsOn` `priority-classes`, `restricted` securityContext, 1 replica).
+One commit per item, pushed after the checks of the previous one. Every release: the conventions (requests, a memory limit, no CPU limit, class `infrastructure` and `dependsOn` `priority-classes`, `restricted` securityContext, 1 replica and no PDB).
 
-- [ ] **Approver.** `kubernetes/apps/kube-system/kubelet-csr-approver`. Check: running, no CSR denied.
-- [ ] **Talos.** `serverTLSBootstrap: true` in `KubeletConfig`. Applied by Victor, `just talos diff` then one node, then the other. Check per node: its `kubelet-serving` CSR `Approved,Issued`, the certificate signed by the cluster CA with the IPv4 and ULA addresses, `kubectl logs` of a pod of the node.
+- [ ] **Approver.** Its release, values of [decision 1](#answers). Check: running, no CSR denied.
+- [ ] **Talos: kubelets.** `serverTLSBootstrap: true` in `KubeletConfig`. Applied by Victor, `just talos diff` then one node, then the other. Check per node: its `kubelet-serving` CSR `Approved,Issued`, the certificate signed by the cluster CA with the IPv4 and ULA addresses, `kubectl logs` of a pod of the node.
+- [ ] **Talos: API server.** `KubeAPIServerConfig` `extraArgs` `kubelet-certificate-authority: /system/secrets/kubernetes/kube-apiserver/ca.crt`, merged with the one of `cluster-rename.yaml` (`just talos diff`). One node, then the other. Check through each API server: `kubectl logs` and `exec` of a pod of each node.
 - [ ] **metrics-server and the scrapes.** Its release, TCP 10250 from its pods in the host firewall, and the kubelet `VMNodeScrape`s of the stack verified (`kubelet.vmScrape.spec.tlsConfig.insecureSkipVerify: false`). Check: `kubectl top nodes`, the targets of `VMAgent` up.
-- [ ] **VPA recommender.** Recommender only, its flags from the answers. Check: a test VPA in `debug` gets a recommendation.
-- [ ] **Goldilocks.** Controller and dashboard (`on-by-default` on both, `enable-cost: false`), the class by `postRenderers`. The `HTTPRoute` `goldilocks.shelltopia.org` on the `internal` Gateway, the `SecurityPolicy`, the `ExternalSecret` of `pocket-id-goldilocks` ([UI pattern](ingress/runbook.md#a-ui-without-a-login-of-its-own)). Before the push, by Victor: the Pocket ID client (callback `https://goldilocks.shelltopia.org/oauth2/callback`) and the 1Password item. Check: a VPA per workload, its errors in the logs of the controller (owners without a scale subresource, such as the VolSync movers: `ignore-controller-kind` if needed), the dashboard after the login.
-- [ ] **Docs.** [cluster](cluster/README.md) (decisions, status, checks in [bootstrap](cluster/bootstrap.md)), [observability](observability/README.md) (the verified scrapes), [reference](reference.md) (ports, 1Password item, name), the [roadmap](roadmap.md#cluster-tools) item ticked.
+- [ ] **VPA recommender.** Admission controller and updater disabled, checkpoints, the minimums of [decision 5](#answers), the restricted `securityContext` (none by default). Check: a test VPA in `debug` gets a recommendation.
+- [ ] **Goldilocks.** Controller and dashboard (`on-by-default` on both, `enable-cost: false`, `pullPolicy: IfNotPresent`), the class by `postRenderers`. The `HTTPRoute` `goldilocks.shelltopia.org` on the `internal` Gateway, the `SecurityPolicy`, the `ExternalSecret` of `pocket-id-goldilocks` ([UI pattern](ingress/runbook.md#a-ui-without-a-login-of-its-own)). Before the push, by Victor: the Pocket ID client (group `kubernetes_admins`, callback `https://goldilocks.shelltopia.org/oauth2/callback`) and the 1Password item. Check: a VPA per workload, its errors in the logs of the controller (owners without a scale subresource, such as the VolSync movers: `ignore-controller-kind` if needed), the dashboard after the login.
+- [ ] **Docs**, with each commit: [cluster](cluster/README.md) (decisions, status, checks in [bootstrap](cluster/bootstrap.md)), [talos](../talos/README.md) if needed, [observability](observability/README.md) (the verified scrapes), [reference](reference.md) (namespace, ports, 1Password item, name), the [roadmap](roadmap.md#cluster-tools) item ticked at the end.
 
 ## 3. Sizing
 
