@@ -63,6 +63,10 @@ config:
   # Talos defaults: 30s/10s.
   shutdownGracePeriod: 90s
   shutdownGracePeriodCriticalPods: 30s
+  # A serving certificate signed by the cluster CA instead of a self-signed one: the kubelet
+  # asks for it through a CSR, approved by kubelet-csr-approver, and renews it. Until then, it
+  # serves no logs, exec nor metrics (docs/cluster/README.md#kubelet-serving-certificates).
+  serverTLSBootstrap: true
 ---
 # Expose the metrics endpoints for Prometheus.
 # Go binds 0.0.0.0 as a dual-stack wildcard socket: these endpoints are reachable over IPv6 too.

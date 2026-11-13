@@ -538,7 +538,7 @@ The class `infrastructure` and the alerts of the convention ([README](README.md#
 
 The approver, then `serverTLSBootstrap` ([README](README.md#kubelet-serving-certificates)). Not tested yet.
 
-- [ ] **Approver.** Push, then once Flux has reconciled:
+- [x] **Approver.** Push, then once Flux has reconciled:
 
   ```sh
   kubectl get namespace cluster-tools --show-labels
@@ -549,10 +549,50 @@ The approver, then `serverTLSBootstrap` ([README](README.md#kubelet-serving-cert
 
   Expected: the namespace without Pod Security label. The HelmRelease is `Ready`, one pod `Running`, no error in its logs.
 
-- [ ] **No CSR denied:**
+- [x] **No CSR denied:**
 
   ```sh
   kubectl get csr --field-selector spec.signerName=kubernetes.io/kubelet-serving
   ```
 
   Expected: none before `serverTLSBootstrap`, then one `Approved,Issued` per node and none `Denied`.
+
+- [x] **Talos config**, with the approver running. The diff, then one node (kube-01, then kube-03 once the checks below pass on kube-01):
+
+  ```sh
+  just talos diff
+  just talos apply-node kube-01
+  ```
+
+  Expected: the diff only adds `serverTLSBootstrap: true` to the `KubeletConfig` of each node. The kubelet restarts, the node does not reboot.
+
+- [x] **Certificate of the node:**
+
+  ```sh
+  kubectl get csr --field-selector spec.signerName=kubernetes.io/kubelet-serving
+  kubectl get csr <csr> -o jsonpath='{.status.certificate}' | base64 -d | openssl x509 -noout -issuer -ext subjectAltName -enddate
+  kubectl get configmap kube-root-ca.crt -o jsonpath='{.data.ca\.crt}' | openssl x509 -noout -subject
+  kubectl -n cluster-tools logs deploy/kubelet-csr-approver
+  ```
+
+  Expected: a CSR of `system:node:kube-01`, `Approved,Issued` within seconds. Its issuer is the subject of the cluster CA, its names `DNS:kube-01`, the IPv4 address and the ULA address of the node, its end date about a year later. The approver logs the approval.
+
+- [x] **API server to kubelet**, on a pod of the node:
+
+  ```sh
+  kubectl -n kube-system get pods -l k8s-app=cilium --field-selector spec.nodeName=kube-01 -o name
+  kubectl -n kube-system logs <pod> --tail=5
+  kubectl -n kube-system exec <pod> -- cilium-dbg version
+  ```
+
+  Expected: both work. The API server does not verify the certificate yet ([plan](../cluster-tools.md#commits)).
+
+- [x] **Scrapes and series of the alerts**, through `VMSingle`:
+
+  ```sh
+  kubectl -n observability port-forward svc/vmsingle-victoria-metrics-k8s-stack 8428
+  curl -s localhost:8428/api/v1/query --data-urlencode 'query=kubelet_certificate_manager_server_ttl_seconds' | jq -c '.data.result[] | [.metric.node, .value[1]]'
+  curl -s localhost:8428/api/v1/query --data-urlencode 'query=up{job="kubelet"}' | jq -c '.data.result[] | [.metric.node, .metric.metrics_path, .value[1]]'
+  ```
+
+  Expected: one series per node, about a year of seconds: the rule `KubeletServerCertificateExpiration` now has data. Every kubelet target at `1` (still `insecureSkipVerify` until metrics-server).
