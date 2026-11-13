@@ -1,6 +1,6 @@
 # Cluster: Kubernetes, Cilium and Flux
 
-How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap helmfile, Cilium and its network policies, Pod Security, the resources and priorities, CoreDNS, External Secrets and Flux, which then deploys everything in `kubernetes/apps`, and the cluster-wide tools (Spegel, Reloader, the approver of the kubelet serving certificates, metrics-server, the VPA recommender). The nodes are in [nodes](../nodes/README.md), the network around the cluster in [network](../network/README.md). The decisions are [below](#decisions).
+How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap helmfile, Cilium and its network policies, Pod Security, the resources and priorities, CoreDNS, External Secrets and Flux, which then deploys everything in `kubernetes/apps`, and the cluster-wide tools (Spegel, Reloader, the approver of the kubelet serving certificates, metrics-server, the VPA recommender, Goldilocks). The nodes are in [nodes](../nodes/README.md), the network around the cluster in [network](../network/README.md). The decisions are [below](#decisions).
 
 | Document | Content |
 | --- | --- |
@@ -24,7 +24,8 @@ How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap he
 | Restart on configuration change | Reloader | Deployed by Flux, [checks](bootstrap.md#reloader) not run yet ([below](#reloader)) |
 | Kubelet serving certificates | kubelet-csr-approver | Approver deployed by the bootstrap and Flux, `serverTLSBootstrap` and the verification by the API server in the Talos config, [checked](bootstrap.md#kubelet-serving-certificates) on 2026-11-13 ([below](#kubelet-serving-certificates)) |
 | Resource metrics API (`kubectl top`) | metrics-server | Deployed by Flux, [checked](bootstrap.md#metrics-server) on 2026-11-13 ([below](#metrics-server)) |
-| Recommendations of requests | VPA recommender | Deployed by Flux, [checks](bootstrap.md#vpa-recommender) not run yet ([below](#vpa-recommender)) |
+| Recommendations of requests | VPA recommender | Deployed by Flux, [checked](bootstrap.md#vpa-recommender) on 2026-11-13 ([below](#vpa-recommender)) |
+| Dashboard of the recommendations | Goldilocks | Deployed by Flux, [checks](bootstrap.md#goldilocks) not run yet ([below](#goldilocks)) |
 | First bootstrap | | In progress, with kube-01 and kube-03 only ([test phase](../nodes/README.md#test-phase-2-nodes)) |
 
 ## Overview
@@ -123,7 +124,7 @@ Cilium policies, fail-closed: every pod is in default deny, and every flow it ne
 - **`flux-system`** is owned by flux-operator, which sets `warn: restricted` on it: the same as the default, nothing to add.
 - **Version `latest`** (no `-version` label): the profiles follow the version of the API server. A Kubernetes minor can make a profile stricter; with the automated upgrades (tuppr), a pod accepted the day before would then be refused at its next restart. Read the changes of the [Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/) in the release notes, and check the running pods after a minor ([runbook](runbook.md#upgrading-kubernetes-by-hand)). A refused pod shows up as a `FailedCreate` event ([runbook](runbook.md#pod-security)).
 - **`kube-system` is exempt** (the Talos default, kept): Cilium, Spegel and the GPU plugin need privileged pods, and the namespace is created by Kubernetes, not managed by the repository. `default`, `kube-public`, `kube-node-lease` and `cilium-secrets` get the default, `restricted`.
-- **`cluster-tools`**, `restricted`: the cluster-wide tools that need no access to the host (kubelet-csr-approver, metrics-server, the VPA recommender, then Goldilocks, [plan](../cluster-tools.md)). Out of `kube-system`: Pod Security refuses a chart that turns privileged, and the same-namespace policy does not let an exposed UI reach Hubble Relay or the other pods of `kube-system`. Reloader and snapshot-controller may move there later.
+- **`cluster-tools`**, `restricted`: the cluster-wide tools that need no access to the host (kubelet-csr-approver, metrics-server, the VPA recommender, Goldilocks, [plan](../cluster-tools.md)). Out of `kube-system`: Pod Security refuses a chart that turns privileged, and the same-namespace policy does not let an exposed UI reach Hubble Relay or the other pods of `kube-system`. Reloader and snapshot-controller may move there later.
 - **Applications**: in their own namespace, or one shared with the applications that need the same level. An application that cannot run `restricted` gets a namespace at the lowest level that works (`baseline` before `privileged`). The images that start as root to drop their privileges themselves (s6-overlay, linuxserver.io) need `baseline`.
 - **NAS shares**: `restricted` forbids the inline `nfs` volumes. A share is mounted through a static PersistentVolume and its PersistentVolumeClaim ([storage](../storage/README.md#decisions)).
 - **Refused pods**: only the pods are enforced. A Deployment, StatefulSet, DaemonSet or Job is accepted (with a warning), but its pods are refused: they never exist, and only show up as `FailedCreate` events on the ReplicaSet, StatefulSet, DaemonSet or Job. The HelmRelease or Kustomization then waits until its timeout ([runbook](runbook.md#pod-security)).
@@ -151,7 +152,7 @@ A component wins under memory pressure with a request that covers its real use, 
   | --- | --- |
   | `system-node-critical` | Cilium agent and Envoy, LINSTOR satellites, CSI node plugin |
   | `system-cluster-critical` | CoreDNS, Cilium operator, LINSTOR controller, CSI controller, HA controller |
-  | `infrastructure` | Flux, External Secrets, cert-manager, Envoy Gateway and the Envoy proxies of the Gateways, VolSync, snapshot-controller, Spegel, Reloader, kubelet-csr-approver, metrics-server, the VPA recommender, external-dns, k8s-gateway, cloudflare-ddns, Hubble Relay and UI, the Piraeus operator and the LINSTOR affinity controller, the Intel device plugin operator, the observability (`VMSingle`, `VLSingle`, `VMAgent`, `VMAlert`, Alertmanager, Grafana, Vector, kube-state-metrics, node-exporter, the VictoriaMetrics operator) and the exporters of the devices, `volsync-monitor` |
+  | `infrastructure` | Flux, External Secrets, cert-manager, Envoy Gateway and the Envoy proxies of the Gateways, VolSync, snapshot-controller, Spegel, Reloader, kubelet-csr-approver, metrics-server, the VPA recommender, Goldilocks, external-dns, k8s-gateway, cloudflare-ddns, Hubble Relay and UI, the Piraeus operator and the LINSTOR affinity controller, the Intel device plugin operator, the observability (`VMSingle`, `VLSingle`, `VMAgent`, `VMAlert`, Alertmanager, Grafana, Vector, kube-state-metrics, node-exporter, the VictoriaMetrics operator) and the exporters of the devices, `volsync-monitor` |
   | None (0) | The applications. The Intel GPU plugin: its operator sets no class |
 
 - **The class of the convention, not the default of the chart or operator**: the system classes only for what the network or the volumes of the running pods depend on. The charts take the highest class that exists everywhere; here, `infrastructure` already puts a component above the applications, and a system class only adds that the kubelet never evicts it (a leak then evicts the others) and that it preempts `infrastructure`. So the Flux controllers, the Piraeus operator, the affinity controller and metrics-server, `system-cluster-critical` upstream, are in `infrastructure`: the cluster keeps running without them. Within the system classes too, the convention wins (the LINSTOR controller and the CSI controller, `system-node-critical` from the operator), so that the class reads in the table.
@@ -227,4 +228,19 @@ The recommender of the [Vertical Pod Autoscaler](https://github.com/kubernetes/a
 - **CRDs** in the templates of the chart: they follow its upgrades, and stay at an uninstall (`crds.keep`, chart default), with the objects of Goldilocks.
 - **A single replica**, no PDB, no leader election: while it restarts, the recommendations are not updated.
 - **Class `infrastructure`**, `restricted` securityContext (the chart sets none on the container).
+- **Alerts**: the generic rules (`KubePodCrashLooping`, `FluxResourceNotReady`).
+
+## Goldilocks
+
+[Goldilocks](https://github.com/FairwindsOps/goldilocks) (`cluster-tools/goldilocks`) creates a `VerticalPodAutoscaler` for each workload, filled by the [VPA recommender](#vpa-recommender), and shows their recommendations in a dashboard, with the requests and limits to copy. A permanent tool: the sizing of the existing components ([plan](../cluster-tools.md#3-sizing)), then of each new service.
+
+- **Every namespace** (`on-by-default`, on the controller and the dashboard): a namespace is left out with the label `goldilocks.fairwinds.com/enabled: "false"`. Its VPAs (`goldilocks-<workload>`) are in `updateMode: Off`: nothing is applied, the requests stay in Git.
+- **The highest owner it can read**, for each pod: a Deployment, a StatefulSet, a DaemonSet or a CronJob. Its `ClusterRole` reads `apps` and `batch`: the resource of an operator above them (VMSingle, LINSTOR) is logged as an error, and the workload below it is the target. A pod without such an owner (the static pods, a pod owned by an operator directly) gets no VPA.
+- **The `VMAgent`, readable too** (`rbac.extraRules`, controller and dashboard): the VPA recommender wants the topmost owner with a `scale` subresource as the target, and among the resources of the operators here, only `VMAgent` has one. Not the rest of `operator.victoriametrics.com`: without `scale`, their Deployment or StatefulSet must stay the target. A new resource of an operator with `scale` shows up as a VPA with `ConfigUnsupported`.
+- **No VPA for the Jobs** without a CronJob (`ignore-controller-kind: Job`): the hook of Cilium (`hubble-generate-certs-<hash>`, kept with its finished pod) and the VolSync movers. Their pods end before a recommendation, and the VPA goes with the Job. Their usage is read in VictoriaMetrics. The CronJobs keep theirs.
+- **Dashboard** on `goldilocks.shelltopia.org`, `internal` Gateway only. It has no login of its own: Envoy logs in on the Pocket ID (`SecurityPolicy` with `oidc` on its route), and the client only lets the group `kubernetes_admins` in (item `pocket-id-goldilocks`, [pattern](../ingress/runbook.md#a-ui-without-a-login-of-its-own)). Its backend reads the VPAs and the workloads with its own ServiceAccount (read-only `ClusterRole` of the chart).
+- **No cost data** (`enable-cost: false`): it comes from Fairwinds Insights, on the internet. Both pods only talk to the API server.
+- **No Argo rule** in the `ClusterRole`s (`rbac.enableArgoproj: false`): there is no Argo Rollouts in the cluster.
+- **One replica each**, no PDB. While the controller restarts, no VPA is created nor deleted; the recommender keeps working.
+- **Class `infrastructure`** by a `postRenderers` patch: the chart has no value for it. Its securityContext is already `restricted`.
 - **Alerts**: the generic rules (`KubePodCrashLooping`, `FluxResourceNotReady`).

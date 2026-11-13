@@ -1,0 +1,30 @@
+---
+# Login on the Pocket ID in front of the dashboard of Goldilocks, which has none
+# (docs/ingress/runbook.md#a-ui-without-a-login-of-its-own). The group (kubernetes_admins) is
+# checked by the Pocket ID, through the allowed groups of the client.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: goldilocks
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: goldilocks
+  oidc:
+    provider:
+      # The endpoints are discovered from its .well-known/openid-configuration.
+      issuer: https://id.shelltopia.org
+    # Secret `client-id` and `client-secret` keys (externalsecret.yaml).
+    clientIDRef:
+      name: goldilocks-oidc
+    clientSecret:
+      name: goldilocks-oidc
+    redirectURL: https://goldilocks.shelltopia.org/oauth2/callback
+    logoutPath: /logout
+    scopes:
+      - openid
+      - profile
+      - email
+      - groups
+    refreshToken: true

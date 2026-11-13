@@ -83,7 +83,7 @@ Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: dis
 | `observability` | `victoria-metrics-k8s-stack` (operator, `VMSingle`, `VLSingle`, `VMAgent`, `VMAlert`, `VMAlertmanager`, kube-state-metrics), Grafana, `prometheus-operator-crds`, the Vector aggregator. Deployed by stage ([status](observability/README.md#status)) | `restricted` | [observability](observability/README.md#network-and-pod-security) |
 | `observability-agents` | node-exporter (from the stack), the Vector agent | `privileged` | [observability](observability/README.md#network-and-pod-security) |
 | `debug` | Throwaway test pods, `kubectl debug node` | `privileged` | [cluster](cluster/README.md#pod-security) |
-| `cluster-tools` | kubelet-csr-approver, metrics-server, the VPA recommender | `restricted` | [cluster](cluster/README.md#pod-security) |
+| `cluster-tools` | kubelet-csr-approver, metrics-server, the VPA recommender, Goldilocks | `restricted` | [cluster](cluster/README.md#pod-security) |
 | `kube-system` | Cilium, CoreDNS, Intel device plugin, Reloader, snapshot-controller, Spegel | exempt | [cluster](cluster/README.md) |
 
 A namespace whose applications are exposed on the internet carries the label `shelltopia.net/gateway-external: "true"` ([ingress](ingress/runbook.md#exposing-an-application)).
@@ -114,6 +114,7 @@ The class of each component and the why in [cluster](cluster/README.md#resources
 | `kubernetes` | `pushover-alertmanager` | Alertmanager (field `username`: the Pushover user key, `credential`: the application token) | [observability](observability/README.md#alerting) |
 | `kubernetes` | `pocket-id-grafana` | Grafana, OIDC client of the Pocket ID (`username`: the client id, `credential`: the secret) | [observability](observability/README.md#grafana) |
 | `kubernetes` | `pocket-id-hubble` | Hubble UI, OIDC client of the Pocket ID used by Envoy (`username`: the client id, `credential`: the secret) | [cluster](cluster/README.md#network-policies) |
+| `kubernetes` | `pocket-id-goldilocks` | Goldilocks, OIDC client of the Pocket ID used by Envoy (`username`: the client id, `credential`: the secret) | [cluster](cluster/README.md#goldilocks) |
 | `kubernetes` | `sw-01-mktxp`, `fw-01-opnsense-exporter`, `ap-01-snmp` | The exporters of the devices: MKTXP (*Login*: `username`, `password`), opnsense-exporter (`username`: the API key, `credential`: its secret), snmp-exporter (*API*, plus `privacy_key`) | [observability](observability/README.md#external-devices) |
 | `kubernetes` | `backblaze-b2-cnpg` | CloudNativePG, later | [backups](backups/README.md#destination-backblaze-b2) |
 | `personal` | Token of the workstation service account | The shell of the workstation | [secrets](secrets/README.md#on-the-workstation-a-read-only-service-account) |

@@ -1,0 +1,9 @@
+---
+# Fairwinds only documents a classic Helm repository for its charts, not OCI artifacts.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: fairwinds
+spec:
+  interval: 1h
+  url: https://charts.fairwinds.com/stable

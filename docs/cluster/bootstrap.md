@@ -714,3 +714,39 @@ The recommender alone, without the updater nor the admission controller ([README
   ```
 
   Expected: the checkpoint is gone a few minutes later (garbage collected by the recommender every 10 minutes).
+
+  Done on 2026-11-13: the three checks as expected, a target of `11m` and `16Mi` for the test Deployment.
+
+### Goldilocks
+
+A VPA per workload and the dashboard behind the Pocket ID ([README](README.md#goldilocks)). After the [VPA recommender](#vpa-recommender), once the client is in the Pocket ID and its item in 1Password ([prerequisites](../ingress/runbook.md#a-ui-without-a-login-of-its-own)).
+
+- [x] **Release.** Push, then once Flux has reconciled:
+
+  ```sh
+  flux -n cluster-tools get ks goldilocks
+  flux -n cluster-tools get hr goldilocks
+  kubectl -n cluster-tools get pods -l app.kubernetes.io/name=goldilocks
+  kubectl -n cluster-tools get pods -l app.kubernetes.io/name=goldilocks -o custom-columns=NAME:.metadata.name,CLASS:.spec.priorityClassName
+  ```
+
+  Expected: both `Ready`, the pods `goldilocks-controller` and `goldilocks-dashboard` `Running`, both in the class `infrastructure` (the `postRenderers` patch).
+
+- [x] **A VPA per workload:**
+
+  ```sh
+  kubectl get verticalpodautoscalers -A -l source=goldilocks
+  kubectl -n cluster-tools logs deploy/goldilocks-controller | grep -iE 'error|fail' | sort | uniq -c
+  ```
+
+  Expected: a VPA `goldilocks-<workload>` per Deployment, StatefulSet, DaemonSet and CronJob of every namespace, and `goldilocks-victoria-metrics-k8s-stack` for the `VMAgent`; none for a Job. Mode `Off`, `PROVIDED` `True` within a few minutes, but for a CronJob (`NoPodsMatched` between two runs). A `ConfigUnsupported` means a target below the topmost owner with a `scale` subresource ([README](README.md#goldilocks)). In the logs, only the owners the controller cannot read (the resources of the operators): the workload below is the target.
+
+- [x] **Dashboard:**
+
+  ```sh
+  kubectl -n cluster-tools get externalsecret,httproute,securitypolicy
+  kubectl -n envoy-gateway-system logs deploy/envoy-gateway | grep -i -E 'error|oidc'
+  curl -sI https://goldilocks.shelltopia.org
+  ```
+
+  Expected: `SecretSynced`, the route and the policy `Accepted`, no error about the OIDC provider. `302` to `https://id.shelltopia.org/authorize`. In a browser, a member of `kubernetes_admins` sees the namespaces and their recommendations, another user is refused by the Pocket ID.

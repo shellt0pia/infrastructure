@@ -10,3 +10,4 @@ resources:
   - ./kubelet-csr-approver/ks.yaml
   - ./metrics-server/ks.yaml
   - ./vertical-pod-autoscaler/ks.yaml
+  - ./goldilocks/ks.yaml

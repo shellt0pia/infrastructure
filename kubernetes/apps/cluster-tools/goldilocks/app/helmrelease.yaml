@@ -1,0 +1,96 @@
+---
+# Goldilocks: the controller creates a VerticalPodAutoscaler (`updateMode: Off`) for each workload,
+# the VPA recommender fills its recommendation, and the dashboard shows them. Nothing is applied:
+# the requests stay in Git. See docs/cluster/README.md#goldilocks.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: goldilocks
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: goldilocks
+      version: 11.2.1
+      sourceRef:
+        kind: HelmRepository
+        name: fairwinds
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  # The chart has no value for the priority class.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              group: apps
+              kind: Deployment
+              labelSelector: app.kubernetes.io/name=goldilocks
+            patch: |
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: infrastructure
+  values:
+    # goldilocks-controller and goldilocks-dashboard (Deployments and Service).
+    fullnameOverride: goldilocks
+    # The VPA and metrics-server subcharts stay disabled (chart default): both are releases of
+    # cluster-tools.
+    image:
+      pullPolicy: IfNotPresent
+    controller:
+      # A VPA for every workload of every namespace, but those labeled
+      # `goldilocks.fairwinds.com/enabled: "false"`.
+      flags:
+        on-by-default: "true"
+        # No VPA for the Jobs without a CronJob (the hook of Cilium, the VolSync movers): their pods
+        # end before a recommendation, and the VPA goes with the Job.
+        ignore-controller-kind: Job
+      # No Argo Rollouts in the cluster: an owner it cannot read is only logged, the pod's highest
+      # readable owner is used instead.
+      rbac:
+        enableArgoproj: false
+        # The VPA recommender wants the topmost owner with a `scale` subresource as the target:
+        # among the resources of the operators here, only VMAgent has one. Not the other kinds of
+        # the group: without `scale`, their Deployment or StatefulSet must stay the target.
+        extraRules:
+          - apiGroups:
+              - operator.victoriametrics.com
+            resources:
+              - vmagents
+            verbs:
+              - get
+              - list
+              - watch
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+    dashboard:
+      replicaCount: 1
+      flags:
+        on-by-default: "true"
+        # No cost data from insights.fairwinds.com: no egress to the internet.
+        enable-cost: "false"
+      rbac:
+        enableArgoproj: false
+        # Matches the VPA of the VMAgent to its workload, as the controller does.
+        extraRules:
+          - apiGroups:
+              - operator.victoriametrics.com
+            resources:
+              - vmagents
+            verbs:
+              - get
+              - list
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          memory: 128Mi

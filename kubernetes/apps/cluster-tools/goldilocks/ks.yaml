@@ -1,0 +1,27 @@
+---
+# Goldilocks: a VerticalPodAutoscaler per workload, read by the VPA recommender, and the dashboard
+# of its recommendations behind the login of Envoy on the Pocket ID. Needs the CRDs of the VPA,
+# and for the route, Envoy Gateway and External Secrets. Details: docs/cluster/README.md#goldilocks.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: goldilocks
+spec:
+  dependsOn:
+    - name: priority-classes
+      namespace: kube-system
+    - name: vertical-pod-autoscaler
+      namespace: cluster-tools
+    - name: gateways
+      namespace: network
+    - name: external-secrets-stores
+      namespace: external-secrets
+  interval: 1h
+  path: ./kubernetes/apps/cluster-tools/goldilocks/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: cluster-tools
+  wait: true
