@@ -173,6 +173,7 @@ spec:
 
 - A route lists its `hostnames` and its `parentRefs`: the DNS records are created from them ([dns](dns/README.md#overview)). Applications are served in `shelltopia.org`, as `<appname>.shelltopia.org` where `<appname>` is the name of the application (its folder in `kubernetes/apps`): `grafana.shelltopia.org`.
 - A public route is attached to both Gateways ([ingress](ingress/runbook.md#exposing-an-application)).
+- A UI without a login of its own is never exposed without one: a `SecurityPolicy` with `oidc` on its route, its own client in the Pocket ID with the allowed groups, the `internal` Gateway only ([ingress](ingress/runbook.md#a-ui-without-a-login-of-its-own)). No `SecurityPolicy` on the Gateways: the one of a route replaces it.
 - A volume to back up goes through the `volsync` component, one volume per application ([backups](backups/runbook.md#backing-up-an-application)).
 
 ### LoadBalancer addresses

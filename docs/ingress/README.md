@@ -53,6 +53,8 @@ Each application chooses its Gateway(s), [how](runbook.md#exposing-an-applicatio
 
 The `internal` Gateway does not filter its clients: its addresses are private, only the LAN and the VPN reach them. A route attached to it by mistake while its name is public is a risk accepted ([evaluations](evaluations.md#rejected-options)).
 
+An application without a login of its own (Hubble UI, [cluster](../cluster/README.md#network-policies)) gets one from Envoy, on the `internal` Gateway only: a `SecurityPolicy` with `oidc` on its route logs in on the Pocket ID ([how](runbook.md#a-ui-without-a-login-of-its-own)). Each one has its own confidential client, whose allowed groups are the only check: no `jwt` nor `authorization` rules in Envoy, nothing to keep in sync. Envoy refreshes the tokens (`refreshToken: true`), so a long-lived page keeps working. No `SecurityPolicy` on the Gateways: the one of a route replaces the one of its Gateway.
+
 ## Envoy Gateway
 
 Envoy Gateway (Gateway API) is the implementation, the Cilium Gateway API stays disabled: Envoy Gateway is more complete (client, backend and security policies, PROXY protocol, HTTP/3) and its proxies are separate from the CNI ([evaluations](evaluations.md#rejected-options)). Two Gateways in `network`, `internal` and `external`, one per LB pool, each with its own Envoy proxies (`EnvoyProxy`, 2 replicas, `externalTrafficPolicy: Local`) and the same wildcard certificate.

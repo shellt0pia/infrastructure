@@ -45,6 +45,51 @@ kubectl get httproute app -o yaml
 
 Expected: each parent has `Accepted: True` and `ResolvedRefs: True`. On the external Gateway, the `http` and `http-proxy` listeners refuse the route (`NotAllowedByListeners`) but `Accepted` stays `True` thanks to the HTTPS listeners.
 
+### A UI without a login of its own
+
+Never exposed without the login of Envoy on the Pocket ID, and on the `internal` Gateway only ([README](README.md#overview)). Example: `kubernetes/apps/kube-system/cilium/hubble-ui`.
+
+1. **Pocket ID:** a confidential client, callback `https://app.shelltopia.org/oauth2/callback`, logout callback `https://app.shelltopia.org/`, PKCE on (Envoy sends a `code_challenge`), allowed groups: the group of its users (`kubernetes_admins` for a tool of the cluster).
+2. **1Password:** the item `pocket-id-<app>` in the `kubernetes` vault, `username` the client id, `credential` the secret ([naming](../secrets/README.md#naming-of-the-items)), added to the [reference](../reference.md#1password-items).
+3. **Next to the route:** an `ExternalSecret` to the Secret `<app>-oidc`, keys `client-id` and `client-secret` (those Envoy Gateway reads, and watches: no Reloader), and the `SecurityPolicy`:
+
+   ```yaml
+   apiVersion: gateway.envoyproxy.io/v1alpha1
+   kind: SecurityPolicy
+   metadata:
+     name: app
+   spec:
+     targetRefs:
+       - group: gateway.networking.k8s.io
+         kind: HTTPRoute
+         name: app
+     oidc:
+       provider:
+         issuer: https://id.shelltopia.org
+       clientIDRef:
+         name: app-oidc
+       clientSecret:
+         name: app-oidc
+       redirectURL: https://app.shelltopia.org/oauth2/callback
+       logoutPath: /logout
+       scopes:
+         - openid
+         - profile
+         - email
+         - groups
+       refreshToken: true
+   ```
+
+   The namespace needs Envoy Gateway and External Secrets: a separate Flux Kustomization with its `dependsOn` when the application is installed before them (`cilium-hubble-ui`).
+4. **Check:**
+
+   ```sh
+   kubectl get securitypolicy app
+   curl -sI https://app.shelltopia.org
+   ```
+
+   Expected: the policy `Accepted`, `302` to `https://id.shelltopia.org/authorize`. In a browser, a member of the group reaches the UI, another user is refused by the Pocket ID; `/logout` clears the session.
+
 Per-route settings (later, at migration time): basic authentication with a `SecurityPolicy` targeting the `HTTPRoute`, specific timeouts in the route rules, TLS to an HTTPS backend with a `Backend` resource or a `BackendTLSPolicy`.
 
 ## Testing a change with the staging issuer

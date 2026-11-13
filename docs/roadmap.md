@@ -18,7 +18,6 @@ The sections of [To implement](#to-implement) are by topic, in the order they ar
 
 1. **Platform, before the applications move.** Everything that is cheap to do on an empty cluster and painful to retrofit on 30 applications:
    - [Observability](#observability): metrics, Flux notifications, alerting, logs.
-   - [Security](#security): network policies enforced.
    - [Cluster tools](#cluster-tools): resource and priority conventions, kubelet certificates and metrics-server, Headlamp, the Flux web UI and OIDC.
    - [Backups](#backups): NAS data (independent of the cluster, can be done at any time) and PostgreSQL.
    - [Storage](#storage): NFS access to the NAS.
@@ -44,13 +43,6 @@ Architecture and status: [observability/README.md](observability/README.md#statu
 - [x] External devices ([stage 5](observability/bootstrap.md#5-external-devices), [README](observability/README.md#external-devices), [points to verify](observability/evaluations.md#to-verify)): metrics and logs of OPNsense, the MikroTik switch and the Grandstream access point, the syslog of the NAS, the UPS (`nut_exporter`, MKTXP, `os-node_exporter` and `opnsense-exporter`, `snmp_exporter` for the access point, syslog), and HTTP checks of Uptime Kuma and Pocket ID (hosted at PikaPods). The scrapers with egress policies by FQDN. The NAS metrics come with the NAS platform work ([Backups](#backups)), `gw-01` with the LTE backup.
 - [ ] Once kube-02 joins: enable `KubeCPUOvercommit` and `KubeMemoryOvercommit` again, and test the loss of a node holding `VMSingle` or `VLSingle` (no gap in the data, Grafana back in a few minutes).
 
-### Security
-
-The plan, its decisions and its steps: [hubble-security.md](hubble-security.md).
-
-- [x] Cilium network policies: enforced on 2026-11-13 (`policyAuditMode: false`), once the audited flows were read and the [observability](#observability) stack showed the drops, then [checked](cluster/bootstrap.md#network-policies). The host firewall, the baseline of the pods, the exceptions and Hubble Relay are deployed ([cluster](cluster/README.md#network-policies)).
-- [x] Hubble UI, as `hubble.shelltopia.org` on the `internal` Gateway, behind a login on the Pocket ID done by Envoy (Relay and the `hubble` CLI are in place). Deployed on 2026-11-13 ([cluster](cluster/README.md#network-policies)).
-
 ### Cluster tools
 
 - [ ] Resource requests and limits on every workload, and `PriorityClass`es so that the storage (LINSTOR, DRBD) and network (Cilium, CoreDNS, Envoy) components win against the applications under memory pressure. Nodes have 16 GiB with `systemReserved` and `kubeReserved` already set. Write the convention in [conventions.md](conventions.md) first, then size the requests from the real usage once the metrics stack runs (a VPA in recommendation mode or Goldilocks can help).
@@ -70,7 +62,7 @@ The plan, its decisions and its steps: [hubble-security.md](hubble-security.md).
   - Links in the Flux notifications: the page of each object of `FluxResourceNotReady` (`/resource/<kind>/<namespace>/<name>`: the full message, the events, the source and the managed objects), for the details the summary does not hold ([alerting](observability/README.md#alerting)). Pushover takes one URL per notification, which groups several objects: keep Grafana in `url` and put one link per object in the body (`html` of `pushover_configs`, to check in the Alertmanager version), or link the filtered list (`/resources?namespace=<namespace>&status=Failed`, to check that the filters load from the URL). Only reachable where the `internal` Gateway is.
 - [ ] Kubernetes OIDC authentication with the Pocket ID (hosted on PikaPods), for `kubectl`, Headlamp and the Flux web UI.
   - Gain: no long-lived `cluster-admin` client certificate on the workstation (the one from `talosctl kubeconfig` is valid one year), and rights by group.
-  - Pocket ID: one OIDC client with PKCE (public client for `kubelogin`), and one for each UI (Headlamp, Flux), or fewer if the audiences are shared. The first one is Grafana's, confidential, with the groups `grafana_admins` and `grafana_viewers` ([observability](observability/README.md#grafana)), then Hubble UI's, confidential, used by Envoy ([cluster](cluster/README.md#network-policies)). Groups sent in the `groups` claim: `kubernetes_admins` for the administrators of Kubernetes, already used by Hubble UI ([plan](hubble-security.md#decisions)), and a read-only group to name with Headlamp. Callback URLs of the UIs on the `internal` Gateway.
+  - Pocket ID: one OIDC client with PKCE (public client for `kubelogin`), and one for each UI (Headlamp, Flux), or fewer if the audiences are shared. The first one is Grafana's, confidential, with the groups `grafana_admins` and `grafana_viewers` ([observability](observability/README.md#grafana)), then Hubble UI's, confidential, used by Envoy ([cluster](cluster/README.md#network-policies)). Groups sent in the `groups` claim: `kubernetes_admins` for the administrators of Kubernetes, already used by Hubble UI ([cluster](cluster/README.md#network-policies)), and a read-only group to name with Headlamp. Callback URLs of the UIs on the `internal` Gateway.
   - Talos: `AuthenticationConfiguration` of the kube-apiserver (several audiences and claim mappings, better than the `--oidc-*` flags) through the `cluster.apiServer` patch. Issuer URL of the Pocket ID, with the `groups` claim prefixed (for example `oidc:`) so that a group name cannot collide with a Kubernetes one. Restart and test on one control plane node before the other.
   - Workstation: `kubelogin` (`kubectl oidc-login`) in `mise`, a dedicated user in the kubeconfig, the `just` recipes unchanged.
   - `ClusterRoleBinding`s of the groups, in Git.

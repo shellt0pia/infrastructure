@@ -362,7 +362,7 @@ The policies were first deployed in audit mode (`policyAuditMode: true` in `kube
 
   Expected: the Relay pod is `Running`, the CronJob exists. `hubble status` reports every node as connected (`-P` forwards the port of the Relay through the Kubernetes API).
 
-- [x] **Hubble UI**, once the client is in the Pocket ID and its item in 1Password ([plan](../hubble-security.md#prerequisites)):
+- [x] **Hubble UI**, once the client is in the Pocket ID and its item in 1Password ([prerequisites](../ingress/runbook.md#a-ui-without-a-login-of-its-own)):
 
   ```sh
   flux -n kube-system get ks cilium cilium-hubble-ui
@@ -421,7 +421,7 @@ The policies were first deployed in audit mode (`policyAuditMode: true` in `kube
   kubectl -n debug delete pod np-alert-test
   ```
 
-  Expected: `false`. The four connections of the test pod time out, DNS and HTTPS work. No other `DROPPED` flow with `Policy denied`, and every Kustomization stays `Ready`. `NetworkPolicyDroppedFlows` fires within 25 minutes (`for: 20m`), `direction="ingress"`, `namespace="observability"`, its summary from `debug/(a pod without workload)` to `observability/vmsingle-victoria-metrics-k8s-stack`, and notifies on the phone (`warning`); it resolves about 10 minutes after the pod is deleted (the `rate` window). No more `NetworkPolicyAuditedFlows`. Then update the status in the [README](README.md#status) and the [roadmap](../roadmap.md#security).
+  Expected: `false`. The four connections of the test pod time out, DNS and HTTPS work. No other `DROPPED` flow with `Policy denied`, and every Kustomization stays `Ready`. `NetworkPolicyDroppedFlows` fires within 25 minutes (`for: 20m`), `direction="ingress"`, `namespace="observability"`, its summary from `debug/(a pod without workload)` to `observability/vmsingle-victoria-metrics-k8s-stack`, and notifies on the phone (`warning`); it resolves about 10 minutes after the pod is deleted (the `rate` window). No more `NetworkPolicyAuditedFlows`. Then update the status in the [README](README.md#status) and the [roadmap](../roadmap.md#current-state).
 
   Done on 2026-11-13: `false`; the only other drops are the Router Solicitations of the pods (`Invalid source ip`, harmless, [README](README.md#network-policies)). The four connections of the test pod time out, DNS and HTTPS work, the NAS flow is `Policy denied` on `EGRESS`. The Gateways, the internal DNS and the LINSTOR volumes work. The alert notifies; its summary then had no name for a pod without workload, since shown as `(a pod without workload)` with the namespaces.
 
