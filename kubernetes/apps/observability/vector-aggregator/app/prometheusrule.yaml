@@ -1,7 +1,8 @@
 ---
 # The alerts of the Vector aggregator (docs/observability/README.md#alerting). The same rules as
 # the agents (kubernetes/apps/observability-agents/vector-agent/app/prometheusrule.yaml), on the
-# job of the aggregator. Converted to a VMRule by the operator of the stack.
+# job of the aggregator, except the parsing errors of the syslog sources (SyslogParseErrors).
+# Converted to a VMRule by the operator of the stack.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -15,7 +16,7 @@ spec:
         - alert: VectorComponentErrors
           expr: |
             sum by (namespace, pod, component_id) (
-              increase_pure(vector_component_errors_total{job="vector-aggregator"}[15m])
+              increase_pure(vector_component_errors_total{job="vector-aggregator", error_type!="parser_failed"}[15m])
             ) > 0
           labels:
             severity: warning
@@ -24,6 +25,24 @@ spec:
             description: >-
               The component {{ $labels.component_id }} of {{ $labels.pod }} reports errors: its
               logs, and VictoriaLogs reachable.
+        # A frame that is not syslog, dropped by the source. A device sending in a wrong format
+        # fails on every line; a stray frame does not notify: the end of a message holding a
+        # newline, which the newline framing of TCP cuts (fw-01, once an hour,
+        # docs/observability/evaluations.md#open-points).
+        - alert: SyslogParseErrors
+          expr: |
+            sum by (namespace, pod, component_id) (
+              increase_pure(vector_component_errors_total{job="vector-aggregator", error_type="parser_failed"}[15m])
+            ) > 10
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.pod }}: {{ $value | humanize }} frames of {{ $labels.component_id }} not parsed as syslog over 15 minutes."
+            description: >-
+              The source {{ $labels.component_id }} of {{ $labels.pod }} drops frames that are
+              not syslog: a device sending in another format or framing. The peer address is in
+              the logs of the pod (`kubectl -n observability logs {{ $labels.pod }}`, `Failed
+              deserializing frame`).
         - alert: VectorDiscardedEvents
           expr: |
             sum by (namespace, pod, component_id) (

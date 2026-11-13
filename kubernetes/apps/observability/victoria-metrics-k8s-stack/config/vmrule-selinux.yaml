@@ -14,9 +14,11 @@ spec:
       interval: 5m
       rules:
         # A write to a file without an SELinux label: a volume mounted without its context
-        # (docs/storage/README.md#decisions), refused once Talos is enforcing.
+        # (docs/storage/README.md#decisions), refused once Talos is enforcing. Without nfsrahead:
+        # the extension ships it unlabeled and udev runs it for each new block device, a known
+        # gap (docs/nodes/evaluations.md#open-points).
         - alert: SELinuxUnlabeledDenials
-          expr: 'log_source:talos-service "talos-service":auditd unlabeled_t | stats by (node) count() as denials | filter denials:>0'
+          expr: 'log_source:talos-service "talos-service":auditd unlabeled_t -nfsrahead | stats by (node) count() as denials | filter denials:>0'
           labels:
             severity: warning
           annotations:
@@ -25,4 +27,4 @@ spec:
               The AVC denials on {{ $labels.node }} are about files without an SELinux label
               (unlabeled_t), usually a volume mounted without the ephemeral_t context: the
               denied process and path in the logs (`log_source:talos-service
-              "talos-service":auditd unlabeled_t`), then docs/storage/runbook.md#selinux-label-of-an-existing-volume.
+              "talos-service":auditd unlabeled_t -nfsrahead`), then docs/storage/runbook.md#selinux-label-of-an-existing-volume.

@@ -392,7 +392,7 @@ Two pushes: **4a** `vmalert`, the default rules and the dead man's switch, check
   curl -s localhost:8080/api/v1/alerts | jq -r '.data.alerts[] | select(.state == "firing") | .labels.alertname + " " + .labels.severity + " " + (.labels.namespace // "")'
   ```
 
-  Expected: in both replicas, no rule without `health` `ok` (`selinux` included: `vmalert` reaches VictoriaLogs through the `VMAuth`); the groups with their number of rules: `cert-manager` 1, `certificates` 3, `coredns` 4, `coredns_forward` 5, `Cilium API` 1, `Cilium Conntrack` 2, `Cilium Endpoints` 4, `Cilium Identity` 1, `Cilium Maps` 2, `Cilium NAT` 1, `Cilium Nodes` 1, `Cilium Policy` 1, `linstor.rules` 6, `drbd.rules` 8, `linstor` 1, `cert-manager-expiry` 1, `volsync` 4, `network-policies` 2, `vector-agent` 4, `vector-aggregator` 4, `selinux` 1; nothing firing beyond `Watchdog` and the `info` alerts (an audited flow may show as `NetworkPolicyAuditedFlows`: fixed, or noted for the noise pass).
+  Expected: in both replicas, no rule without `health` `ok` (`selinux` included: `vmalert` reaches VictoriaLogs through the `VMAuth`); the groups with their number of rules: `cert-manager` 1, `certificates` 3, `coredns` 4, `coredns_forward` 5, `Cilium API` 1, `Cilium Conntrack` 2, `Cilium Endpoints` 4, `Cilium Identity` 1, `Cilium Maps` 2, `Cilium NAT` 1, `Cilium Nodes` 1, `Cilium Policy` 1, `linstor.rules` 6, `drbd.rules` 8, `linstor` 1, `cert-manager-expiry` 1, `volsync` 4, `network-policies` 2, `vector-agent` 4, `vector-aggregator` 5 (4 before `SyslogParseErrors`), `selinux` 1; nothing firing beyond `Watchdog` and the `info` alerts (an audited flow may show as `NetworkPolicyAuditedFlows`: fixed, or noted for the noise pass).
 
 - [x] **Certificate expiry (level 3).** No certificate is made to expire: their remaining time and their renewal window, the expressions of the two severities without their threshold, in *Explore*:
 
@@ -541,6 +541,19 @@ Two pushes: **4a** `vmalert`, the default rules and the dead man's switch, check
 - [x] **Not provoked.** Their expressions checked against the cluster only (level 3, before the push): `VolSyncVolumeOutOfSync`, `VolSyncMissedIntervals` and `VolSyncBackupLate` (a failing backup), `VectorComponentErrors`, `VectorBufferFillingUp` and `VectorDiscardedEvents`, `linstorStoragePoolAtCapacity` (a full pool), the storage pool errors, the rules of the mixins beyond `CertManagerCertNotReady`. The metadata of the thin pool, not exposed, has no alert ([open points](evaluations.md#open-points)).
 
 - [ ] **Noise.** Two weeks later: the alerts received, the rules to disable or to change ([open points](evaluations.md#open-points)), the overcommit rules once kube-02 joins, and the healthchecks.io checks of the backups dropped if the alerts replace them ([backups](../backups/README.md#monitoring)).
+
+  First pass on 2026-11-13: `VectorComponentErrors` of the aggregator fired every hour on the cut syslog frames of `fw-01` ([open points](evaluations.md#open-points)), moved to `SyslogParseErrors`; `SELinuxUnlabeledDenials` fired on `nfsrahead` ([nodes](../nodes/evaluations.md#open-points)), excluded. The new expressions, in *Explore*, over the last 24 hours:
+
+  ```promql
+  sum by (namespace, pod, component_id) (increase_pure(vector_component_errors_total{job="vector-aggregator", error_type!="parser_failed"}[15m]))
+  sum by (namespace, pod, component_id) (increase_pure(vector_component_errors_total{job="vector-aggregator", error_type="parser_failed"}[15m]))
+  ```
+
+  ```logsql
+  _time:1d log_source:talos-service "talos-service":auditd unlabeled_t -nfsrahead | stats by (node) count() as denials | filter denials:>0
+  ```
+
+  Expected: the first empty, the second at 1 at most (under the threshold of 10), the third empty.
 
 ## 5. External devices
 
