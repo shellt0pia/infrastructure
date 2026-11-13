@@ -550,6 +550,12 @@ spec:
           - maxSkew: 1
             topologyKey: kubernetes.io/hostname
             whenUnsatisfiable: ScheduleAnyway
+        # Forget a replica gone for a minute, not 6 hours: its old address is retried every 10 s,
+        # flows to a deleted pod that the network policies drop. The peers are DNS names, resolved
+        # again every 15 s: a replaced replica joins back on its new address
+        # (docs/observability/README.md#high-availability).
+        extraArgs:
+          cluster.reconnect-timeout: 1m
         # The security context of `restricted`, for the pod and every container. Written out in
         # full: the chart sets a partial one (user and fsGroup only) when the spec has a volume,
         # and any securityContext replaces the defaults of useStrictSecurity in the operator.

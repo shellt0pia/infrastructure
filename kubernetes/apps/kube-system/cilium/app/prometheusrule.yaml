@@ -42,7 +42,10 @@ spec:
               {{ $labels.source_namespace }}/{{ $labels.source }} to
               {{ $labels.destination_namespace }}/{{ $labels.destination }}: they will be dropped
               once the policies are enforced. `hubble observe --verdict AUDIT`.
-        # A sustained drop only: this one notifies.
+        # A sustained drop only: this one notifies. `for: 20m` on a 10-minute rate: drops spread
+        # over 10 minutes at least. Not the flows to a deleted pod (a stale scrape target, the old
+        # address of an Alertmanager peer for up to 6 minutes), which keep the rate over 0 for
+        # about 16 minutes (docs/observability/evaluations.md#open-points).
         - alert: NetworkPolicyDroppedFlows
           expr: |
             label_replace(
@@ -58,7 +61,7 @@ spec:
               ),
               "namespace", "$1", "source_namespace", "(.+)"
             ) > 0
-          for: 10m
+          for: 20m
           labels:
             severity: warning
           annotations:
