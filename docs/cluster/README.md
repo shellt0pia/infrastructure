@@ -1,6 +1,6 @@
 # Cluster: Kubernetes, Cilium and Flux
 
-How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap helmfile, Cilium and its network policies, Pod Security, CoreDNS, External Secrets and Flux, which then deploys everything in `kubernetes/apps`, and the cluster-wide tools (Spegel, Reloader). The nodes are in [nodes](../nodes/README.md), the network around the cluster in [network](../network/README.md). The decisions are [below](#decisions).
+How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap helmfile, Cilium and its network policies, Pod Security, the resources and priorities, CoreDNS, External Secrets and Flux, which then deploys everything in `kubernetes/apps`, and the cluster-wide tools (Spegel, Reloader). The nodes are in [nodes](../nodes/README.md), the network around the cluster in [network](../network/README.md). The decisions are [below](#decisions).
 
 | Document | Content |
 | --- | --- |
@@ -17,6 +17,7 @@ How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap he
 | CNI, kube-proxy replacement | Cilium | In use ([below](#cilium)) |
 | Network policies, Hubble Relay and UI | Cilium | Enforced since 2026-11-13 ([below](#network-policies)). Hubble UI deployed |
 | Pod Security | Pod Security Admission | `restricted` by default, to apply (Talos and Flux), [checks](bootstrap.md#pod-security) in progress ([below](#pod-security)) |
+| Resources and priorities | `PriorityClass`, alerts on kube-state-metrics | Convention written, class `infrastructure` and alerts added, not deployed yet ([checks](bootstrap.md#resources-and-priorities)). The sizing of the existing components [to do](../cluster-tools.md) ([below](#resources-and-priorities)) |
 | Cluster DNS | CoreDNS | In use ([below](#coredns)) |
 | GPU | Intel device plugin | In use on kube-01 ([below](#gpu)) |
 | Registry mirror between the nodes | Spegel | Deployed by the bootstrap and Flux, [checks](bootstrap.md#spegel) not run yet ([below](#spegel)) |
@@ -41,7 +42,7 @@ flowchart TD
 
 The `apps` stage installs, in this order, the minimum needed for Flux to take over:
 
-1. **Cilium**, then its BGP sessions and LoadBalancer pools (`kubernetes/apps/kube-system/cilium/networking`). The nodes stay `NotReady` until the CNI runs: Flannel, kube-proxy and the CoreDNS of Talos are disabled in the Talos configuration. The `observability` namespace is created just before: the chart puts its Grafana dashboards there ([observability](../observability/README.md#the-release-of-the-stack)). Flux adopts both later.
+1. **Cilium**, then its BGP sessions and LoadBalancer pools (`kubernetes/apps/kube-system/cilium/networking`). The nodes stay `NotReady` until the CNI runs: Flannel, kube-proxy and the CoreDNS of Talos are disabled in the Talos configuration. The `observability` namespace is created just before: the chart puts its Grafana dashboards there ([observability](../observability/README.md#the-release-of-the-stack)). The priority classes of the repository too, for the releases that name them ([below](#resources-and-priorities)). Flux adopts both later.
 2. **CoreDNS**.
 3. **Spegel**, in parallel with External Secrets and before Flux, so that the images pulled by Flux already go through it ([below](#spegel)).
 4. **External Secrets** and the `onepassword` ClusterSecretStore ([secrets](../secrets/README.md)).
@@ -57,6 +58,7 @@ The chart source and version of each release come from its `OCIRepository`, and 
 - Tools pinned in `mise.toml` (kubectl and talosctl follow the cluster versions).
 - Secrets: External Secrets Operator with a read-only service account on the `kubernetes` vault ([secrets](../secrets/README.md)).
 - Pod Security: `restricted` by default, a lower level only for the namespaces that need it ([below](#pod-security)).
+- Resources: CPU requests without limits, memory requests and limits, a priority class for each component of the platform ([below](#resources-and-priorities)).
 - No registry cache: Docker Hub credentials in containerd avoid the rate limit. Spegel shares the images already on the nodes between them, it is not a cache ([below](#spegel)).
 
 ## Cluster ranges
@@ -123,6 +125,36 @@ Cilium policies, fail-closed: every pod is in default deny, and every flow it ne
 - **Refused pods**: only the pods are enforced. A Deployment, StatefulSet, DaemonSet or Job is accepted (with a warning), but its pods are refused: they never exist, and only show up as `FailedCreate` events on the ReplicaSet, StatefulSet, DaemonSet or Job. The HelmRelease or Kustomization then waits until its timeout ([runbook](runbook.md#pod-security)).
 - **Running pods are not checked again**: a new level or version only applies to the next pods, at their next restart.
 - **User namespaces** (`hostUsers: false`, stable since Kubernetes 1.36): root in the container is mapped to an unprivileged UID of the node, like rootless Podman. Pod Security then skips the non-root checks (`runAsNonRoot`, `runAsUser`), the rest of `restricted` still applies. Not usable with NFS volumes (no idmapped mounts) nor with `hostNetwork`; fine with the LINSTOR volumes (ext4) and tmpfs. Not tested with a real pod yet ([open point](evaluations.md#open-points)), evaluated per application at the [migration](../roadmap.md#migration).
+
+## Resources and priorities
+
+The nodes have 16 GiB, of which about 14 GiB allocatable: `systemReserved` (etcd and the Talos services) 500m and 1 GiB, `kubeReserved` 250m and 512 MiB, eviction under 500 MiB available (`talos/patches/kubernetes.yaml.j2`). The rules are in the [conventions](../conventions.md#resources-and-priorities).
+
+How Kubernetes uses them:
+
+- **Scheduling**: the requests only. A pending pod preempts pods of a lower priority to find room.
+- **Eviction by the kubelet**, under memory pressure: first the pods that use more than their request, then the lowest priority, then the largest use above the request. Never the static pods, nor the pods at `system-cluster-critical` or above.
+- **OOM killer of the kernel**, when the memory runs out before the kubelet acts: by QoS class, not by priority (`BestEffort` first, `Guaranteed` last, `Burstable` by the share of its request in the memory of the node).
+- **Limits**: past its memory limit, a container is killed, whatever the state of the node. Past its CPU limit, it is throttled, even on an idle node.
+
+A component wins under memory pressure with a request that covers its real use, and a high priority. The decisions:
+
+- **No CPU limit**: CPU is compressible. Under contention, the requests share it; a limit would only throttle a container on an idle node.
+- **A memory limit everywhere**, about twice the request, the critical classes included: the kubelet never evicts them, so the limit bounds a leak. A limit equal to the request for the databases (their memory is set by their configuration, a kill costs a recovery) and for the tools that size their caches from their limit (VictoriaMetrics and VictoriaLogs take 60 % of the memory they see, to check in their usage). Not for the agents of the network and the storage, whose usage has peaks: a kill costs more there than a use above the request.
+- **Classes**: the built-in `system-node-critical` and `system-cluster-critical`, and one class of the repository, `infrastructure` (1 000 000), in `kubernetes/apps/kube-system/priority-classes`. The applications have none (0). No `globalDefault`, no class below the applications. The values stay far apart, so that a level can be added between them; a class of the repository is at most 1 000 000 000, the values above are for the system classes.
+
+  | Class | Components |
+  | --- | --- |
+  | `system-node-critical` | Cilium agent and Envoy, LINSTOR satellites, CSI node plugin |
+  | `system-cluster-critical` | CoreDNS, Cilium operator, LINSTOR controller, CSI controller, HA controller |
+  | `infrastructure` | Flux, External Secrets, cert-manager, Envoy Gateway and the Envoy proxies of the Gateways, VolSync, Spegel, Reloader, external-dns, k8s-gateway, the observability (`VMSingle`, `VLSingle`, `VMAgent`, `VMAlert`, Alertmanager, Grafana, Vector) and the exporters of the devices |
+  | None (0) | The applications |
+
+- **The Envoy proxies in `infrastructure`**, not `system-cluster-critical`: the cluster does not depend on them (`kubectl` and Flux do not go through the Gateways), their two replicas are spread over the nodes, and `infrastructure` already puts them above the applications.
+- **Capacity**: sized for the two nodes up, about 28 GiB allocatable. Until kube-02 joins, the loss of a node may leave pods `Pending`: nothing is critical before the [migration](../roadmap.md#migration). `KubeMemoryOvercommit` stays disabled until then ([observability](../observability/README.md#the-release-of-the-stack)).
+- **Sizing**: from the recommendations of Goldilocks (VPA recommender), checked against the usage in VictoriaMetrics ([plan](../cluster-tools.md)).
+- **Checks**: the alerts `ContainerWithoutMemoryLimit` and `ContainerOOMKilled` ([observability](../observability/README.md#alerting)). Not an admission policy ([evaluations](evaluations.md#rejected-options)).
+- **Bootstrap**: `just bootstrap apps` applies the classes before its first release, so that the releases it installs can name them; Flux adopts them later.
 
 ## GPU
 

@@ -1,0 +1,16 @@
+---
+# The platform: above the applications (no class, 0), below the built-in system-cluster-critical
+# and system-node-critical, which the kubelet never evicts. Under memory pressure, the kubelet
+# evicts the applications first, and a pending pod of this class preempts them. Which component
+# takes which class: docs/cluster/README.md#resources-and-priorities.
+# `value` and `preemptionPolicy` are immutable: a change means a new class.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: infrastructure
+value: 1000000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: >-
+  The platform components (Flux, External Secrets, cert-manager, the Gateways, the backups, the
+  observability): above the applications, below the system classes. See docs/conventions.md.

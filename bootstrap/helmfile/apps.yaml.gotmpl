@@ -42,6 +42,16 @@ releases:
           - --field-manager=kustomize-controller
           - --filename=../../kubernetes/apps/observability/namespace.yaml
         showlogs: true
+      - # The PriorityClasses of the repository, before any release names one (a pod that names an
+        # unknown class is refused); Flux adopts them later.
+        events: ['presync']
+        command: kubectl
+        args:
+          - apply
+          - --server-side
+          - --field-manager=kustomize-controller
+          - --kustomize=../../kubernetes/apps/kube-system/priority-classes/app
+        showlogs: true
       - # The CRDs are registered by Cilium itself, not by the chart.
         events: ['postsync']
         command: kubectl

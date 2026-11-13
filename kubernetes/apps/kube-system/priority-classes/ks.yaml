@@ -1,0 +1,18 @@
+---
+# The PriorityClasses of the repository (docs/cluster/README.md#resources-and-priorities).
+# A pod that names an unknown class is refused: the Kustomizations whose pods name one depend
+# on this one, and the bootstrap applies them before its releases
+# (bootstrap/helmfile/apps.yaml.gotmpl). No targetNamespace: they are cluster-scoped.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: priority-classes
+spec:
+  interval: 1h
+  path: ./kubernetes/apps/kube-system/priority-classes/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: true

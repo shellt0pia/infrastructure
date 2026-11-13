@@ -86,6 +86,16 @@ Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: dis
 
 A namespace whose applications are exposed on the internet carries the label `shelltopia.net/gateway-external: "true"` ([ingress](ingress/runbook.md#exposing-an-application)).
 
+## Priority classes
+
+The class of each component and the why in [cluster](cluster/README.md#resources-and-priorities). The applications have none.
+
+| Class | Value | Defined by | Used by |
+| --- | --- | --- | --- |
+| `system-node-critical` | 2 000 001 000 | Kubernetes | The agents of each node: Cilium, LINSTOR satellites, CSI node plugin |
+| `system-cluster-critical` | 2 000 000 000 | Kubernetes | CoreDNS, the controllers of the network and the storage |
+| `infrastructure` | 1 000 000 | `kubernetes/apps/kube-system/priority-classes` | The rest of the platform, the observability and the Gateways included |
+
 ## 1Password items
 
 | Vault | Item | Used by | Described in |

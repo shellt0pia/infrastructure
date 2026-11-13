@@ -24,6 +24,11 @@ The choices considered and set aside, and what is still to check or watch. The r
 | Pod Security without the `kube-system` exemption | Cilium, Spegel and the GPU plugin need privileged pods, so `kube-system` would be `privileged` anyway; the namespace is created by Kubernetes, and labels set by Flux on it would not be there at bootstrap. The Talos exemption is kept. |
 | Stop the Router Solicitations of the pods (`accept_ra=0` in their network namespace) | The CNI plugin `tuning` chained to Cilium replaces the CNI configuration of the chart (`cni.customConf`), and needs the plugin on Talos; the sysctls per pod are unsafe ones, to allow on the kubelets and set in every pod. Neither covers the health endpoint, created by Cilium. The drops are harmless: filtered out of the export instead ([README](README.md#network-policies)). |
 | A fix of Cilium for the Router Solicitations | [cilium/cilium#47645](https://github.com/cilium/cilium/issues/47645) was closed by the stale bot without a fix. Not taken up: a patch of the datapath, not tested here. |
+| CPU limits | CPU is compressible: a limit throttles a container even on an idle node, while the requests already share the CPU under contention ([README](README.md#resources-and-priorities)). |
+| A `ValidatingAdmissionPolicy` that requires the resources, in `Warn` and `Audit` | Nobody would see its results: the warnings go to the client that creates the pod (a ReplicaSet, an operator) or the workload (Flux, which does not report them), and the audit events to the audit log of the API server, which nothing collects. An alert on kube-state-metrics instead, which also covers the pods already running ([README](README.md#resources-and-priorities)). In `Deny`, a forgotten limit would block a release. |
+| A `LimitRange` per namespace, with default requests and limits | It invents values for what has none, and hides the forgotten ones. |
+| A class below the applications (negative, `preemptionPolicy: Never`) | No workload to put there today: the backups and the exporters matter more than the applications. To add if one shows up. |
+| A `globalDefault` class for the applications | The default of a pod without class is already 0, below `infrastructure`. |
 
 ## Intel DRA driver
 

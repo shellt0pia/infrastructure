@@ -486,3 +486,48 @@ Not applied yet. The `restricted` profile is the default of the cluster (`talos/
 - [ ] **VolSync movers.** Not tested yet: they run in the namespace of the application, at its level. At the first application backed up (or with the [test application](../backups/bootstrap.md#test-application)), check that the backup and the restore movers start ([open point](evaluations.md#open-points)).
 
   Expected: `just kube volsync-backup <app>` succeeds, no `FailedCreate` event in the namespace. Then update the status in the [README](README.md#status) and the [roadmap](../roadmap.md#current-state).
+
+### Resources and priorities
+
+The class `infrastructure` and the alerts of the convention ([README](README.md#resources-and-priorities)). The sizing of the existing components follows its [plan](../cluster-tools.md#3-sizing).
+
+- [x] **Classes.** Push, then once Flux has reconciled:
+
+  ```sh
+  flux -n kube-system get ks priority-classes
+  kubectl get priorityclasses
+  ```
+
+  Expected: the Kustomization is `Ready`. `infrastructure` at `1000000`, `PreemptLowerPriority`, not the global default, next to `system-node-critical` and `system-cluster-critical`.
+
+- [x] **Rules loaded**, through `vmalert` ([observability](../observability/bootstrap.md#4-alert-rules-and-the-dead-mans-switch)):
+
+  ```sh
+  kubectl -n observability get pods -l app.kubernetes.io/name=vmalert -o name
+  kubectl -n observability port-forward <pod> 8080
+  curl -s localhost:8080/api/v1/rules | jq -r '.data.groups[] | select(.name == "resources") | .rules[] | .name + " " + .labels.severity + " " + .health + " " + .lastError'
+  ```
+
+  Expected: `ContainerWithoutMemoryLimit info ok` and `ContainerOOMKilled warning ok`.
+
+- [x] **Series of kube-state-metrics.** A rule on a series that does not exist never fires. Through `VMSingle`:
+
+  ```sh
+  kubectl -n observability port-forward svc/vmsingle-victoria-metrics-k8s-stack 8428
+  curl -s localhost:8428/api/v1/query --data-urlencode 'query=count by (__name__) ({__name__=~"kube_pod_(init_)?container_(info|resource_limits)|kube_pod_container_status_(last_)?terminated_reason|kube_pod_owner|kube_pod_status_phase"})' | jq -c '.data.result[] | [.metric.__name__, .value[1]]'
+  curl -s localhost:8080/api/v1/alerts | jq -r '.data.alerts[] | select(.labels.alertname == "ContainerWithoutMemoryLimit") | .labels.namespace + "/" + .labels.pod + " " + .labels.container' | sort
+  ```
+
+  Expected: the eight series, `kube_pod_init_container_info` and `kube_pod_init_container_resource_limits` included. The two `terminated_reason` only exist for a container that terminated (a Job, a restart): the OOM test below checks them otherwise. The containers without a memory limit: those of the [inventory](../cluster-tools.md#plan), no static pod (`kube-apiserver-*`), no finished pod, nothing in `debug`. `info`: in Grafana only, no notification.
+
+- [x] **OOM kill.** A test pod past its limit of 16 MiB (`tail` keeps reading `/dev/zero`, a file without a newline, in memory):
+
+  ```sh
+  kubectl -n debug run oom-test --image=docker.io/library/busybox --restart=Never \
+    --overrides='{"spec":{"containers":[{"name":"oom-test","image":"docker.io/library/busybox","command":["tail","/dev/zero"],"resources":{"limits":{"memory":"16Mi"}}}]}}'
+  kubectl -n debug get pod oom-test -o jsonpath='{.status.containerStatuses[0].state.terminated.reason}{"\n"}'
+  curl -s localhost:8080/api/v1/alerts | jq -r '.data.alerts[] | select(.labels.alertname == "ContainerOOMKilled") | .state + " " + .labels.namespace + "/" + .labels.pod'
+  kubectl -n debug delete pod oom-test
+  ```
+
+  Expected: `OOMKilled`. The alert `firing` for `debug/oom-test` at the next evaluation (no `for`), notified on the phone (`warning`); it resolves once the pod is deleted.

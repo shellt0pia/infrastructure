@@ -157,6 +157,22 @@ spec:
           drop: ["ALL"]
 ```
 
+### Resources and priorities
+
+Every container has requests and a memory limit, and each component of the platform a priority class ([cluster](cluster/README.md#resources-and-priorities)).
+
+- CPU: a request, never a limit.
+- Memory: a request that covers the peak of the usage, plus about 20 %, and a limit about twice the request. The limit equal to the request for a database, and for a tool that sizes its caches from its limit (VictoriaMetrics, VictoriaLogs).
+- Every container: the init containers and sidecars, the Jobs and the VolSync movers, the pods created by an operator (through its resource: `EnvoyProxy`, `LinstorCluster`...). No `ephemeral-storage`, except for a pod that writes a lot in an `emptyDir`. Not the Talos static pods: they keep the settings of Talos.
+- The values come from the recommendations of Goldilocks, checked against the usage in VictoriaMetrics. A comment says why when they differ (the memory of Vector, sized for its catch-up).
+- The class, in the values of the chart or through the resource of the operator:
+  - `system-node-critical`: the agents of each node without which it loses its network or its storage (Cilium, LINSTOR satellites, CSI node plugin);
+  - `system-cluster-critical`: the cluster DNS and the controllers of the network and the storage;
+  - `infrastructure`: the rest of the platform, the observability and the Gateways included;
+  - none (0): the applications.
+- A Kustomization whose pods name `infrastructure` has `dependsOn` `priority-classes` (namespace `kube-system`): a pod that names an unknown class is refused.
+- Checked by the alert `ContainerWithoutMemoryLimit` ([observability](observability/README.md#alerting)).
+
 ### Secrets
 
 - Never in Git: an `ExternalSecret` next to the application, `secretStoreRef` on the `onepassword` `ClusterSecretStore`, `remoteRef.key: <item>/<field>` ([secrets](secrets/README.md#in-the-cluster-external-secrets)).

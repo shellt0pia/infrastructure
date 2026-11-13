@@ -1,0 +1,63 @@
+---
+# The checks of the resources convention (docs/conventions.md#resources-and-priorities), on the
+# series of kube-state-metrics. Converted to a VMRule by the operator of the stack.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: resources
+spec:
+  groups:
+    - name: resources
+      rules:
+        # A container or an init container without a memory limit. It covers a missing request
+        # too: a request is only missing when the limit is (the API server copies the limit to a
+        # missing request). Without `for`: the pod of a short Job counts while it runs. Out: the
+        # finished pods (`Succeeded`, `Failed`), kept by Kubernetes after a rollout, an eviction
+        # or a node shutdown, which would keep firing after the fix; the Talos static pods (owned
+        # by their Node), which keep the settings of Talos; and `debug`, the throwaway test pods.
+        # `info` until the sizing of the existing components, `warning` after it
+        # (docs/cluster-tools.md#3-sizing).
+        - alert: ContainerWithoutMemoryLimit
+          expr: |
+            max by (namespace, pod, container) (
+              (kube_pod_container_info{namespace!="debug"} or kube_pod_init_container_info{namespace!="debug"})
+              unless on (namespace, pod, container)
+                (kube_pod_container_resource_limits{resource="memory"} or kube_pod_init_container_resource_limits{resource="memory"})
+              unless on (namespace, pod)
+                kube_pod_owner{owner_kind="Node"}
+              unless on (namespace, pod)
+                (kube_pod_status_phase{phase=~"Succeeded|Failed"} == 1)
+            )
+          labels:
+            severity: info
+          annotations:
+            summary: "{{ $labels.container }} of {{ $labels.pod }} has no memory limit."
+            description: >-
+              The container {{ $labels.container }} of {{ $labels.namespace }}/{{ $labels.pod }}
+              has no memory limit: its memory is not bounded, and if it has no request either,
+              the scheduler counts none of it. Set its requests and limit from the
+              recommendations of Goldilocks (docs/conventions.md#resources-and-priorities).
+        # A container killed for its memory: past its limit, or chosen by the kernel when the node
+        # ran out of memory. Either restarted in the last 15 minutes after an OOM kill, or
+        # terminated by one and not restarted (the pod of a Job). Not seen: a process of the
+        # container killed while the container keeps running.
+        - alert: ContainerOOMKilled
+          expr: |
+            max by (namespace, pod, container) (
+              (
+                increase(kube_pod_container_status_restarts_total[15m]) > 0
+                and on (namespace, pod, container)
+                kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+              )
+              or
+              kube_pod_container_status_terminated_reason{reason="OOMKilled"} == 1
+            )
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.container }} of {{ $labels.pod }} was killed for its memory (OOM)."
+            description: >-
+              The container {{ $labels.container }} of {{ $labels.namespace }}/{{ $labels.pod }}
+              was OOM killed: it went past its memory limit, or the node ran out of memory. Its
+              usage against its request and limit in Grafana, then raise them from the
+              recommendations of Goldilocks (docs/conventions.md#resources-and-priorities).

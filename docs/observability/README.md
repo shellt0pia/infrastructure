@@ -164,6 +164,7 @@ Every component has modest requests and a memory limit from the start, with a co
   | `observability/nut-exporter/app` | The UPS alerts of the [external devices](#external-devices): `UPSExporterDown`, `UPSOnBattery`, `UPSLowBattery`, `UPSReplaceBattery` |
   | `observability/mktxp/app` | `MikrotikDown`, one per MikroTik device of the [external devices](#external-devices) |
   | `piraeus-datastore/piraeus-operator/cluster` | `linstorStoragePoolAtCapacity` `critical`, under 10 % free |
+  | `observability/victoria-metrics-k8s-stack/app` | The checks of the [resources](../cluster/README.md#resources-and-priorities), from kube-state-metrics, without `for`: `ContainerWithoutMemoryLimit` (`info` until the [sizing](../cluster-tools.md#3-sizing), then `warning`; a container or an init container, out of `debug`, the static pods and the finished pods), `ContainerOOMKilled` (`warning`: restarted in the last 15 minutes after an OOM kill, or terminated by one) |
   | `observability/victoria-metrics-k8s-stack/config` | `SELinuxUnlabeledDenials` (LogsQL, below) |
 
   The rules of the external devices come with stage 5 ([below](#external-devices)).
