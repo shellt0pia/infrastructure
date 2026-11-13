@@ -68,6 +68,16 @@ config:
   # serves no logs, exec nor metrics (docs/cluster/README.md#kubelet-serving-certificates).
   serverTLSBootstrap: true
 ---
+# The API server verifies the serving certificates of the kubelets (logs, exec, port-forward),
+# signed by the cluster CA since serverTLSBootstrap above. This file of Talos bundles the CAs
+# that the API server accepts, the one that signs the kubelet-serving CSRs included
+# (docs/cluster/README.md#kubelet-serving-certificates). Merged with the KubeAPIServerConfig of
+# cluster-rename.yaml while it exists.
+apiVersion: v1alpha1
+kind: KubeAPIServerConfig
+extraArgs:
+  kubelet-certificate-authority: /system/secrets/kubernetes/kube-apiserver/ca.crt
+---
 # Expose the metrics endpoints for Prometheus.
 # Go binds 0.0.0.0 as a dual-stack wildcard socket: these endpoints are reachable over IPv6 too.
 apiVersion: v1alpha1

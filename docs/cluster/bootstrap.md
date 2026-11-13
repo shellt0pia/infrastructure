@@ -596,3 +596,23 @@ The approver, then `serverTLSBootstrap` ([README](README.md#kubelet-serving-cert
   ```
 
   Expected: one series per node, about a year of seconds: the rule `KubeletServerCertificateExpiration` now has data. Every kubelet target at `1` (still `insecureSkipVerify` until metrics-server).
+
+- [ ] **Talos config of the API server**, once both nodes have their certificate. The diff, then one node (kube-01, then kube-03 once the checks below pass on kube-01):
+
+  ```sh
+  just talos diff
+  just talos apply-node kube-01
+  kubectl -n kube-system get pod kube-apiserver-kube-01 -o yaml | grep kubelet-certificate-authority
+  ```
+
+  Expected: the diff only adds `kubelet-certificate-authority` to the `extraArgs` of the `KubeAPIServerConfig` of each node, next to its `certExtraSANs`. The API server restarts with the flag, the node does not reboot.
+
+- [ ] **API server to kubelet, verified**, through the API server of the node, on a pod of each node:
+
+  ```sh
+  kubectl get pods -A -o wide --field-selector spec.nodeName=kube-03
+  kubectl --server https://kube-01.shelltopia.net:6443 --tls-server-name kubecluster-01.shelltopia.net -n <namespace> logs <pod> --tail=5
+  kubectl --server https://kube-01.shelltopia.net:6443 --tls-server-name kubecluster-01.shelltopia.net -n <namespace> exec <pod> -- <command>
+  ```
+
+  Expected: both work, for a pod of kube-01 and a pod of kube-03. `x509: certificate signed by unknown authority` means a kubelet still serves its self-signed certificate (its CSR, above).

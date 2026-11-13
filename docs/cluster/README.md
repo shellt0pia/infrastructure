@@ -22,7 +22,7 @@ How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap he
 | GPU | Intel device plugin | In use on kube-01 ([below](#gpu)) |
 | Registry mirror between the nodes | Spegel | Deployed by the bootstrap and Flux, [checks](bootstrap.md#spegel) not run yet ([below](#spegel)) |
 | Restart on configuration change | Reloader | Deployed by Flux, [checks](bootstrap.md#reloader) not run yet ([below](#reloader)) |
-| Kubelet serving certificates | kubelet-csr-approver | Approver deployed by the bootstrap and Flux, `serverTLSBootstrap` in the Talos config, [checks](bootstrap.md#kubelet-serving-certificates) not run yet. The verification by the API server [to do](../cluster-tools.md#commits) ([below](#kubelet-serving-certificates)) |
+| Kubelet serving certificates | kubelet-csr-approver | Approver deployed by the bootstrap and Flux, `serverTLSBootstrap` and the verification by the API server in the Talos config, [checks](bootstrap.md#kubelet-serving-certificates) not run yet ([below](#kubelet-serving-certificates)) |
 | First bootstrap | | In progress, with kube-01 and kube-03 only ([test phase](../nodes/README.md#test-phase-2-nodes)) |
 
 ## Overview
@@ -197,6 +197,7 @@ The kubelet serves its API (TCP 10250: logs, exec, metrics) with a self-signed c
 - **kubelet-csr-approver** ([postfinance](https://github.com/postfinance/kubelet-csr-approver), `cluster-tools/kubelet-csr-approver`) approves a CSR after checking it: the signer, the user `system:node:<node>`, a single DNS name, the node name, matching `^kube-0[1-9]$`, and the IP addresses in the nodes subnets, IPv4 and ULA (the InternalIPs, `nodeIP.validSubnets`). It denies the others: without the subnets, a node could get a certificate for any address, the ClusterIP of the API server included, which the pods trust through the cluster CA.
 - **No DNS check** (`bypassDnsResolution`): the node names are short and the nodes have no search domain, `kube-01` does not resolve from a pod. The subnets check the addresses instead.
 - **Until its CSR is approved**, a kubelet has no serving certificate: it serves no logs, exec nor metrics, and `VMAgent` sees its targets down. At a restart, it reuses the certificate it already has (`/var/lib/kubelet/pki`): only a new node waits for the approver.
+- **Verified by the API server** (`kubelet-certificate-authority` in `talos/patches/kubernetes.yaml.j2`), with the bundle of the CAs it accepts, written by Talos (`/system/secrets/kubernetes/kube-apiserver/ca.crt`). It reaches a kubelet by its InternalIP first (`kubelet-preferred-address-types`, Talos default), one of the addresses of the certificate. Applied once both nodes had their certificate: before, the API server would have refused the self-signed one of the other node.
 - **A single replica**, without leader election: while it is down, a CSR waits. A kubelet keeps its certificate until it expires (a year), and asks for the next one well before.
 - **Installed at bootstrap**, after Cilium and before Flux, then adopted by Flux ([above](#overview)).
 - **Alerts**: the kube-prometheus rules of the stack, `KubeletServerCertificateRenewalErrors` (a CSR not approved) and `KubeletServerCertificateExpiration`.
