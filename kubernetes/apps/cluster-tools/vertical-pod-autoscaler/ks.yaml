@@ -1,0 +1,23 @@
+---
+# The VPA recommender alone: recommendations for the sizing, read by Goldilocks, never applied.
+# Reads metrics.k8s.io, hence metrics-server first. Details:
+# docs/cluster/README.md#vpa-recommender.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: vertical-pod-autoscaler
+spec:
+  dependsOn:
+    - name: priority-classes
+      namespace: kube-system
+    - name: metrics-server
+      namespace: cluster-tools
+  interval: 1h
+  path: ./kubernetes/apps/cluster-tools/vertical-pod-autoscaler/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: cluster-tools
+  wait: true

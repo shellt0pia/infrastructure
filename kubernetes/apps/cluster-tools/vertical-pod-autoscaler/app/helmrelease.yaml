@@ -1,0 +1,62 @@
+---
+# The VPA recommender: from the usage that metrics-server reports, a recommendation of requests
+# for each workload that has a VerticalPodAutoscaler (created by Goldilocks). Without the
+# updater nor the admission controller, nothing is applied: the requests stay in Git. See
+# docs/cluster/README.md#vpa-recommender.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: vertical-pod-autoscaler
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: vertical-pod-autoscaler
+      version: 0.16.0
+      sourceRef:
+        kind: HelmRepository
+        name: autoscaler
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    # vpa-recommender, as in the manifests of upstream.
+    fullnameOverride: vpa
+    admissionController:
+      enabled: false
+    updater:
+      enabled: false
+    # Helm merges maps: runAsNonRoot and runAsUser of the chart are kept.
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+    # The CRDs are templates of the chart, kept at an uninstall (crds.keep, chart default).
+    recommender:
+      # The history is kept in VerticalPodAutoscalerCheckpoints (default storage), next to each
+      # VerticalPodAutoscaler: a restart does not lose it.
+      # A single replica, without leader election (only with more than one, chart default).
+      replicas: 1
+      podDisruptionBudget:
+        enabled: false
+      priorityClassName: infrastructure
+      # The minimums of a pod, split between its containers (defaults 25m and 250 MiB): the
+      # small components get their own recommendation.
+      extraArgs:
+        - --pod-recommendation-min-cpu-millicores=5
+        - --pod-recommendation-min-memory-mb=16
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          memory: 128Mi

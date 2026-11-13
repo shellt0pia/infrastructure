@@ -660,3 +660,57 @@ The release, and the kubelet scrapes of `VMAgent` verified ([README](README.md#m
   ```
 
   Expected: every target at `1`, for both nodes and the three paths (`/metrics`, `/metrics/cadvisor`, `/metrics/probes`). A target at `0` means a kubelet `VMAgent` cannot verify: the error is on its *Targets* page.
+
+  Done on 2026-11-13: the four checks as expected.
+
+### VPA recommender
+
+The recommender alone, without the updater nor the admission controller ([README](README.md#vpa-recommender)). After [metrics-server](#metrics-server).
+
+- [x] **Release.** Push, then once Flux has reconciled:
+
+  ```sh
+  flux -n cluster-tools get ks vertical-pod-autoscaler
+  flux -n cluster-tools get hr vertical-pod-autoscaler
+  kubectl -n cluster-tools get pods -l app.kubernetes.io/name=vertical-pod-autoscaler
+  kubectl get crd verticalpodautoscalers.autoscaling.k8s.io verticalpodautoscalercheckpoints.autoscaling.k8s.io
+  kubectl get mutatingwebhookconfigurations
+  kubectl -n cluster-tools logs deploy/vpa-recommender | grep -iE 'error|fail'
+  ```
+
+  Expected: both `Ready`, one pod `vpa-recommender` `Running`, the two CRDs. No VPA webhook, no updater. No error reading `metrics.k8s.io` in the logs.
+
+- [x] **A recommendation**, for a test Deployment in `debug`:
+
+  ```sh
+  kubectl -n debug create deployment vpa-test --image=docker.io/library/busybox -- sleep infinity
+  kubectl apply -f - <<'EOF'
+  apiVersion: autoscaling.k8s.io/v1
+  kind: VerticalPodAutoscaler
+  metadata:
+    name: vpa-test
+    namespace: debug
+  spec:
+    targetRef:
+      apiVersion: apps/v1
+      kind: Deployment
+      name: vpa-test
+    updatePolicy:
+      updateMode: "Off"
+  EOF
+  kubectl -n debug get vpa vpa-test
+  kubectl -n debug get vpa vpa-test -o jsonpath='{.status.recommendation}' | jq
+  kubectl -n debug get verticalpodautoscalercheckpoints
+  ```
+
+  Expected: within a few minutes, `PROVIDED` `True`, and a target at the floor: about `11m` of CPU (the first bucket of the CPU histogram, 10m, plus the margin of 15 %) and `16Mi` (the minimum). The upper bound is huge until about a day of history. Then a checkpoint `vpa-test-busybox`. The pod keeps its requests (none).
+
+- [x] **Cleanup:**
+
+  ```sh
+  kubectl -n debug delete vpa vpa-test
+  kubectl -n debug delete deployment vpa-test
+  kubectl -n debug get verticalpodautoscalercheckpoints
+  ```
+
+  Expected: the checkpoint is gone a few minutes later (garbage collected by the recommender every 10 minutes).
