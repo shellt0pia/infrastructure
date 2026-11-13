@@ -463,7 +463,7 @@ Two pushes: **4a** `vmalert`, the default rules and the dead man's switch, check
   kubectl -n debug delete pod np-alert-test
   ```
 
-  Expected: the flow in Hubble (`AUDIT`, ingress to `vmsingle`; audited, so the connection succeeds), then within two minutes (the scrape, the evaluation) `NetworkPolicyAuditedFlows` firing (no `for`: one flow is enough), `direction="ingress"`, `source_namespace="debug"`, `namespace="observability"` (the side whose policy decides), its summary with the number of flows and both ends; nothing on the phone (`info`). The alert gone an hour later (the `increase` window). `NetworkPolicyDroppedFlows` (`rate` over 10 minutes, `for: 20m`: drops spread over 10 minutes at least) is checked once the policies are [enforced](../cluster/bootstrap.md#network-policies), the same flow then dropped and repeated for 25 minutes.
+  Expected: the flow in Hubble (`AUDIT`, ingress to `vmsingle`; audited, so the connection succeeds), then within two minutes (the scrape, the evaluation) `NetworkPolicyAuditedFlows` firing (no `for`: one flow is enough), `direction="ingress"`, `source_namespace="debug"`, `namespace="observability"` (the side whose policy decides), its summary with the number of flows and both ends; nothing on the phone (`info`). The alert gone an hour later (the `increase` window). `NetworkPolicyDroppedFlows` (`rate` over 10 minutes, `for: 20m`: drops spread over 10 minutes at least) is checked once the policies are [enforced](../cluster/bootstrap.md#network-policies), the same flow then dropped and repeated for 25 minutes. Done on 2026-11-13: notified.
 
 - [x] **Vector.** `VLSingle` stopped for 10 minutes (the HelmRelease suspended, or Flux would scale it back):
 

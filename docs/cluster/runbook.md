@@ -113,7 +113,7 @@ How they work: [README](README.md#network-policies). A flow denied by a policy t
   hubble observe -P --verdict DROPPED --pod <namespace>/<pod> --last 100
   ```
 
-  A line gives the source and destination (pod, or identity such as `world`, `host`, `remote-node`), the port, and `Policy denied` with its direction (`INGRESS` on the side of the server, `EGRESS` on the side of the client). In audit mode, the same flows have the verdict `AUDIT`. Hubble UI (`https://hubble.shelltopia.org`, [README](README.md#network-policies)) shows the same flows by namespace, with a map of the services.
+  A line gives the source and destination (pod, or identity such as `world`, `host`, `remote-node`), the port, and `Policy denied` with its direction (`INGRESS` on the side of the server, `EGRESS` on the side of the client). In audit mode, the same flows have the verdict `AUDIT`. The ICMPv6 `RouterSolicitation` to `ff02::2` with `Invalid source ip` are harmless ([README](README.md#network-policies)): add `--not --drop-reason-desc INVALID_SOURCE_IP` to hide them. Hubble UI (`https://hubble.shelltopia.org`, [README](README.md#network-policies)) shows the same flows by namespace, with a map of the services.
 
   Hubble only keeps the last 4095 flows of each node in memory. For an older drop, read the export of each node (the logs, once the observability stack runs):
 

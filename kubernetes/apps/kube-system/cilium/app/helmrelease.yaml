@@ -131,12 +131,16 @@ spec:
       # other drops) are written as JSON lines to /var/run/cilium/hubble/events.log on each node:
       # Hubble only keeps the last 4095 flows in memory. Read by the log collector later, see
       # docs/cluster/runbook.md#network-policies. /var/run is a tmpfs on Talos: lost at reboot,
-      # 60 MB at most (10 MB files, 5 rotated ones).
+      # 60 MB at most (10 MB files, 5 rotated ones). Not exported: the Router Solicitations the
+      # pods send from their link-local address, dropped by the datapath of Cilium as
+      # INVALID_SOURCE_IP, harmless (docs/cluster/README.md#network-policies).
       export:
         static:
           enabled: true
           allowList:
             - '{"verdict":["AUDIT","DROPPED"]}'
+          denyList:
+            - '{"drop_reason_desc":["INVALID_SOURCE_IP"],"source_ip":["fe80::/10"],"destination_ip":["ff02::2"]}'
       # Flow metrics, for the dashboard and the alert of the denied flows
       # (docs/observability/README.md#metrics): `drop` counts the dropped packets by reason,
       # `policy` the policy verdicts (`action="audit"` in audit mode). At each end: the namespace

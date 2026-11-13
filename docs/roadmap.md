@@ -8,7 +8,7 @@ What is left to build on the Kubernetes cluster, and the questions still open. T
 | --- | --- |
 | Talos machine configs (`talos/`) | Done: Secure Boot, TPM disk encryption, disks and NIC selectors, dynamic network, NTP, NUT, watchdog, i915, DRBD, image verification. Pod Security `restricted` by default, not applied yet ([checks](cluster/bootstrap.md#pod-security)). |
 | Bootstrap (`bootstrap/`, `just bootstrap cluster`) | Done: Cilium (+ BGP and LB pools), CoreDNS, External Secrets, Flux. Spegel added, not run yet. |
-| GitOps (`kubernetes/apps`) | In use: Flux, External Secrets, Cilium, CoreDNS, cert-manager, Envoy Gateway and the Gateways, the application DNS, the storage, the backups and Reloader. Spegel added, [checks](cluster/bootstrap.md#spegel) not run yet. Cilium network policies enforced, [checks](cluster/bootstrap.md#network-policies) in progress. The status of each is in its [topic](README.md#list). |
+| GitOps (`kubernetes/apps`) | In use: Flux, External Secrets, Cilium, CoreDNS, cert-manager, Envoy Gateway and the Gateways, the application DNS, the storage, the backups and Reloader. Spegel added, [checks](cluster/bootstrap.md#spegel) not run yet. Cilium network policies enforced. The status of each is in its [topic](README.md#list). |
 | OpenTofu (`tofu/`) | States in B2 (encrypted, no locking). `backblaze`: buckets and keys of the backups, applied, keys pushed to 1Password. `cloudflare`: records not managed from the cluster (mail, CAA, PikaPods), SSL settings and DNSSEC, applied. |
 | First bootstrap | In progress, with kube-01 and kube-03 only. |
 
@@ -48,7 +48,7 @@ Architecture and status: [observability/README.md](observability/README.md#statu
 
 The plan, its decisions and its steps: [hubble-security.md](hubble-security.md).
 
-- [ ] Cilium network policies: enforced on 2026-11-13 (`policyAuditMode: false`), once the audited flows were read and the [observability](#observability) stack showed the drops. Left: the [checks](cluster/bootstrap.md#network-policies) of the enforcement. The host firewall, the baseline of the pods, the exceptions and Hubble Relay are deployed ([cluster](cluster/README.md#network-policies)).
+- [x] Cilium network policies: enforced on 2026-11-13 (`policyAuditMode: false`), once the audited flows were read and the [observability](#observability) stack showed the drops, then [checked](cluster/bootstrap.md#network-policies). The host firewall, the baseline of the pods, the exceptions and Hubble Relay are deployed ([cluster](cluster/README.md#network-policies)).
 - [x] Hubble UI, as `hubble.shelltopia.org` on the `internal` Gateway, behind a login on the Pocket ID done by Envoy (Relay and the `hubble` CLI are in place). Deployed on 2026-11-13 ([cluster](cluster/README.md#network-policies)).
 
 ### Cluster tools
@@ -145,7 +145,7 @@ The points of each topic are kept in its `evaluations.md`.
 
 - [ ] Network: ECMP and multi-WAN on OPNsense, the NAS *Pre Init* script, the ISP prefix change, the Milkywan WireGuard tunnel (in place, left: DNS), Cilium `bpf.masquerade`: [network/evaluations.md](network/evaluations.md#open-points).
 - [ ] Nodes: watchdog, `nfsrahead`, Talos firmware updates, firmware reset to the factory Secure Boot keys, serial of SATA disks, `EthernetConfig` alias, TPM unlock failure seen once on kube-01, Dell *Microsoft UEFI CA*, reboot of kube-03 stuck on `error closing encrypted volume` (`r-storage`): [nodes/evaluations.md](nodes/evaluations.md#open-points).
-- [ ] Cluster: Intel DRA driver, network policies (Talos host DNS), drops seen by Hubble without a verdict of the policies (ICMPv6 `INVALID_SOURCE_IP` on every pod, `UNKNOWN_L3_TARGET_ADDRESS` at the deployments, `FORBIDDEN_ICMPV6_MESSAGE` from `kube-apiserver`): [cluster/evaluations.md](cluster/evaluations.md#open-points).
+- [ ] Cluster: Intel DRA driver, network policies (Talos host DNS), drops seen by Hubble without a verdict of the policies (`UNKNOWN_L3_TARGET_ADDRESS` at the deployments, `FORBIDDEN_ICMPV6_MESSAGE` from `kube-apiserver`): [cluster/evaluations.md](cluster/evaluations.md#open-points).
 - [ ] Storage: LINSTOR thin pool oversubscription, Talos and the LINSTOR VG, Piraeus `talos-loader-override`, restarts of the LINSTOR controller (lost lease, `linstorControllerOffline`): [storage/evaluations.md](storage/evaluations.md#open-points).
 - [ ] Ingress: Envoy Gateway listeners after an upgrade (`ecdhCurves`): [ingress/evaluations.md](ingress/evaluations.md#open-points).
 - [ ] Backups: Kopiur, to look at again in early 2027 ([checklist](backups/evaluations.md#kopiur-evaluated-to-revisit)).

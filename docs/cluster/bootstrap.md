@@ -382,7 +382,7 @@ The policies were first deployed in audit mode (`policyAuditMode: true` in `kube
   done | hubble observe --input-file - --verdict AUDIT
   ```
 
-  Expected: none, except the tests below. Each other flow is either needed (add an exception, [runbook](runbook.md#network-policies)) or must be denied (note why). Done: the `AUDIT` flows only come with a new tool or manifest, until its exceptions are written, or go to the address of a pod just deleted (`world`: a stale scrape target, the old address of an Alertmanager peer; [observability](../observability/evaluations.md#open-points)). The drops `INVALID_SOURCE_IP`, `UNKNOWN_L3_TARGET_ADDRESS` and `FORBIDDEN_ICMPV6_MESSAGE` have no verdict of the policies: [open points](evaluations.md#open-points), they do not wait for the enforcement.
+  Expected: none, except the tests below. Each other flow is either needed (add an exception, [runbook](runbook.md#network-policies)) or must be denied (note why). Done: the `AUDIT` flows only come with a new tool or manifest, until its exceptions are written, or go to the address of a pod just deleted (`world`: a stale scrape target, the old address of an Alertmanager peer; [observability](../observability/evaluations.md#open-points)). The drops `INVALID_SOURCE_IP` (the Router Solicitations of the pods, harmless: [README](README.md#network-policies)), `UNKNOWN_L3_TARGET_ADDRESS` and `FORBIDDEN_ICMPV6_MESSAGE` have no verdict of the policies: [open points](evaluations.md#open-points), they do not wait for the enforcement.
 
 - [x] **Denied flows.** From a test pod on kube-01, towards the ports of another node (kubelet over IPv4, Talos API over ULA and GUA), and a private address outside of the cluster (the NAS, over ULA):
 
@@ -404,7 +404,7 @@ The policies were first deployed in audit mode (`policyAuditMode: true` in `kube
 
   Expected: the connections still succeed (audit mode), and each of the four first ones shows up as `AUDITED`, with `debug/np-test` and its identity as source. The two node ports are audited on `INGRESS` by the host firewall: the masquerading keeps the pod address towards the nodes (otherwise the source would be `remote-node`, allowed). The NAS and the GUA are audited on `EGRESS` by the baseline. DNS and HTTPS are not audited. Done: as expected.
 
-- [ ] **Enforce**, once the observability stack runs (the denied flows in the logs, the alert on the drops). Set `policyAuditMode: false` in `kubernetes/apps/kube-system/cilium/app/helmrelease.yaml`, commit and push. Once the Cilium pods are restarted:
+- [x] **Enforce**, once the observability stack runs (the denied flows in the logs, the alert on the drops). Set `policyAuditMode: false` in `kubernetes/apps/kube-system/cilium/app/helmrelease.yaml`, commit and push. Once the Cilium pods are restarted:
 
   ```sh
   kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.policy-audit-mode}{"\n"}'
@@ -422,6 +422,8 @@ The policies were first deployed in audit mode (`policyAuditMode: true` in `kube
   ```
 
   Expected: `false`. The four connections of the test pod time out, DNS and HTTPS work. No other `DROPPED` flow with `Policy denied`, and every Kustomization stays `Ready`. `NetworkPolicyDroppedFlows` fires within 25 minutes (`for: 20m`), `direction="ingress"`, `namespace="observability"`, its summary from `debug/(a pod without workload)` to `observability/vmsingle-victoria-metrics-k8s-stack`, and notifies on the phone (`warning`); it resolves about 10 minutes after the pod is deleted (the `rate` window). No more `NetworkPolicyAuditedFlows`. Then update the status in the [README](README.md#status) and the [roadmap](../roadmap.md#security).
+
+  Done on 2026-11-13: `false`; the only other drops are the Router Solicitations of the pods (`Invalid source ip`, harmless, [README](README.md#network-policies)). The four connections of the test pod time out, DNS and HTTPS work, the NAS flow is `Policy denied` on `EGRESS`. The Gateways, the internal DNS and the LINSTOR volumes work. The alert notifies; its summary then had no name for a pod without workload, since shown as `(a pod without workload)` with the namespaces.
 
 ### Pod Security
 
