@@ -11,3 +11,8 @@ resources:
   - ./victoria-metrics-k8s-stack/ks.yaml
   - ./grafana/ks.yaml
   - ./vector-aggregator/ks.yaml
+  - ./nut-exporter/ks.yaml
+  - ./mktxp/ks.yaml
+  - ./opnsense-exporter/ks.yaml
+  - ./snmp-exporter/ks.yaml
+  - ./blackbox-exporter/ks.yaml

@@ -14,3 +14,31 @@ spec:
         - matchLabels:
             io.kubernetes.pod.namespace: observability-agents
             app.kubernetes.io/name: vector-agent
+---
+# VMAgent scrapes os-node_exporter on fw-01 (internal network, out of the baseline; the
+# VMStaticScrape in config/): by name, never by address. The DNS rule lets Cilium learn the
+# addresses of the name from the answers of CoreDNS. Every name in it, not only fw-01: the DNS
+# proxy of Cilium refuses the names a DNS rule does not list, and VMAgent resolves others (the
+# Service of VMSingle for its remote write) (docs/conventions.md#network-policies).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vmagent-fw-01
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: vmagent
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toFQDNs:
+        - matchName: fw-01.shelltopia.net

@@ -1,0 +1,22 @@
+---
+# os-node_exporter, the plugin of OPNsense: the host fw-01, scraped by VMAgent itself (no exporter
+# to deploy, docs/observability/README.md#external-devices). The egress of VMAgent to fw-01 is in
+# app/ciliumnetworkpolicy.yaml. Plain HTTP on 9100, allowed from the nodes by an OPNsense rule.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMStaticScrape
+metadata:
+  name: opnsense-node-exporter
+spec:
+  # The `job` variable of the dashboard (19366) lists the jobs of `node_uname_info`, the rule
+  # selects this one.
+  jobName: opnsense-node-exporter
+  targetEndpoints:
+    # The trailing dot skips the search domains of the pod, one query per scrape instead of six.
+    # `instance` is the short name of the device rather than that address.
+    - targets: ["fw-01.shelltopia.net.:9100"]
+      labels:
+        instance: fw-01
+      path: /metrics
+      scheme: http
+      interval: 30s
+      scrapeTimeout: 10s

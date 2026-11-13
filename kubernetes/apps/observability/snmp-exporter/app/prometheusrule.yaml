@@ -1,0 +1,25 @@
+---
+# The alerts of the SNMP devices (docs/observability/README.md#external-devices). The series carry
+# `namespace` (observability) and `instance` (the device). Converted to a VMRule by the operator of
+# the stack.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: snmp-exporter
+spec:
+  groups:
+    - name: snmp-exporter
+      rules:
+        # The exporter answers 500 when the walk fails (unreachable, timeout, the user or a key
+        # refused): the scrape fails, `up` is 0. It also covers the exporter itself.
+        - alert: SNMPTargetDown
+          expr: up{job="snmp-exporter"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.instance }} has not been walked for 5 minutes."
+            description: >-
+              The SNMP walk of {{ $labels.instance }} fails: the device is down or unreachable,
+              SNMP is disabled on it, or its SNMPv3 user or keys are refused. The logs of
+              snmp-exporter give the error.

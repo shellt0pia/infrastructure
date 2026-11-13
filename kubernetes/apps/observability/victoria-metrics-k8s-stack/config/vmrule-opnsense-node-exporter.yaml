@@ -1,0 +1,25 @@
+---
+# The alert of os-node_exporter on fw-01 (docs/observability/README.md#external-devices), next to
+# its VMStaticScrape. A static scrape has no namespace: `observability` is added by label_replace,
+# for the grouping and the inhibition (docs/observability/README.md#alerting).
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: opnsense-node-exporter
+spec:
+  groups:
+    - name: opnsense-node-exporter
+      rules:
+        # A `warning`: if the firewall itself were down, no notification would leave anyway
+        # (the dead man's switch).
+        - alert: OPNsenseNodeExporterDown
+          expr: label_replace(up{job="opnsense-node-exporter"} == 0, "namespace", "observability", "", "")
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "The host metrics of {{ $labels.instance }} have not been read for 5 minutes."
+            description: >-
+              The scrape of os-node_exporter on {{ $labels.instance }}
+              (fw-01.shelltopia.net:9100) fails: the plugin is stopped, the firewall is
+              unreachable from the nodes, or its rule for the nodes is missing.

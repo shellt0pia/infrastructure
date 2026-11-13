@@ -1,0 +1,537 @@
+# WARNING: This file was auto-generated using snmp_exporter generator, manual changes will be lost.
+modules:
+  gwn_ap:
+    walk:
+      - 1.3.6.1.4.1.42397.1.1.2
+      - 1.3.6.1.4.1.42397.1.1.3.1.1.2
+      - 1.3.6.1.4.1.42397.1.1.3.1.1.3
+      - 1.3.6.1.4.1.42397.1.1.3.1.1.4
+      - 1.3.6.1.4.1.42397.1.1.3.1.1.5
+      - 1.3.6.1.4.1.42397.1.1.3.2
+      - 1.3.6.1.4.1.42397.1.1.3.3
+    metrics:
+      - name: gwnDeviceModel
+        oid: 1.3.6.1.4.1.42397.1.1.2.1
+        type: DisplayString
+        help: Description. - 1.3.6.1.4.1.42397.1.1.2.1
+      - name: gwnDeviceName
+        oid: 1.3.6.1.4.1.42397.1.1.2.2
+        type: DisplayString
+        help: Description. - 1.3.6.1.4.1.42397.1.1.2.2
+      - name: gwnDeviceMac
+        oid: 1.3.6.1.4.1.42397.1.1.2.3
+        type: DisplayString
+        help: Description. - 1.3.6.1.4.1.42397.1.1.2.3
+      - name: gwnDeviceVersion
+        oid: 1.3.6.1.4.1.42397.1.1.2.4
+        type: DisplayString
+        help: Description. - 1.3.6.1.4.1.42397.1.1.2.4
+      - name: gwnDeviceIPAddress
+        oid: 1.3.6.1.4.1.42397.1.1.2.5
+        type: DisplayString
+        help: Description. - 1.3.6.1.4.1.42397.1.1.2.5
+      - name: gwnDeviceUptime
+        oid: 1.3.6.1.4.1.42397.1.1.2.6
+        type: gauge
+        help: Description. - 1.3.6.1.4.1.42397.1.1.2.6
+        scale: 0.01
+      - name: gwnApStatus
+        oid: 1.3.6.1.4.1.42397.1.1.2.7.1.2
+        type: DisplayString
+        help: Description. - 1.3.6.1.4.1.42397.1.1.2.7.1.2
+        indexes:
+          - labelname: gwnStatusMac
+            type: DisplayString
+      - name: gwnRadioStatus
+        oid: 1.3.6.1.4.1.42397.1.1.3.1.1.3
+        type: gauge
+        help: Radio status. - 1.3.6.1.4.1.42397.1.1.3.1.1.3
+        indexes:
+          - labelname: gwnRadioIndex
+            type: gauge
+        lookups:
+          - labels:
+              - gwnRadioIndex
+            labelname: gwnRadioName
+            oid: 1.3.6.1.4.1.42397.1.1.3.1.1.2
+            type: DisplayString
+      - name: gwnRadioChannel
+        oid: 1.3.6.1.4.1.42397.1.1.3.1.1.4
+        type: gauge
+        help: Radio Channel. - 1.3.6.1.4.1.42397.1.1.3.1.1.4
+        indexes:
+          - labelname: gwnRadioIndex
+            type: gauge
+        lookups:
+          - labels:
+              - gwnRadioIndex
+            labelname: gwnRadioName
+            oid: 1.3.6.1.4.1.42397.1.1.3.1.1.2
+            type: DisplayString
+      - name: gwnRadioTransmitPower
+        oid: 1.3.6.1.4.1.42397.1.1.3.1.1.5
+        type: gauge
+        help: Radio transmit power. - 1.3.6.1.4.1.42397.1.1.3.1.1.5
+        indexes:
+          - labelname: gwnRadioIndex
+            type: gauge
+        lookups:
+          - labels:
+              - gwnRadioIndex
+            labelname: gwnRadioName
+            oid: 1.3.6.1.4.1.42397.1.1.3.1.1.2
+            type: DisplayString
+      - name: gwnWlanTxTotalFrames
+        oid: 1.3.6.1.4.1.42397.1.1.3.2.1.4
+        type: counter
+        help: Wlan tx total frames. - 1.3.6.1.4.1.42397.1.1.3.2.1.4
+        indexes:
+          - labelname: gwnWlanIndex
+            type: gauge
+        lookups:
+          - labels:
+              - gwnWlanIndex
+            labelname: gwnWlanESSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.2.1.2
+            type: DisplayString
+          - labels:
+              - gwnWlanIndex
+            labelname: gwnWlanBSSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.2.1.3
+            type: DisplayString
+      - name: gwnWlanTxDataFrames
+        oid: 1.3.6.1.4.1.42397.1.1.3.2.1.5
+        type: counter
+        help: Wlan tx data frames. - 1.3.6.1.4.1.42397.1.1.3.2.1.5
+        indexes:
+          - labelname: gwnWlanIndex
+            type: gauge
+        lookups:
+          - labels:
+              - gwnWlanIndex
+            labelname: gwnWlanESSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.2.1.2
+            type: DisplayString
+          - labels:
+              - gwnWlanIndex
+            labelname: gwnWlanBSSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.2.1.3
+            type: DisplayString
+      - name: gwnWlanTxDataBytes
+        oid: 1.3.6.1.4.1.42397.1.1.3.2.1.6
+        type: counter
+        help: Wlan tx data bytes. - 1.3.6.1.4.1.42397.1.1.3.2.1.6
+        indexes:
+          - labelname: gwnWlanIndex
+            type: gauge
+        lookups:
+          - labels:
+              - gwnWlanIndex
+            labelname: gwnWlanESSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.2.1.2
+            type: DisplayString
+          - labels:
+              - gwnWlanIndex
+            labelname: gwnWlanBSSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.2.1.3
+            type: DisplayString
+      - name: gwnWlanRxTotalFrames
+        oid: 1.3.6.1.4.1.42397.1.1.3.2.1.7
+        type: counter
+        help: Wlan rx total frames. - 1.3.6.1.4.1.42397.1.1.3.2.1.7
+        indexes:
+          - labelname: gwnWlanIndex
+            type: gauge
+        lookups:
+          - labels:
+              - gwnWlanIndex
+            labelname: gwnWlanESSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.2.1.2
+            type: DisplayString
+          - labels:
+              - gwnWlanIndex
+            labelname: gwnWlanBSSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.2.1.3
+            type: DisplayString
+      - name: gwnWlanRxDataFrames
+        oid: 1.3.6.1.4.1.42397.1.1.3.2.1.8
+        type: counter
+        help: Wlan rx data frames. - 1.3.6.1.4.1.42397.1.1.3.2.1.8
+        indexes:
+          - labelname: gwnWlanIndex
+            type: gauge
+        lookups:
+          - labels:
+              - gwnWlanIndex
+            labelname: gwnWlanESSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.2.1.2
+            type: DisplayString
+          - labels:
+              - gwnWlanIndex
+            labelname: gwnWlanBSSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.2.1.3
+            type: DisplayString
+      - name: gwnWlanRxDataBytes
+        oid: 1.3.6.1.4.1.42397.1.1.3.2.1.9
+        type: counter
+        help: Wlan rx data bytes. - 1.3.6.1.4.1.42397.1.1.3.2.1.9
+        indexes:
+          - labelname: gwnWlanIndex
+            type: gauge
+        lookups:
+          - labels:
+              - gwnWlanIndex
+            labelname: gwnWlanESSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.2.1.2
+            type: DisplayString
+          - labels:
+              - gwnWlanIndex
+            labelname: gwnWlanBSSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.2.1.3
+            type: DisplayString
+      - name: gwnClientRSSI
+        oid: 1.3.6.1.4.1.42397.1.1.3.3.1.6
+        type: gauge
+        help: Client RSSI. - 1.3.6.1.4.1.42397.1.1.3.3.1.6
+        indexes:
+          - labelname: gwnClientMACAddress
+            type: gauge
+        lookups:
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientESSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.5
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientWlanMACAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.4
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClienttIPAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.3
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientHostname
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.9
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientManufacture
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.8
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientOS
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.10
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientMACAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.2
+            type: DisplayString
+      - name: gwnClientAssoctime
+        oid: 1.3.6.1.4.1.42397.1.1.3.3.1.7
+        type: gauge
+        help: Client assoctime. - 1.3.6.1.4.1.42397.1.1.3.3.1.7
+        indexes:
+          - labelname: gwnClientMACAddress
+            type: gauge
+        lookups:
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientESSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.5
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientWlanMACAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.4
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClienttIPAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.3
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientHostname
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.9
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientManufacture
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.8
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientOS
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.10
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientMACAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.2
+            type: DisplayString
+        scale: 0.01
+      - name: gwnClientTxRate
+        oid: 1.3.6.1.4.1.42397.1.1.3.3.1.11
+        type: gauge
+        help: Client tx rate. - 1.3.6.1.4.1.42397.1.1.3.3.1.11
+        indexes:
+          - labelname: gwnClientMACAddress
+            type: gauge
+        lookups:
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientESSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.5
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientWlanMACAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.4
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClienttIPAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.3
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientHostname
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.9
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientManufacture
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.8
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientOS
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.10
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientMACAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.2
+            type: DisplayString
+      - name: gwnClientTxDataFrames
+        oid: 1.3.6.1.4.1.42397.1.1.3.3.1.12
+        type: counter
+        help: Client tx data frames. - 1.3.6.1.4.1.42397.1.1.3.3.1.12
+        indexes:
+          - labelname: gwnClientMACAddress
+            type: gauge
+        lookups:
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientESSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.5
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientWlanMACAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.4
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClienttIPAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.3
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientHostname
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.9
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientManufacture
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.8
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientOS
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.10
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientMACAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.2
+            type: DisplayString
+      - name: gwnClientTxDataBytes
+        oid: 1.3.6.1.4.1.42397.1.1.3.3.1.13
+        type: counter
+        help: Client tx data bytes. - 1.3.6.1.4.1.42397.1.1.3.3.1.13
+        indexes:
+          - labelname: gwnClientMACAddress
+            type: gauge
+        lookups:
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientESSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.5
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientWlanMACAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.4
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClienttIPAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.3
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientHostname
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.9
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientManufacture
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.8
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientOS
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.10
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientMACAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.2
+            type: DisplayString
+      - name: gwnClientRxRate
+        oid: 1.3.6.1.4.1.42397.1.1.3.3.1.14
+        type: gauge
+        help: Client rx rate. - 1.3.6.1.4.1.42397.1.1.3.3.1.14
+        indexes:
+          - labelname: gwnClientMACAddress
+            type: gauge
+        lookups:
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientESSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.5
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientWlanMACAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.4
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClienttIPAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.3
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientHostname
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.9
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientManufacture
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.8
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientOS
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.10
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientMACAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.2
+            type: DisplayString
+      - name: gwnClientRxDataFrames
+        oid: 1.3.6.1.4.1.42397.1.1.3.3.1.15
+        type: counter
+        help: Client rx data frames. - 1.3.6.1.4.1.42397.1.1.3.3.1.15
+        indexes:
+          - labelname: gwnClientMACAddress
+            type: gauge
+        lookups:
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientESSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.5
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientWlanMACAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.4
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClienttIPAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.3
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientHostname
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.9
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientManufacture
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.8
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientOS
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.10
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientMACAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.2
+            type: DisplayString
+      - name: gwnClientRxDataBytes
+        oid: 1.3.6.1.4.1.42397.1.1.3.3.1.16
+        type: counter
+        help: Client rx data bytes. - 1.3.6.1.4.1.42397.1.1.3.3.1.16
+        indexes:
+          - labelname: gwnClientMACAddress
+            type: gauge
+        lookups:
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientESSID
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.5
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientWlanMACAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.4
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClienttIPAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.3
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientHostname
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.9
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientManufacture
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.8
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientOS
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.10
+            type: DisplayString
+          - labels:
+              - gwnClientMACAddress
+            labelname: gwnClientMACAddress
+            oid: 1.3.6.1.4.1.42397.1.1.3.3.1.2
+            type: DisplayString
+    max_repetitions: 1

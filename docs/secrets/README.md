@@ -40,7 +40,7 @@ The cluster only ever sees the `kubernetes` vault. The workstation sees both vau
 | Vault | Content | Read by |
 | --- | --- | --- |
 | `infrastructure` | Secrets of the workstation and of the infrastructure, never synced to the cluster: `talos-secrets` (Talos secrets bundle), `docker-hub-kube-cluster01`, `nas-01-nut-server`, the OpenTofu items (`tofu-state-encryption`, `backblaze-b2-tofu-state`, `backblaze-b2-tofu-admin`, `cloudflare-tofu`), `restic-nas` | The workstation service account |
-| `kubernetes` | Secrets synced to the cluster: `1password-external-secrets-operator` (token of the store), `cloudflare-cert-manager`, `cloudflare-external-dns`, `cloudflare-ddns`, `pushover-alertmanager`, `restic-volsync`, `healthchecks`, and `backblaze-b2-cnpg`, `pocket-id-grafana`, `sw-01-snmp` and `ap-01-snmp` later | External Secrets, and the workstation service account |
+| `kubernetes` | Secrets synced to the cluster: `1password-external-secrets-operator` (token of the store), `cloudflare-cert-manager`, `cloudflare-external-dns`, `cloudflare-ddns`, `pushover-alertmanager`, `restic-volsync`, `healthchecks`, `backblaze-b2-cnpg`, `pocket-id-grafana`, `ap-01-snmp`, `sw-01-mktxp`, `fw-01-opnsense-exporter` | External Secrets, and the workstation service account |
 | `personal` | The token of the workstation service account | The personal account only |
 
 The items of the cluster are described with the tool that uses them: [backups](../backups/README.md#destination-backblaze-b2), [DNS](../dns/README.md#public-external-dns-and-cloudflare-ddns), [certificates](../ingress/README.md#certificate) and [observability](../observability/README.md#alerting). The [Talos secrets bundle](bootstrap.md#2-talos-secrets) is the PKI of the cluster: generated once, never regenerated.
@@ -52,12 +52,12 @@ Items are named after what they connect, in lowercase with hyphens. Three forms:
 | Form | For | Examples |
 | --- | --- | --- |
 | `<provider>-<app>` | A secret that authenticates a tool of the repository to an external service: the service, then the tool that uses it (the name of its folder in `kubernetes/apps`, or of the component for a release that bundles several, as `alertmanager` in `victoria-metrics-k8s-stack`). When the user is the cluster itself, not a tool, the name of the cluster. | `cloudflare-external-dns`, `cloudflare-cert-manager`, `pushover-alertmanager`, `pocket-id-grafana` (its OIDC client), `backblaze-b2-cnpg`, `backblaze-b2-tofu-admin`, `docker-hub-kube-cluster01` (the nodes pull with it), `1password-external-secrets-operator` (the token of its store) |
-| `<host>-<service>` | The credentials of a service exposed by one of our own devices: the host, then the service. | `sw-01-snmp`, `ap-01-snmp`, `nas-01-nut-server` |
+| `<host>-<service>` | The credentials of a service exposed by one of our own devices: the host, then the service. | `sw-01-mktxp`, `fw-01-opnsense-exporter`, `ap-01-snmp`, `nas-01-nut-server` |
 | `<tool>-<purpose>` | The settings of a tool for one use, when it is not a connection to a provider. | `restic-volsync`, `restic-nas` (the restic repository of VolSync and of Backrest) |
 
 - **One item per pair**, so that a secret that leaks gives access to one application only. A second application on the same provider gets its own item and its own token, never a shared one ([conventions](../conventions.md#secrets)).
 - **The same name everywhere**: the item in 1Password, the `remoteRef.key` of the `ExternalSecret`, and the prerequisite in the `bootstrap.md` of the topic.
-- **Fields**: `credential` for the secret itself (token, client secret, password), `username` for its identifier when it has one (the Pushover user key, an OIDC client id). Any other field is named after what it holds (`repository`, `access-key-id`...).
+- **Fields**: `credential` for the secret itself (token, client secret), `username` for its identifier when it has one (the Pushover user key, an OIDC client id). A user and its password on a device or a service is a *Login* item: `username` and `password`, its own fields (`sw-01-mktxp`). Any other field is named after what it holds (`repository`, `access-key-id`...).
 - Some items fit none of the forms, on purpose: `talos-secrets`, `tofu-state-encryption`, and `healthchecks` (a *Secure Note* holding one ping URL per tool, one field per check).
 
 ## In the cluster: External Secrets

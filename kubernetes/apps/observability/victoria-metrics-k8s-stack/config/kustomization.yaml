@@ -5,3 +5,5 @@ kind: Kustomization
 resources:
   - ./vmnodescrape-etcd.yaml
   - ./vmrule-selinux.yaml
+  - ./vmstaticscrape-opnsense-node-exporter.yaml
+  - ./vmrule-opnsense-node-exporter.yaml

@@ -1,0 +1,14 @@
+---
+# The SNMPv3 users of the devices (docs/observability/README.md#external-devices), loaded as a
+# third --config.file. The protocols here, the credentials from the environment
+# (--config.expand-environment-variables, externalsecret.yaml).
+auths:
+  # authPriv, SHA and AES (AES-128): the strongest the GWN offers.
+  ap-01:
+    version: 3
+    security_level: authPriv
+    username: ${AP_01_SNMP_USERNAME}
+    password: ${AP_01_SNMP_PASSWORD}
+    auth_protocol: SHA
+    priv_protocol: AES
+    priv_password: ${AP_01_SNMP_PRIV_PASSWORD}

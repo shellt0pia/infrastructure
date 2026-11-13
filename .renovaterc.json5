@@ -8,6 +8,10 @@
   kubernetes: {
     managerFilePatterns: ['/(^|/)kubernetes/.+\\.ya?ml$/'],
   },
+  // Images in the values of the app-template releases (e.g. nut-exporter).
+  'helm-values': {
+    managerFilePatterns: ['/(^|/)kubernetes/.+\\.ya?ml$/'],
+  },
   customManagers: [
     {
       customType: 'regex',

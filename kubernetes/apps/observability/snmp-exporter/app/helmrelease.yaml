@@ -1,0 +1,146 @@
+---
+# snmp_exporter, the SNMP devices: the access point (docs/observability/README.md#external-devices).
+# One replica: a scrape missed while it moves with a node is harmless.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: snmp-exporter
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: snmp-exporter
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  # Restarted by Reloader when the credentials (envFrom) or the modules (snmp-exporter-config) change:
+  # both read once at startup. The chart has no value for the annotations of the Deployment.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              group: apps
+              kind: Deployment
+              name: snmp-exporter
+            patch: |
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: snmp-exporter
+                annotations:
+                  reloader.stakater.com/auto: "true"
+  values:
+    # `app.kubernetes.io/name=snmp-exporter` (the network policy) and the names of the resources.
+    nameOverride: snmp-exporter
+
+    # The tag is also the version of the generator image (`just kube snmp-generate`): the module is
+    # generated again when Renovate bumps it.
+    image:
+      repository: quay.io/prometheus/snmp-exporter
+      tag: v0.31.0
+
+    # The default modules of the image (`system`, `if_mib`, the host ones), then the Grandstream
+    # module and the auths (app/kustomization.yaml): the files are merged. The `${...}` of the auths
+    # come from the environment.
+    extraArgs:
+      - --config.file=/etc/snmp_exporter/snmp.yml
+      - --config.file=/config/snmp-gwn.yml
+      - --config.file=/config/snmp-auths.yml
+      - --config.expand-environment-variables
+    # AP_01_SNMP_USERNAME, _PASSWORD and _PRIV_PASSWORD (externalsecret.yaml).
+    envFrom:
+      - secretRef:
+          name: snmp-exporter
+    extraConfigmapMounts:
+      - name: config
+        mountPath: /config
+        configMap: snmp-exporter-config
+        readOnly: true
+        defaultMode: 420
+
+    # The Role of the chart (`get` on the endpoints) is not used by the exporter.
+    rbac:
+      create: false
+
+    # `restricted`: the image runs as nobody (65534). The chart sets 1000 on the container by
+    # default, replaced here.
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      runAsGroup: 65534
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      runAsUser: 65534
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: ["ALL"]
+
+    # To resize from the metrics.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+
+    # Both families (docs/conventions.md#listen-addresses): one socket, the default `:9116` of the
+    # exporter (Go). The probes read `/-/healthy`, which does not walk a device.
+    service:
+      port: 9116
+
+    # One ServiceMonitor per entry (`snmp-exporter-<name>`), `job="snmp-exporter"` (the name of the
+    # Service, the default of its `jobLabel`), read by the rule. The exporter walks the device
+    # during the scrape. `instance` is the short name of the device: `relabelings` for `up`,
+    # `additionalMetricsRelabels` for the series (the chart sets them to the target). `target` is
+    # the name of the entry, on the series (the chart) and on `up`: two entries of a device would be
+    # identical targets otherwise, and VMAgent keeps one.
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      scrapeTimeout: 20s
+      # The default selector (`prometheus: kube-prometheus`), a label for a Prometheus, removed
+      # (`{}` would be merged with it): the operator of the stack converts every ServiceMonitor.
+      selector: null
+      params:
+        # The trailing dot: the name asked as is, not after the search domains of the pod (the
+        # chart has no dnsConfig), which the DNS rule of the network policy would refuse.
+        # Its AAAA only: SNMP over IPv6.
+        - name: ap-01
+          target: ap-01.shelltopia.net.
+          # The host modules of the image: the CPU per core (`hrDevice`) and the load (`ucd_la_table`),
+          # which the Grandstream MIB lacks.
+          module: [system, if_mib, hrDevice, ucd_la_table]
+          auth: [ap-01]
+          relabelings:
+            - targetLabel: instance
+              replacement: ap-01
+              action: replace
+            - targetLabel: target
+              replacement: ap-01
+              action: replace
+          additionalMetricsRelabels:
+            instance: ap-01
+        # The Grandstream module on its own, every 5 minutes (the radio settings and the clients
+        # change slowly): its agent is slow (generator.yml), and the scrapes of `ap-01` that wait
+        # behind its walk can time out.
+        - name: ap-01-wifi
+          target: ap-01.shelltopia.net.
+          module: [gwn_ap]
+          auth: [ap-01]
+          interval: 5m
+          scrapeTimeout: 90s
+          relabelings:
+            - targetLabel: instance
+              replacement: ap-01
+              action: replace
+            - targetLabel: target
+              replacement: ap-01-wifi
+              action: replace
+          additionalMetricsRelabels:
+            instance: ap-01

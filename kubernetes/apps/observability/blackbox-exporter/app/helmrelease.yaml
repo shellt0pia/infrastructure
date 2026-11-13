@@ -1,0 +1,123 @@
+---
+# blackbox_exporter, the HTTP checks of the services hosted at PikaPods
+# (docs/observability/README.md#external-devices). One replica: a probe missed while it moves with
+# a node is harmless.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: blackbox-exporter
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: blackbox-exporter
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    # `app.kubernetes.io/name=blackbox-exporter` (a later network policy) and the names of the
+    # resources: `job="blackbox-exporter"`, the name of the Service (the `jobLabel` of the chart,
+    # the release name, is no label of the Service).
+    nameOverride: blackbox-exporter
+
+    # The modules, in a ConfigMap of the chart. The pod template carries its checksum: a change
+    # restarts the exporter, no Reloader. One module per family, without fallback, so that a
+    # broken family fails on its own. `fail_if_not_ssl`: the final answer (after the redirects)
+    # must come over TLS; its certificate is checked against the trust store of the image.
+    config:
+      modules:
+        # The default module of the chart (IPv4 with fallback), not used.
+        http_2xx: null
+        http_2xx_ipv4:
+          prober: http
+          timeout: 10s
+          http:
+            preferred_ip_protocol: ip4
+            ip_protocol_fallback: false
+            fail_if_not_ssl: true
+            valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+        http_2xx_ipv6:
+          prober: http
+          timeout: 10s
+          http:
+            preferred_ip_protocol: ip6
+            ip_protocol_fallback: false
+            fail_if_not_ssl: true
+            valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+
+    # The names of the targets are asked as is first, not after the search domains of the pod:
+    # one query per family and probe instead of four. No trailing dot in the URLs instead: it
+    # would go into the `Host` header and the `instance` label.
+    dnsConfig:
+      options:
+        - name: ndots
+          value: "1"
+
+    # `restricted`: the image runs as nobody (65534). The chart sets 1000 on the container by
+    # default, replaced here, and no seccomp profile.
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      runAsGroup: 65534
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      runAsGroup: 65534
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: ["ALL"]
+
+    # To resize from the metrics.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+
+    # Both families (docs/conventions.md#listen-addresses): one socket, the default `:9115` of the
+    # exporter (Go). The probes of the pod read `/-/healthy`, which probes nothing.
+    service:
+      port: 9115
+
+    # One ServiceMonitor per target (`blackbox-exporter-<name>`), every minute
+    # (docs/observability/README.md#external-devices). The exporter probes during the scrape:
+    # `probe_success` is 0 when the probe fails, the scrape still answers. The chart sets
+    # `instance` (the URL) and `target` (the name) on the series only (`metricRelabelings`).
+    # `relabelings` set `instance` and `module` on the target too: without them, the four
+    # targets would have the same labels (the pod, the Service), and VMAgent keeps one. `module`
+    # also tells the two families of a URL apart, on the series and in the alerts.
+    serviceMonitor:
+      enabled: true
+      defaults:
+        interval: 1m
+        scrapeTimeout: 15s
+        additionalRelabeling:
+          - sourceLabels: [__param_target]
+            targetLabel: instance
+          - sourceLabels: [__param_module]
+            targetLabel: module
+      # Both names have `A` and `AAAA` (CNAMEs to PikaPods, resolved through the fallthrough of
+      # k8s-gateway to Cloudflare, docs/dns/README.md#internal-k8s-gateway). The names of the
+      # targets are the `target` label, read by the dashboard (14928).
+      targets:
+        - name: pocket-id-ipv4
+          url: https://id.shelltopia.org/.well-known/openid-configuration
+          module: http_2xx_ipv4
+        - name: pocket-id-ipv6
+          url: https://id.shelltopia.org/.well-known/openid-configuration
+          module: http_2xx_ipv6
+        # No documented health endpoint: the root, redirected to the dashboard (followed).
+        - name: uptime-kuma-ipv4
+          url: https://uptime.shelltopia.org/
+          module: http_2xx_ipv4
+        - name: uptime-kuma-ipv6
+          url: https://uptime.shelltopia.org/
+          module: http_2xx_ipv6

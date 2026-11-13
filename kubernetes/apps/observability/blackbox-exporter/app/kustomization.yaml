@@ -1,0 +1,11 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# No network policy: the targets are public, reached through the baseline. A probe of the cluster
+# or of the private network gets its own `toFQDNs` rule, added with the target
+# (docs/observability/README.md#network-and-pod-security).
+resources:
+  - ./ocirepository.yaml
+  - ./helmrelease.yaml
+  - ./prometheusrule.yaml

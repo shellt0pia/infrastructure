@@ -189,7 +189,7 @@ flowchart TD
 
 The failover state must be a metric in VictoriaMetrics (`primary_up`, 1 when the fibre gateway is up, 0 otherwise).
 
-- [ ] **Choose the source.** An exporter of the OPNsense gateway status (e.g. the community `opnsense-exporter`: **to verify** that it exposes the gateway status and its metric name), or the Teltonika SNMP. Do not rely on a metric name before checking.
+- [ ] **Choose the source.** An exporter of the OPNsense gateway status (the community `opnsense-exporter`, deployed at [observability stage 5e](../observability/bootstrap.md#5-external-devices), exposes it: `opnsense_gateways_status`, per gateway `name`, 0 offline and 1 online), or the Teltonika SNMP.
 - [ ] **Alert** on `primary_up == 0` for a few minutes ([observability](../observability/README.md)).
 
 ### Stop the applications: KEDA (**prerequisite: KEDA is not deployed**)

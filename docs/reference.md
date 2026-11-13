@@ -12,7 +12,6 @@ The names, addresses, ports, namespaces, items and schedules scattered in the to
 | `kube-cluster01.shelltopia.net` | The cluster endpoint: DNS round-robin, one AAAA per node, API on port 6443 | [network](network/README.md#principles) |
 | `gateway-external.kube-cluster01.shelltopia.net` | Entry name of the external Gateway, target of the public CNAMEs | [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
 | `syslog.kube-cluster01.shelltopia.net` | The Vector aggregator: syslog of the devices. Unbound host overrides, `A` and `AAAA` to its pinned addresses | [observability](observability/README.md#logs) |
-| `graphite.kube-cluster01.shelltopia.net` | The Graphite listener of `VMAgent` (reserved: the TrueNAS exporter takes an IP only). Unbound host overrides, `A` and `AAAA` to its pinned addresses | [observability](observability/README.md#metrics) |
 | `ntp-01.shelltopia.net`, `ups-01-dmz.shelltopia.net` | NTP (OPNsense) and NUT server (the NAS) of the nodes | [network](network/README.md#principles) |
 
 ## Addresses
@@ -41,7 +40,6 @@ Every LoadBalancer Service pins its addresses (`lbipam.cilium.io/ips`), allocate
 | --- | --- | --- | --- | --- | --- |
 | Envoy, `internal` Gateway | `internal` | `192.168.19.1` | `fd38:4c4d:8f66:13::1` | The names of the applications (k8s-gateway), the OPNsense rules of the clients. Still dynamic, [to pin](roadmap.md#ingress) | [ingress](ingress/README.md#overview) |
 | Vector aggregator (`syslog`) | `internal` | `192.168.19.2` | `fd38:4c4d:8f66:13::2` | Host overrides `syslog.kube-cluster01.shelltopia.net`, the OPNsense rules of the device VLANs | [observability](observability/README.md#logs) |
-| Graphite of `VMAgent` | `internal` | `192.168.19.3` | `fd38:4c4d:8f66:13::3` | Host overrides `graphite.kube-cluster01.shelltopia.net`, the TrueNAS exporter (by IP), the OPNsense rules | [observability](observability/README.md#metrics) |
 | k8s-gateway | `internal` | `192.168.19.53` | `fd38:4c4d:8f66:13::53` | The Unbound query forwarding of `shelltopia.org` | [dns](dns/README.md#internal-k8s-gateway) |
 | Envoy, `external` Gateway | `external` | `192.168.19.129` | `2a0e:e701:2132:13::1` (GUA, expected, to check once the pool is applied) | The HAProxy backends, the `wg2` rules of OPNsense. Still dynamic (IPv4 checked on 2026-11-02), [to pin](roadmap.md#ingress) | [ingress](ingress/README.md#overview) |
 
@@ -66,7 +64,7 @@ Every LoadBalancer Service pins its addresses (`lbipam.cilium.io/ips`), allocate
 | TCP 10250 (kubelet), 2381 (etcd), 10259 (scheduler), 10257 (controller-manager), 9100 (node-exporter), 9962 (Cilium agent), 9963 (Cilium operator), 9965 (Hubble), 9942 (drbd-reactor) | `VMAgent` → nodes (host firewall) | [observability](observability/README.md#network-and-pod-security) |
 | TCP and UDP 514 (to the pod port 5514): syslog | Devices → Vector aggregator (`syslog.kube-cluster01.shelltopia.net`) | [observability](observability/README.md#logs) |
 | TCP 6050 (Talos kernel logs), 6051 (Talos service logs), on `127.0.0.1` (IPv4 only) | Talos → the hostPorts of the Vector agent of the same node | [observability](observability/README.md#logs) |
-| Graphite, chosen at stage 5 | TrueNAS → `VMAgent` (`graphite.kube-cluster01.shelltopia.net`) | [observability](observability/README.md#metrics) |
+| TCP 9100 and 8443 (`fw-01`, the web UI for the API), TCP 8729 (`sw-01`), UDP 161 (`ap-01`), TCP 3493 (`ups-01-dmz`) | Nodes (the exporters, `VMAgent`) → the scraped devices, IPv6 (`AAAA` only) | [observability](observability/README.md#external-devices) |
 
 ## Namespaces
 
@@ -103,6 +101,7 @@ A namespace whose applications are exposed on the internet carries the label `sh
 | `kubernetes` | `healthchecks` | Ping URLs of the checks, one field per check: the backups, the dead man's switch of Alertmanager (`kube-cluster01-alertmanager`) | [backups](backups/README.md#monitoring), [observability](observability/README.md#alerting) |
 | `kubernetes` | `pushover-alertmanager` | Alertmanager (field `username`: the Pushover user key, `credential`: the application token) | [observability](observability/README.md#alerting) |
 | `kubernetes` | `pocket-id-grafana` | Grafana, OIDC client of the Pocket ID (`username`: the client id, `credential`: the secret) | [observability](observability/README.md#grafana) |
+| `kubernetes` | `sw-01-mktxp`, `fw-01-opnsense-exporter`, `ap-01-snmp` | The exporters of the devices: MKTXP (*Login*: `username`, `password`), opnsense-exporter (`username`: the API key, `credential`: its secret), snmp-exporter (*API*, plus `privacy_key`) | [observability](observability/README.md#external-devices) |
 | `kubernetes` | `backblaze-b2-cnpg` | CloudNativePG, later | [backups](backups/README.md#destination-backblaze-b2) |
 | `personal` | Token of the workstation service account | The shell of the workstation | [secrets](secrets/README.md#on-the-workstation-a-read-only-service-account) |
 
@@ -118,7 +117,8 @@ The tokens to renew and their consumers are in the [secrets runbook](secrets/run
 | 1Password | Every secret | [secrets](secrets/README.md) |
 | healthchecks.io | Checks of the backups, dead man's switch of Alertmanager | [backups](backups/README.md#monitoring), [observability](observability/README.md#alerting) |
 | Pushover | Notifications of Alertmanager | [observability](observability/README.md#alerting) |
-| Pocket ID (PikaPods) | OIDC login of Grafana, later | [observability](observability/README.md#grafana) |
+| Pocket ID (PikaPods) | OIDC login of Grafana, later; HTTP check of blackbox-exporter | [observability](observability/README.md#grafana), [checks](observability/README.md#external-devices) |
+| Uptime Kuma (PikaPods) | External observer; HTTP check of blackbox-exporter | [observability](observability/README.md#external-devices) |
 | GitHub | The repository followed by Flux | [cluster](cluster/README.md#decisions) |
 | Docker Hub | Pulls through the credentials of containerd | [secrets](secrets/bootstrap.md#3-docker-hub) |
 
@@ -128,6 +128,7 @@ The tokens to renew and their consumers are in the [secrets runbook](secrets/run
 | --- | --- | --- |
 | Every minute | external-dns | [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
 | Every minute | The `Watchdog` alert pings healthchecks.io (grace 3 minutes), once the rules run | [observability](observability/README.md#alerting) |
+| Every minute | The HTTP checks of blackbox-exporter (Pocket ID, Uptime Kuma, IPv4 and IPv6) | [observability](observability/README.md#external-devices) |
 | Every 5 minutes | cloudflare-ddns detects the WAN IPv4 | [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
 | Every hour | Refresh of the ExternalSecrets of the Cloudflare tokens, reconciliation of the Kustomizations and HelmReleases | [conventions](conventions.md#flux-kustomizations) |
 | Every 12 hours | Refresh of the ExternalSecrets of VolSync and of its monitoring | [backups](backups/runbook.md#refreshing-the-secrets) |

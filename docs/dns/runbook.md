@@ -9,7 +9,7 @@ Day-to-day operations on the DNS records. Architecture: [README.md](README.md).
 | Name of an application served by the cluster | k8s-gateway (internal), external-dns (public) | Nothing by hand: list its `hostnames` in the HTTPRoute and attach it to the right Gateway(s) ([ingress](../ingress/runbook.md#exposing-an-application)). |
 | Other records of `shelltopia.org` and `shelltopia.net` in Cloudflare (mail, CAA, PikaPods, SSL settings) | OpenTofu | Edit `tofu/cloudflare`, then see below. |
 | Names of the nodes, the cluster endpoint, the internal services (NAS, NTP, UPS) | Unbound on OPNsense | Host overrides ([network](../network/README.md#names)). |
-| Names of the receivers of the cluster (`syslog.kube-cluster01.shelltopia.net`, `graphite.kube-cluster01.shelltopia.net`) | Unbound on OPNsense | Host overrides `A` and `AAAA`, to the [pinned addresses](../reference.md#pinned-loadbalancer-addresses) of their Service: update both together. |
+| Names of the receivers of the cluster (`syslog.kube-cluster01.shelltopia.net`) | Unbound on OPNsense | Host overrides `A` and `AAAA`, to the [pinned addresses](../reference.md#pinned-loadbalancer-addresses) of their Service: update both together. |
 | `A` and `AAAA` of `shelltopia.net` (hosts, firewall, WireGuard endpoints) | ddns-updater, or by hand | Not managed from the cluster. |
 
 Never add to `tofu/cloudflare` a record owned by external-dns or cloudflare-ddns (the CNAMEs of the applications, the `cname-*` and `aaaa-*` TXT records, the `A` and `AAAA` of `gateway-external.kube-cluster01.shelltopia.net`): the tools would fight over it ([rules](README.md#overview)).

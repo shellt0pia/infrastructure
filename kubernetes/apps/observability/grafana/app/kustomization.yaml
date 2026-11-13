@@ -7,13 +7,17 @@ resources:
   - ./externalsecret.yaml
   - ./role.yaml
   - ./helmrelease.yaml
-# The dashboards of the repository, read by the sidecar of Grafana (label grafana_dashboard).
+# The dashboards of the repository, read by the sidecar of Grafana (label grafana_dashboard): its
+# own, and the community ones vendored to adapt them (docs/observability/README.md#the-release-of-the-stack).
 # Grafana variables look like those of Flux: the substitution of the volsync component (ks.yaml)
 # must skip them.
 configMapGenerator:
   - name: grafana-dashboards-repository
     files:
+      - ./dashboards/blackbox.json
       - ./dashboards/denied-flows.json
+      - ./dashboards/snmp-device.json
+      - ./dashboards/wifi.json
     options:
       disableNameSuffixHash: true
       labels:

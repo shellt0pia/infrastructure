@@ -1,0 +1,57 @@
+---
+# The alerts of the UPS (docs/observability/README.md#external-devices). The series carry the
+# `ups` label set by the ServiceMonitor, and `namespace` (observability). Converted to a VMRule by
+# the operator of the stack.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: nut-exporter
+spec:
+  groups:
+    - name: nut-exporter
+      rules:
+        # `/ups_metrics` answers 500 when the NUT server is unreachable or does not know the UPS:
+        # the scrape fails, so this alert covers the exporter, the NUT server and its host. A
+        # `warning`: the UPS itself may be fine.
+        - alert: UPSExporterDown
+          expr: up{job="nut-exporter"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "The UPS {{ $labels.ups }} has not been read for 5 minutes."
+            description: >-
+              The scrape of nut-exporter ({{ $labels.instance }}) fails: the exporter, the NUT
+              server (ups-01-dmz.shelltopia.net:3493) or the UPS name is wrong. The state of the
+              UPS is unknown meanwhile; the logs of the exporter give the error.
+        # A mains outage: the nodes stay up on the battery until `LB`.
+        - alert: UPSOnBattery
+          expr: network_ups_tools_ups_status{flag="OB"} == 1
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "The UPS {{ $labels.ups }} is on battery."
+            description: >-
+              The UPS {{ $labels.ups }} has been running on its battery for over a minute: the
+              mains are down or its input is unplugged. The shutdown starts at low battery.
+        # No `for`: on battery, low battery is when upsmon shuts its clients down.
+        - alert: UPSLowBattery
+          expr: network_ups_tools_ups_status{flag="LB"} == 1
+          labels:
+            severity: critical
+          annotations:
+            summary: "The UPS {{ $labels.ups }} is at low battery."
+            description: >-
+              The battery of the UPS {{ $labels.ups }} is low: on battery, the clients of the
+              NUT server (upsmon) shut down now.
+        - alert: UPSReplaceBattery
+          expr: network_ups_tools_ups_status{flag="RB"} == 1
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "The battery of the UPS {{ $labels.ups }} needs replacing."
+            description: >-
+              The UPS {{ $labels.ups }} reports a battery to replace (`RB`) for an hour: its
+              runtime on an outage is no longer reliable.

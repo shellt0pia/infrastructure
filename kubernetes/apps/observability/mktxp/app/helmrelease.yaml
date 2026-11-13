@@ -1,0 +1,200 @@
+---
+# MKTXP (akpw), the MikroTik devices read over `api-ssl` (docs/observability/README.md#external-devices).
+# One section per device in mktxp.conf, the credentials in the Secret of the ExternalSecret. One
+# replica: a scrape missed while it moves with a node is harmless.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: mktxp
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: mktxp
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      mktxp:
+        # Restarted by Reloader when the credentials change: MKTXP reads the credentials file
+        # once, at startup. Not `auto`: the ConfigMap of the chart already restarts the pod
+        # through its checksum, Reloader would restart it a second time.
+        annotations:
+          secret.reloader.stakater.com/reload: mktxp
+        # The init container too (applyDefaultContainerOptionsToInitContainers, the default).
+        defaultContainerOptions:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+        # MKTXP adds the keys missing from its files at startup (the new ones of each version)
+        # and writes them back: a read-only ConfigMap would only log an error, but the files are
+        # copied to a writable emptyDir, from the ConfigMap at each start.
+        initContainers:
+          config:
+            image:
+              repository: ghcr.io/akpw/mktxp
+              tag: 2.1.0
+            command: ["cp", "/config/mktxp.conf", "/config/_mktxp.conf", "/etc/mktxp/"]
+            resources:
+              requests:
+                cpu: 10m
+                memory: 16Mi
+              limits:
+                memory: 16Mi
+        containers:
+          app:
+            image:
+              repository: ghcr.io/akpw/mktxp
+              tag: 2.1.0
+            command: ["mktxp"]
+            args: ["--cfg-dir", "/etc/mktxp", "export"]
+            # TCP: every HTTP path of MKTXP but `/probe` is `/metrics`, and each read collects
+            # from the switch.
+            probes:
+              liveness:
+                enabled: true
+                type: TCP
+              readiness:
+                enabled: true
+                type: TCP
+            # To resize from the metrics.
+            resources:
+              requests:
+                cpu: 10m
+                memory: 64Mi
+              limits:
+                memory: 128Mi
+
+    defaultPodOptions:
+      # `restricted`: the user of the image (mktxp, 1000).
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      # `sw-01.shelltopia.net` is asked as is first, not after the search domains of the pod:
+      # one query per connection instead of six. Not the trailing dot of nut-exporter: the name
+      # is also the TLS server name (SNI and certificate check), which fails with a trailing
+      # dot in Python.
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "1"
+
+    # The files of docs/observability/README.md#external-devices. `routerboard_name` is the
+    # name of the section (`sw-01`), on every series of the device.
+    configMaps:
+      config:
+        data:
+          mktxp.conf: |
+            [sw-01]
+                hostname = sw-01.shelltopia.net
+                credentials_file = /credentials/sw-01.yaml
+
+            [default]
+                # Off when missing, like most of the keys below: every section is read.
+                enabled = True
+
+                # `api-ssl`, its Let's Encrypt certificate checked against the trust store of
+                # the image (`ssl_ca_file` empty) and the name above.
+                port = 8729
+                use_ssl = True
+                no_ssl_certificate = False
+                ssl_certificate_verify = True
+                ssl_check_hostname = True
+                ssl_ca_file = ""
+
+                # Collectors: the defaults of MKTXP, plus these three. The certificate of
+                # `api-ssl` shows a broken push from fw-01.
+                switch_port = True
+                routerboard = True
+                certificate = True
+
+                # Disable not used collectors
+                poe = False
+                wireless = False
+                wireless_clients = False
+                capsman = False
+                capsman_clients = False
+                dhcp = False
+                dhcp_lease = False
+                pool = False
+                public_ip = False
+                netwatch = False
+                kid_control_assigned = False
+                kid_control_dynamic = False
+          _mktxp.conf: |
+            [MKTXP]
+                # Both families (docs/conventions.md#listen-addresses). One socket each: waitress
+                # sets IPV6_V6ONLY on an IPv6 one, so `[::]` alone would refuse IPv4.
+                listen = '0.0.0.0:49090 [::]:49090'
+                socket_timeout = 5
+
+                # Reconnection after a failure: every 30 s at first, then up to 5 minutes
+                # (2 to 15 by default), so that the metrics come back soon after a reboot of
+                # the switch.
+                initial_delay_on_failure = 30
+                max_delay_on_failure = 300
+                delay_inc_div = 5
+
+                # The periodic speed test (to 8.8.8.8) and `/probe` (other targets than the
+                # sections above) are not used.
+                bandwidth = False
+                enable_probe = False
+
+                verbose_mode = False
+                fetch_routers_in_parallel = False
+                compact_default_conf_values = False
+
+    persistence:
+      config:
+        type: configMap
+        identifier: config
+        advancedMounts:
+          mktxp:
+            config:
+              - path: /config
+                readOnly: true
+      etc-mktxp:
+        type: emptyDir
+        advancedMounts:
+          mktxp:
+            config:
+              - path: /etc/mktxp
+            app:
+              - path: /etc/mktxp
+      credentials:
+        type: secret
+        name: mktxp
+        advancedMounts:
+          mktxp:
+            app:
+              - path: /credentials
+                readOnly: true
+
+    service:
+      app:
+        controller: mktxp
+        ports:
+          http:
+            port: 49090
+
+    # `job="mktxp"` (the `app.kubernetes.io/name` of the Service, the default `jobLabel`).
+    # MKTXP collects from the devices during the scrape: a few seconds over `api-ssl`.
+    serviceMonitor:
+      app:
+        service:
+          identifier: app
+        endpoints:
+          - port: http
+            path: /metrics
+            interval: 30s
+            scrapeTimeout: 20s

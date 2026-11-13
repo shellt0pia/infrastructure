@@ -47,6 +47,7 @@ kubernetes/apps/<namespace>/
 ### Charts
 
 - The chart comes from an `OCIRepository` of the application (`chartRef` in the `HelmRelease`), with the version pinned in it: Renovate updates it. A chart that only exists in a Helm repository uses a `HelmRepository`, as external-dns.
+- An application without a usable chart uses `app-template` of bjw-s (`oci://ghcr.io/bjw-s-labs/helm/app-template`), the same `OCIRepository` and `HelmRelease` pattern: its values describe the controllers, the service, the `serviceMonitor`, the ConfigMaps and the volumes. The images of its values are followed by the `helm-values` manager of Renovate. Its majors break the values of every such application at once: read its changelog before each upgrade. `network/cloudflare-ddns` stays in plain manifests until it is replaced ([why](observability/evaluations.md#app-template-or-plain-manifests)).
 - `install.remediation.retries: -1`, `upgrade.cleanupOnFail: true` and `upgrade.remediation.retries: 3`.
 - The bootstrap helmfile reads the chart, the version and the values from here: `kubernetes/apps` stays the only source ([cluster](cluster/README.md#overview)).
 - The values explain in a comment what is not obvious (why a setting is set, which one to keep in sync with another file).
@@ -66,6 +67,7 @@ Every pod is in default deny ([cluster](cluster/README.md#network-policies)). Wi
 
 - Anything else it needs is a `CiliumNetworkPolicy` in `ciliumnetworkpolicy.yaml`, next to the application (in `app/`), with a comment that says which flow it allows and why.
 - An egress from a pod to the internal network (NAS, OPNsense, a LAN or VLAN device) is filtered by name, never by address or subnet: a `toFQDNs` rule (`matchName`, or `matchPattern`) on the application that needs it, next to a DNS rule that lets Cilium learn the addresses behind the name (the example below). The names are those of the internal DNS, so every device that a pod reaches has a record. `toCIDR` only for a peer that has no name, with a comment saying why. The addresses stay out of the manifests, as everywhere else in the repository ([network](network/README.md#principles)).
+- The DNS rule sends every DNS query of the pod through the DNS proxy of Cilium, which refuses the names it does not list. It lists the device names only when the pod resolves nothing else (an exporter of one device). A pod that also resolves other names (Services, the internet) has `matchPattern: "*"` there instead, as `VMAgent`: its `toFQDNs` rule still decides where it connects.
 - Select the peers, not the ports: `fromEntities` (`world`, `cluster`, `remote-node`...) or `fromEndpoints` with labels, and no `toPorts`. The only `toPorts` is the DNS rule of an FQDN egress, which Cilium requires to see the answers. A port that changes with an upgrade then breaks nothing, and a pod only exposes the ports it listens on. Only the host firewall (`cilium/policies/host.yaml`) filters by port, the ports of the nodes being fixed.
 - Labels that stay stable across upgrades (`app.kubernetes.io/name`, the labels set by the repository), and `io.kubernetes.pod.namespace` to select a pod of another namespace.
 - A policy for pods created by an operator goes next to the resource that defines them (`linstor-controller` next to the `LinstorCluster`).
@@ -89,7 +91,7 @@ spec:
             app.kubernetes.io/name: <client>
 ```
 
-An egress to a device of the internal network, by name (`<device>.shelltopia.net` is a placeholder). Not tested yet:
+An egress to a device of the internal network, by name (`<device>.shelltopia.net` is a placeholder), for a pod that resolves no other name:
 
 ```yaml
 ---
@@ -118,6 +120,14 @@ spec:
     - toFQDNs:
         - matchName: <device>.shelltopia.net
 ```
+
+### Listen addresses
+
+The cluster is dual-stack: an application listens in both families whenever it allows it, never in IPv4 only. A client in IPv6 (a probe, a scrape, a dual-stack Service, a device) would fail otherwise.
+
+- One socket for both when the application binds `[::]` without `IPV6_V6ONLY` (Go with `:<port>`, Vector with `[::]:<port>`).
+- One address per family when it sets `IPV6_V6ONLY` on its IPv6 socket (`0.0.0.0:<port>` and `[::]:<port>`, as MKTXP and its waitress server).
+- A comment next to the address says which of the two, and why if only one family is possible.
 
 ### Pod security
 
@@ -151,7 +161,7 @@ spec:
 
 - Never in Git: an `ExternalSecret` next to the application, `secretStoreRef` on the `onepassword` `ClusterSecretStore`, `remoteRef.key: <item>/<field>` ([secrets](secrets/README.md#in-the-cluster-external-secrets)).
 - A long `refreshInterval` (`1h`, `12h` for VolSync): the service account has rate limits.
-- One item and one token per tool, so that a leaked one gives no access to the others, named `<provider>-<app>` or `<host>-<service>` (`cloudflare-external-dns`, `sw-01-snmp`: [naming](secrets/README.md#naming-of-the-items)). Items of the cluster in the `kubernetes` vault, the rest in `infrastructure` ([reference](reference.md#1password-items)).
+- One item and one token per tool, so that a leaked one gives no access to the others, named `<provider>-<app>` or `<host>-<service>` (`cloudflare-external-dns`, `sw-01-mktxp`: [naming](secrets/README.md#naming-of-the-items)). Items of the cluster in the `kubernetes` vault, the rest in `infrastructure` ([reference](reference.md#1password-items)).
 
 ### Reloads
 

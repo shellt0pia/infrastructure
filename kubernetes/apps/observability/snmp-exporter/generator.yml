@@ -1,0 +1,80 @@
+---
+# The Grandstream module of snmp_exporter (docs/observability/README.md#external-devices), from
+# GRANDSTREAM-GWN-PRODUCTS-AP-MIB. `just kube snmp-generate` writes app/snmp-gwn.yml from it, then
+# fixes the index of the client table (the recipe): never edit that file by hand. No `auths` here:
+# they live in app/snmp-auths.yml, with the credentials read from the environment.
+modules:
+  gwn_ap:
+    # The agent of the AP computes every value on its own (about 0.5 s per radio value), whatever
+    # the number per request, and answers nothing else meanwhile. One value per request (GETBULK
+    # and GET): the scrapes of both VMAgent replicas and of the other modules interleave, and a
+    # walk does not compute the values past its subtree (`gwnApSystemInfo` with the default 25
+    # read most of the radio table).
+    max_repetitions: 1
+    walk:
+      # The AP copy of the system info (`gwnDevice*` under 42397.1.1.2, the MIB defines them a
+      # second time under 42397.1.3.1) and the status table.
+      - GRANDSTREAM-GWN-PRODUCTS-AP-MIB::gwnApSystemInfo
+      # The radio columns that IF-MIB lacks, and the name (lookup). The traffic and the errors of
+      # the radios come from `if_mib` (`wifi0` and `wifi1`, 64-bit, read in milliseconds); the
+      # other columns cost about 0.5 s per value.
+      - GRANDSTREAM-GWN-PRODUCTS-AP-MIB::gwnRadioStatus
+      - GRANDSTREAM-GWN-PRODUCTS-AP-MIB::gwnRadioChannel
+      - GRANDSTREAM-GWN-PRODUCTS-AP-MIB::gwnRadioTransmitPower
+      - GRANDSTREAM-GWN-PRODUCTS-AP-MIB::gwnWlanTable
+      # On the AP: indexed by the row number in a first column, not by the MAC as the MIB
+      # declares, every column one further. The recipe fixes its metrics after the generation.
+      - GRANDSTREAM-GWN-PRODUCTS-AP-MIB::gwnClientTable
+    # The text columns as labels of the numeric ones; the index and lookup columns are not
+    # exported again as metrics of their own (the pattern of `if_mib`).
+    lookups:
+      - source_indexes: [gwnRadioIndex]
+        lookup: GRANDSTREAM-GWN-PRODUCTS-AP-MIB::gwnRadioName
+      - source_indexes: [gwnWlanIndex]
+        lookup: GRANDSTREAM-GWN-PRODUCTS-AP-MIB::gwnWlanESSID
+      - source_indexes: [gwnWlanIndex]
+        lookup: GRANDSTREAM-GWN-PRODUCTS-AP-MIB::gwnWlanBSSID
+      - source_indexes: [gwnClientMACAddress]
+        lookup: GRANDSTREAM-GWN-PRODUCTS-AP-MIB::gwnClientESSID
+      - source_indexes: [gwnClientMACAddress]
+        lookup: GRANDSTREAM-GWN-PRODUCTS-AP-MIB::gwnClientWlanMACAddress
+      - source_indexes: [gwnClientMACAddress]
+        lookup: GRANDSTREAM-GWN-PRODUCTS-AP-MIB::gwnClienttIPAddress
+      - source_indexes: [gwnClientMACAddress]
+        lookup: GRANDSTREAM-GWN-PRODUCTS-AP-MIB::gwnClientHostname
+      - source_indexes: [gwnClientMACAddress]
+        lookup: GRANDSTREAM-GWN-PRODUCTS-AP-MIB::gwnClientManufacture
+      - source_indexes: [gwnClientMACAddress]
+        lookup: GRANDSTREAM-GWN-PRODUCTS-AP-MIB::gwnClientOS
+    overrides:
+      gwnStatusMac:
+        ignore: true # Index
+      gwnRadioIndex:
+        ignore: true # Index
+      gwnRadioName:
+        ignore: true # Lookup
+      gwnWlanIndex:
+        ignore: true # Index
+      gwnWlanESSID:
+        ignore: true # Lookup
+      gwnWlanBSSID:
+        ignore: true # Lookup
+      gwnClientMACAddress:
+        ignore: true # Index
+      gwnClientESSID:
+        ignore: true # Lookup
+      gwnClientWlanMACAddress:
+        ignore: true # Lookup
+      gwnClienttIPAddress:
+        ignore: true # Lookup
+      gwnClientHostname:
+        ignore: true # Lookup
+      gwnClientManufacture:
+        ignore: true # Lookup
+      gwnClientOS:
+        ignore: true # Lookup
+      # TimeTicks, hundredths of a second: in seconds.
+      gwnDeviceUptime:
+        scale: 0.01
+      gwnClientAssoctime:
+        scale: 0.01

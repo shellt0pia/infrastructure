@@ -1,0 +1,116 @@
+---
+# opnsense-exporter (AthennaMind), the API of fw-01: what the host view of os-node_exporter does
+# not show (docs/observability/README.md#external-devices). One replica: a scrape missed while it
+# moves with a node is harmless.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: opnsense-exporter
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: opnsense-exporter
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      opnsense-exporter:
+        # Restarted by Reloader when the API key changes: read from the environment at startup.
+        annotations:
+          reloader.stakater.com/auto: "true"
+        containers:
+          app:
+            image:
+              repository: ghcr.io/athennamind/opnsense-exporter
+              tag: 0.0.19
+            # The web UI of fw-01 listens on 8443 on the interface of the nodes. Its certificate
+            # is public (Let's Encrypt): checked, no `--opnsense.insecure`. `opnsense_instance`
+            # on every series, read by the dashboard (21113). The collectors whose privileges
+            # are not granted to the API user are disabled, each one would log a 403 at every
+            # scrape (the table of the README): Unbound, firmware, cron, ARP, Kea, CARP,
+            # OpenVPN, IPsec.
+            args:
+              - --opnsense.protocol=https
+              - --opnsense.address=fw-01.shelltopia.net:8443
+              - --exporter.instance-label=fw-01
+              - --exporter.disable-unbound
+              - --exporter.disable-firmware
+              - --exporter.disable-cron-table
+              - --exporter.disable-arp-table
+              - --exporter.disable-kea-dhcpv4
+              - --exporter.disable-kea-dhcpv6
+              - --exporter.disable-carp
+              - --exporter.disable-openvpn
+              - --exporter.disable-ipsec
+            # OPNSENSE_EXPORTER_OPS_API_KEY and _SECRET (externalsecret.yaml).
+            envFrom:
+              - secretRef:
+                  name: opnsense-exporter
+            # `/`, the landing page: `/metrics` calls the API of fw-01 at each read, and a
+            # firewall unreachable must not restart the pod.
+            probes:
+              liveness:
+                enabled: true
+                type: HTTP
+                path: /
+              readiness:
+                enabled: true
+                type: HTTP
+                path: /
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: ["ALL"]
+            # To resize from the metrics.
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
+
+    defaultPodOptions:
+      # `restricted`: the image (distroless `static`) runs as root by default, 65534 (nobody)
+      # here.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      # `fw-01.shelltopia.net` is asked as is first, not after the search domains of the pod:
+      # one query per connection instead of six. Not a trailing dot: the name is also the
+      # server name of the TLS check and the Host header of the requests.
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "1"
+
+    # Both families (docs/conventions.md#listen-addresses): one socket, the default `:8080` of
+    # the exporter (Go).
+    service:
+      app:
+        controller: opnsense-exporter
+        ports:
+          http:
+            port: 8080
+
+    # `job="opnsense-exporter"` (the `app.kubernetes.io/name` of the Service, the default
+    # `jobLabel`), read by the rules. The exporter calls the API during the scrape. A failing
+    # API still answers 200: `opnsense_up` is 0 then (prometheusrule.yaml).
+    serviceMonitor:
+      app:
+        service:
+          identifier: app
+        endpoints:
+          - port: http
+            path: /metrics
+            interval: 30s
+            scrapeTimeout: 20s

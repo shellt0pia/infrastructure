@@ -1,0 +1,862 @@
+{
+  "title": "Access point: Wi-Fi",
+  "uid": "wifi",
+  "description": "The access point: the radios, SSIDs and clients from the Grandstream module of snmp-exporter (gwn_ap, every 5 minutes), the traffic of the radios, the CPU and the load from the standard modules (every 30 s). The other interfaces are in the generic SNMP dashboard. See docs/observability/README.md#external-devices.",
+  "tags": [
+    "snmp",
+    "wifi",
+    "grandstream"
+  ],
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Data source",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {
+          "text": "VictoriaMetrics",
+          "value": "VictoriaMetrics"
+        }
+      },
+      {
+        "name": "instance",
+        "label": "Access point",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(gwnRadioStatus, instance)",
+          "refId": "instance"
+        },
+        "definition": "label_values(gwnRadioStatus, instance)",
+        "refresh": 2,
+        "multi": false,
+        "includeAll": false
+      },
+      {
+        "name": "essid",
+        "label": "SSID",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(gwnWlanTxDataBytes{instance=\"$instance\"}, gwnWlanESSID)",
+          "refId": "essid"
+        },
+        "definition": "label_values(gwnWlanTxDataBytes{instance=\"$instance\"}, gwnWlanESSID)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Model",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "options": {
+        "textMode": "name",
+        "colorMode": "none",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (gwnDeviceModel) (gwnDeviceModel{instance=\"$instance\"})",
+          "legendFormat": "{{gwnDeviceModel}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Firmware",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "options": {
+        "textMode": "name",
+        "colorMode": "none",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (gwnDeviceVersion) (gwnDeviceVersion{instance=\"$instance\"})",
+          "legendFormat": "{{gwnDeviceVersion}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Uptime",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: days",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(gwnDeviceUptime{instance=\"$instance\"}) / 86400"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Clients",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(gwnClientRSSI{instance=\"$instance\", gwnClientESSID=~\"$essid\"}) or vector(0)"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "CPU",
+      "description": "The load of the CPU over the last minute, averaged over the cores and for the busiest one (HOST-RESOURCES-MIB).",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "max",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(hrProcessorLoad{instance=\"$instance\"})",
+          "legendFormat": "average"
+        },
+        {
+          "refId": "B",
+          "expr": "max(hrProcessorLoad{instance=\"$instance\"})",
+          "legendFormat": "busiest core"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Load",
+      "description": "The load average of the access point (UCD-SNMP-MIB), against its number of cores.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "max",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (laNames) (laLoadFloat{instance=\"$instance\"})",
+          "legendFormat": "{{laNames}}"
+        },
+        {
+          "refId": "B",
+          "expr": "count(hrProcessorLoad{instance=\"$instance\"})",
+          "legendFormat": "cores"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Radios",
+      "description": "The current status, channel and transmit power of each radio, as the access point reports them (the MIB documents no value nor unit).",
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (gwnRadioName) (gwnRadioStatus{instance=\"$instance\"})",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "expr": "max by (gwnRadioName) (gwnRadioChannel{instance=\"$instance\"})",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "refId": "C",
+          "expr": "max by (gwnRadioName) (gwnRadioTransmitPower{instance=\"$instance\"})",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "gwnRadioName": "Radio",
+              "Value #A": "Status",
+              "Value #B": "Channel",
+              "Value #C": "Transmit power"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Traffic per radio",
+      "description": "Bytes sent (above) and received (below) per radio: the interfaces wifi0 and wifi1 of IF-MIB, named like the Grandstream radios (64-bit counters, every 30 s).",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "max",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (ifName) (rate(ifHCOutOctets{instance=\"$instance\", ifName=~\"wifi[0-9]+\"}[$__rate_interval]))",
+          "legendFormat": "{{ifName}} tx"
+        },
+        {
+          "refId": "B",
+          "expr": "-sum by (ifName) (rate(ifHCInOctets{instance=\"$instance\", ifName=~\"wifi[0-9]+\"}[$__rate_interval]))",
+          "legendFormat": "{{ifName}} rx"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Errors per radio",
+      "description": "Packets discarded on transmit and errors received, per radio (IF-MIB, the interfaces wifi0 and wifi1).",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "max",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (ifName) (rate(ifOutDiscards{instance=\"$instance\", ifName=~\"wifi[0-9]+\"}[$__rate_interval]))",
+          "legendFormat": "{{ifName}} tx discards"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (ifName) (rate(ifInErrors{instance=\"$instance\", ifName=~\"wifi[0-9]+\"}[$__rate_interval]))",
+          "legendFormat": "{{ifName}} rx errors"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Channel per radio",
+      "description": "A change is a channel switch of the radio (automatic channel selection, radar detection on DFS channels).",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 26
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "custom": {
+            "lineInterpolation": "stepAfter"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (gwnRadioName) (gwnRadioChannel{instance=\"$instance\"})",
+          "legendFormat": "{{gwnRadioName}}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Transmit power per radio",
+      "description": "The transmit power of each radio, as set on the access point.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 26
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dBm",
+          "decimals": 0,
+          "custom": {
+            "lineInterpolation": "stepAfter"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (gwnRadioName) (gwnRadioTransmitPower{instance=\"$instance\"})",
+          "legendFormat": "{{gwnRadioName}}"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Traffic per SSID",
+      "description": "Data bytes sent (above) and received (below) per SSID, all its radios together.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 34
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "max",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (gwnWlanESSID) (rate(gwnWlanTxDataBytes{instance=\"$instance\", gwnWlanESSID=~\"$essid\"}[$__rate_interval]))",
+          "legendFormat": "{{gwnWlanESSID}} tx"
+        },
+        {
+          "refId": "B",
+          "expr": "-sum by (gwnWlanESSID) (rate(gwnWlanRxDataBytes{instance=\"$instance\", gwnWlanESSID=~\"$essid\"}[$__rate_interval]))",
+          "legendFormat": "{{gwnWlanESSID}} rx"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Clients per SSID",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 34
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "custom": {
+            "lineInterpolation": "stepAfter"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "max",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count by (gwnClientESSID) (gwnClientRSSI{instance=\"$instance\", gwnClientESSID=~\"$essid\"})",
+          "legendFormat": "{{gwnClientESSID}}"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Signal per client",
+      "description": "The signal of each client: the RSSI the access point reports is above a noise floor of -95 dBm (Qualcomm radios), the web UI shows the same within a few dB. A client is its hostname, else its MAC address (random on most phones: a new series when it rotates).",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dBm",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "min",
+            "mean"
+          ],
+          "sortBy": "Mean",
+          "sortDesc": false
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "asc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (gwnClientMACAddress, gwnClientHostname, gwnClientESSID) (gwnClientRSSI{instance=\"$instance\", gwnClientESSID=~\"$essid\"}) - 95",
+          "legendFormat": "{{gwnClientHostname}} {{gwnClientMACAddress}} ({{gwnClientESSID}})"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Clients",
+      "description": "The clients associated now: their signal (see Signal per client), link rates, association time, and the data the access point sent to them and received from them over the time range (32-bit counters: a wrap every 4 GiB loses up to one scrape of traffic).",
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Associated for"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dtdurations"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Signal"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dBm"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(Tx|Rx) rate$"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "Mbits"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(Sent|Received)$"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Signal",
+            "desc": false
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (gwnClientMACAddress, gwnClientHostname, gwnClienttIPAddress, gwnClientESSID, gwnClientManufacture, gwnClientOS) (gwnClientRSSI{instance=\"$instance\", gwnClientESSID=~\"$essid\"}) - 95",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "expr": "max by (gwnClientMACAddress, gwnClientHostname, gwnClienttIPAddress, gwnClientESSID, gwnClientManufacture, gwnClientOS) (gwnClientTxRate{instance=\"$instance\", gwnClientESSID=~\"$essid\"})",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "refId": "C",
+          "expr": "max by (gwnClientMACAddress, gwnClientHostname, gwnClienttIPAddress, gwnClientESSID, gwnClientManufacture, gwnClientOS) (gwnClientRxRate{instance=\"$instance\", gwnClientESSID=~\"$essid\"})",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "refId": "D",
+          "expr": "max by (gwnClientMACAddress, gwnClientHostname, gwnClienttIPAddress, gwnClientESSID, gwnClientManufacture, gwnClientOS) (gwnClientAssoctime{instance=\"$instance\", gwnClientESSID=~\"$essid\"})",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "refId": "E",
+          "expr": "max by (gwnClientMACAddress, gwnClientHostname, gwnClienttIPAddress, gwnClientESSID, gwnClientManufacture, gwnClientOS) (increase(gwnClientTxDataBytes{instance=\"$instance\", gwnClientESSID=~\"$essid\"}[$__range])) and max by (gwnClientMACAddress, gwnClientHostname, gwnClienttIPAddress, gwnClientESSID, gwnClientManufacture, gwnClientOS) (gwnClientRSSI{instance=\"$instance\", gwnClientESSID=~\"$essid\"})",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "refId": "F",
+          "expr": "max by (gwnClientMACAddress, gwnClientHostname, gwnClienttIPAddress, gwnClientESSID, gwnClientManufacture, gwnClientOS) (increase(gwnClientRxDataBytes{instance=\"$instance\", gwnClientESSID=~\"$essid\"}[$__range])) and max by (gwnClientMACAddress, gwnClientHostname, gwnClienttIPAddress, gwnClientESSID, gwnClientManufacture, gwnClientOS) (gwnClientRSSI{instance=\"$instance\", gwnClientESSID=~\"$essid\"})",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "gwnClientHostname": "Hostname",
+              "gwnClientMACAddress": "MAC address",
+              "gwnClienttIPAddress": "IP address",
+              "gwnClientESSID": "SSID",
+              "gwnClientManufacture": "Manufacturer",
+              "gwnClientOS": "OS",
+              "Value #A": "Signal",
+              "Value #B": "Tx rate",
+              "Value #C": "Rx rate",
+              "Value #D": "Associated for",
+              "Value #E": "Sent",
+              "Value #F": "Received"
+            },
+            "indexByName": {
+              "gwnClientHostname": 0,
+              "gwnClientMACAddress": 1,
+              "gwnClienttIPAddress": 2,
+              "gwnClientESSID": 3,
+              "gwnClientManufacture": 4,
+              "gwnClientOS": 5,
+              "Value #A": 6,
+              "Value #B": 7,
+              "Value #C": 8,
+              "Value #D": 9,
+              "Value #E": 10,
+              "Value #F": 11
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

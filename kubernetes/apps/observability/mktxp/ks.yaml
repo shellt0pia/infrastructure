@@ -1,0 +1,21 @@
+---
+# MKTXP, the exporter of the MikroTik devices, see docs/observability/README.md#external-devices.
+# Needs the ClusterSecretStore (the credentials of the device). No dependsOn on the CRDs of its
+# ServiceMonitor and PrometheusRule: there long before it, as for nut-exporter.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: mktxp
+spec:
+  dependsOn:
+    - name: external-secrets-stores
+      namespace: external-secrets
+  interval: 1h
+  path: ./kubernetes/apps/observability/mktxp/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: observability
+  wait: true

@@ -16,11 +16,13 @@ The release `victoria-metrics-k8s-stack` is deployed at stage 1 with only the op
 | 2 | In the Pocket ID: the groups `grafana_admins` and `grafana_viewers` with their members, and a confidential OIDC client for Grafana (callback `https://grafana.shelltopia.org/login/generic_oauth`, scopes `openid profile email groups`). Item `pocket-id-grafana` (`kubernetes` vault, [naming](../secrets/README.md#naming-of-the-items)): `username` is the client id, `credential` the secret. No local password. | Pocket ID, 1Password | Done |
 | 2 | The URLs of the endpoints of the Pocket ID, read from its `.well-known/openid-configuration`: `https://id.shelltopia.org/authorize`, `/api/oidc/token`, `/api/oidc/userinfo`, PKCE `S256` supported. | Pocket ID | Done |
 | 2 | The sources of the rules and dashboards pinned or not: not pinned ([why](evaluations.md#sources-of-the-rules-and-dashboards)). | Decision | Done |
-| 3 | The pinned addresses of the receivers: `192.168.19.2` and `fd38:4c4d:8f66:13::2` (logs), `192.168.19.3` and `fd38:4c4d:8f66:13::3` (Graphite), free: only `.1` and `.53` are in use ([reference](../reference.md#pinned-loadbalancer-addresses)). | Decision | Done |
-| 3 | Host overrides in Unbound, `A` and `AAAA`: `syslog.kube-cluster01.shelltopia.net` and `graphite.kube-cluster01.shelltopia.net` to the addresses above ([dns](../dns/runbook.md#where-to-create-a-record)). | OPNsense | Done |
-| 5 | SNMPv3 users on the MikroTik and the access point (read-only, one per device), items `sw-01-snmp` and `ap-01-snmp` in the `kubernetes` vault ([naming](../secrets/README.md#naming-of-the-items): `username`, `credential`, plus the `privacy_key` in a custom field). | Each device | Done |
-| 5 | OPNsense: the rules from the device VLANs to the receiver addresses (syslog, Graphite), and from the nodes to the scraped devices if any. | OPNsense | Done |
-| 5 | The FQDN of every scraped device resolves from the cluster. | Unbound | Done |
+| 3 | The pinned addresses of the receiver: `192.168.19.2` and `fd38:4c4d:8f66:13::2`, free: only `.1` and `.53` are in use ([reference](../reference.md#pinned-loadbalancer-addresses)). | Decision | Done |
+| 3 | Host overrides in Unbound, `A` and `AAAA`: `syslog.kube-cluster01.shelltopia.net` to the addresses above ([dns](../dns/runbook.md#where-to-create-a-record)). | OPNsense | Done |
+| 5 | The SNMPv3 user of the access point (read-only), item `ap-01-snmp` in the `kubernetes` vault ([naming](../secrets/README.md#naming-of-the-items): an *API* item, `username` and `credential`, plus the privacy password in a custom field `privacy_key`). | Access point | Done |
+| 5 | The items `sw-01-mktxp` (a *Login*: `username` and `password`) and `fw-01-opnsense-exporter` (`username` and `credential`), in the `kubernetes` vault, created with their users in the steps of the switch and the firewall. | 1Password | Done |
+| 5 | OPNsense, from the nodes subnet to the scraped devices (by aliases of their names): `fw-01` TCP 9100 and 8443 (the web UI listening on the interface of the nodes), `sw-01` TCP 8729, `ap-01` UDP 161, `ups-01-dmz` TCP 3493 (already open for `upsmon`). | OPNsense | Done |
+| 5 | OPNsense, from the device VLANs to the receiver addresses: TCP 514 (done at stage 3), the Graphite rules removed. | OPNsense | Done |
+| 5 | The names of the scraped devices resolve from the cluster (`AAAA`). | Unbound | Done |
 
 ## 1. Operator, Alertmanager, Flux notifications
 
@@ -542,13 +544,168 @@ Two pushes: **4a** `vmalert`, the default rules and the dead man's switch, check
 
 ## 5. External devices
 
-One device at a time, in this order: the NAS, the switch, the firewall, the access point, the HTTP checks. Each one is a metrics source and a log source, with the points to [verify](evaluations.md#to-verify) first.
+One device at a time, in this order: the NAS syslog and the UPS, the MikroTik switch, OPNsense, the access point, the HTTP checks, then the alert pass a week later. Each one is a push, checked before the next, with the points to [verify](evaluations.md#to-verify) first. Decisions: [external devices](README.md#external-devices). The port-forwards of `VMAgent` (`localhost:8429`) and `VMSingle` (`localhost:8428`) are those of [stage 2](#2-metrics); *Explore* on `VictoriaLogs` for the logs.
 
-- [ ] **Graphite.** The Graphite listener of `VMAgent` behind its LoadBalancer Service pinned on `192.168.19.3` and `fd38:4c4d:8f66:13::3` (`graphite.kube-cluster01.shelltopia.net`), ingress from `world`.
-- [ ] **HTTP checks.** `blackbox_exporter` and a `VMProbe` for Uptime Kuma and Pocket ID, egress by FQDN.
-- [ ] **NAS.** The Graphite exporter (*Reporting → Exporters*) towards `192.168.19.3` (the exporter takes an IP only), remote syslog towards the aggregator.
-- [ ] **MikroTik.** `snmp_exporter` (SNMPv3) and the remote logging action towards the aggregator.
-- [ ] **OPNsense.** `os-node_exporter` and remote syslog.
-- [ ] **Access point.** `snmp_exporter` and syslog.
+- [x] **Graphite removed (5a).** The documents are already updated (Graphite is a [rejected option](evaluations.md#rejected-and-alternative-options)). Left: the host override `graphite.kube-cluster01.shelltopia.net` deleted in Unbound. Then:
 
-Expected, for each: the device in the dashboards, its logs searchable by host, and an alert when it stops answering.
+  ```sh
+  dig +short graphite.kube-cluster01.shelltopia.net A graphite.kube-cluster01.shelltopia.net AAAA
+  grep -rn -i graphite docs/ kubernetes/
+  ```
+
+  Expected: no answer; Graphite only in the evaluations.
+
+- [x] **Host names and counter (5b).** In the aggregator (`vector-aggregator/app/helmrelease.yaml`): `host` normalized in `syslog_normalized` (lower case, the domain removed: each device sends its short name or its FQDN; an address kept whole), a `log_to_metric` transform `syslog_events` (a counter `syslog_events_total` per `host`) as an input of `prom_exporter` (`flush_period_secs` 8 days). Pushed first, so that the week of measure of the silent hosts starts. Then, from the workstation:
+
+  ```sh
+  logger --tcp -n syslog.kube-cluster01.shelltopia.net -P 514 'stage 5 test'
+  curl -s localhost:8428/api/v1/query --data-urlencode 'query=sum by (host) (increase_pure(syslog_events_total[15m]))' | jq -c '.data.result[] | [.metric.host, .value[1]]'
+  ```
+
+  Expected: the HelmRelease `Ready`, `log_source:syslog "stage 5 test"` in *Explore* with the short name of the workstation as `host`, the same `host` in the counter (the sum of the two replicas: one TCP connection lands on one of them).
+
+- [x] **NAS syslog (5b).** TrueNAS, *System → Advanced Settings → Syslog*: server `syslog.kube-cluster01.shelltopia.net:514`, transport TCP, level `Info`, *Include Audit Logs* on. Hostname `nas-01` (*Network → Global Configuration*).
+
+  Expected: `_time:15m host:nas-01` returns the logs of the NAS (a login to the web UI makes one), `syslog_events_total{host="nas-01"}` growing, `source_ip` the address of the NAS.
+
+- [x] **UPS (5c).** `observability/nut-exporter/`: the `app-template` release (image `ghcr.io/druggeri/nut_exporter:3.3.0`, the tags have no `v`; `--nut.server=ups-01-dmz.shelltopia.net.`, `--nut.vars_enable=` for every variable, no credentials), its `ServiceMonitor` (path `/ups_metrics`, `params.ups: [eaton-ellipse]`, the `ups` label from `__param_ups`, 30 s), the egress to `ups-01-dmz.shelltopia.net` by FQDN, the `PrometheusRule` (`UPSExporterDown`, `UPSOnBattery`, `UPSLowBattery`, `UPSReplaceBattery`), the dashboard 19308 in Grafana (revision 3, [why](README.md#the-release-of-the-stack)). The `helm-values` manager of Renovate on `kubernetes/`. Push, then:
+
+  ```sh
+  flux -n observability get ks,hr
+  kubectl -n observability get pods -l app.kubernetes.io/name=nut-exporter -o wide
+  curl -s localhost:8429/api/v1/targets | jq -r '.data.activeTargets[] | select(.labels.job == "nut-exporter") | .health + " " + .lastError'
+  curl -s localhost:8428/api/v1/query --data-urlencode 'query=network_ups_tools_ups_status == 1' | jq -r '.data.result[].metric | .ups + " " + .flag'
+  curl -s localhost:8428/api/v1/query --data-urlencode 'query=network_ups_tools_battery_runtime' | jq -r '.data.result[].value[1]'
+  hubble observe -P --from-label app.kubernetes.io/name=nut-exporter --verdict DROPPED --verdict AUDIT --since 10m
+  ```
+
+  Expected: the target `up`, the flag `OL` alone (with `ups` `eaton-ellipse`), the runtime in seconds (or nothing if the Eaton does not report it: noted for the alert pass), no dropped or audited flow, the dashboard showing the UPS, the rules `ok` in both `vmalert` (the request of [stage 4](#4-alert-rules-and-the-dead-mans-switch)). The image `ghcr.io/druggeri/nut_exporter` in the Dependency Dashboard of Renovate. Not provoked: the UPS stays on the mains (unplugged, it starts the shutdown chain of the nodes).
+
+- [x] **MikroTik, device side (5d).** On `sw-01`:
+
+  ```routeros
+  /system identity set name=sw-01
+  /user group add name=mktxp policy=api,read
+  /user add name=mktxp group=mktxp password=<from sw-01-mktxp>
+  /ip service disable api
+  /snmp community remove [find where name=<the user of sw-01-snmp>]
+  /snmp set enabled=no
+  /system logging action add name=vector target=remote remote=syslog.kube-cluster01.shelltopia.net remote-port=514 \
+    remote-protocol=udp remote-log-format=syslog add-topics-string=yes syslog-time-format=iso8601 syslog-facility=daemon
+  /system logging add topics=info action=vector
+  /system logging add topics=warning action=vector
+  /system logging add topics=error action=vector
+  /system logging add topics=critical action=vector
+  ```
+
+  The item `sw-01-snmp` deleted in 1Password. No `address=` on the user nor on `api-ssl`: `fw-01` filters the access to the switch. One rule per topic: the topics of one rule must all be on an entry. UDP: over TCP, RouterOS sends its `syslog` entries without a delimiter ([why](evaluations.md#rejected-and-alternative-options)).
+
+  Expected: `_time:15m host:sw-01` returns the logs of the switch, one entry per event (a login makes one: `appname` `system,info,account`, the message `user admin logged in from …`), `source_ip` its address.
+
+- [x] **MikroTik, cluster side (5d).** `observability/mktxp/`: the `app-template` release (image `ghcr.io/akpw/mktxp:2.1.0`, the tags have no `v`; `mktxp --cfg-dir /etc/mktxp export`, an `emptyDir` filled from the ConfigMap by an init container, since MKTXP writes its files back; `ndots: 1` rather than a trailing dot; TCP probes), the ConfigMap (`mktxp.conf`, `_mktxp.conf`, [MikroTik](README.md#external-devices)), the `ExternalSecret` (`sw-01-mktxp` templated into `sw-01.yaml`, mounted on `/credentials`), the egress to `sw-01.shelltopia.net`, the `ServiceMonitor` (port 49090, 30 s), the `PrometheusRule` (`MikrotikDown`, an `absent` on the identity of the device), the dashboard 13679 (revision 32). Push, then:
+
+  ```sh
+  flux -n observability get ks,hr
+  kubectl -n observability logs deploy/mktxp
+  curl -s localhost:8429/api/v1/targets | jq -r '.data.activeTargets[] | select(.labels.job == "mktxp") | .health + " " + .lastError'
+  curl -s localhost:8428/api/v1/query --data-urlencode 'query=count by (routerboard_name) ({__name__=~"mktxp_.+"})' | jq -c '.data.result[] | [.metric.routerboard_name, .value[1]]'
+  hubble observe -P --from-label app.kubernetes.io/name=mktxp --verdict DROPPED --verdict AUDIT --since 10m
+  ```
+
+  Expected: no TLS nor login error in the logs (`Connecting to router sw-01@sw-01.shelltopia.net`, no `has failed`), the target `up`, series for `sw-01` (the ports of the switch, the routerboard, the certificate of `api-ssl`), no dropped or audited flow, the dashboard showing the switch, the rule `ok` in both `vmalert`. Then `sw-01` made unreachable for 10 minutes on `api-ssl`: a drop rule in its input chain, which cuts the open connection of MKTXP too (disabling `api-ssl` keeps the established connections, and `/user active remove` fails on an API session with `action failed (6)`). First in the chain (`place-before=0`) if it already has rules:
+
+  ```routeros
+  /ip firewall filter add chain=input protocol=tcp dst-port=8729 action=drop comment="5d test"
+  /ipv6 firewall filter add chain=input protocol=tcp dst-port=8729 action=drop comment="5d test"
+  ```
+
+  Expected: the target stays `up` (MKTXP still answers), `[FIRING:1] MikrotikDown (observability)` after about 5 minutes, then `[RESOLVED]` within a few minutes of the removal of both rules (`/ip firewall filter remove [find comment="5d test"]`, the same in `/ipv6`; the reconnection backoff of MKTXP, 30 s growing to 5 minutes at most).
+
+- [x] **OPNsense, device side (5e).** On `fw-01`:
+  - *System → Firmware → Plugins*: `os-node_exporter`, listening on `0.0.0.0:9100`.
+  - *System → Access → Users*: a user `opnsense-exporter` without login, with the privileges of the [README](README.md#external-devices) only (System: Gateways; Diagnostics: Firewall statistics; Lobby: Dashboard; System: Status; Reporting: Traffic; Diagnostics: Netstat; Status: Services; VPN: WireGuard), an API key: the key in `username`, the secret in `credential` of `fw-01-opnsense-exporter`.
+  - *System → Settings → Logging → Remote*: a destination `TCP(4)` or `TCP(6)` (the name has both records; the family only changes `source_ip`) to `syslog.kube-cluster01.shelltopia.net:514`, RFC 5424, levels `info` and above, no application nor facility selected (all).
+  - Hostname `fw-01` (*System → Settings → General*).
+
+  Expected: `curl -s http://fw-01.shelltopia.net:9100/metrics` answers from the nodes subnet, `_time:15m host:fw-01` returns the logs of the firewall.
+
+- [x] **OPNsense, cluster side (5e).** In the stack: the `VMStaticScrape` `opnsense-node-exporter` in `config/` (`fw-01.shelltopia.net.:9100`, `instance` `fw-01`, 30 s), the egress of `VMAgent` to `fw-01.shelltopia.net`, the rule `OPNsenseNodeExporterDown`. `observability/opnsense-exporter/`: the `app-template` release (image `ghcr.io/athennamind/opnsense-exporter:0.0.19`, the tags have no `v`; `--opnsense.protocol=https`, `--opnsense.address=fw-01.shelltopia.net:8443`, the web UI; `--exporter.instance-label=fw-01`; the collectors disabled: `--exporter.disable-unbound`, `--exporter.disable-firmware`, `--exporter.disable-cron-table`, `--exporter.disable-arp-table`, `--exporter.disable-kea-dhcpv4`, `--exporter.disable-kea-dhcpv6`, `--exporter.disable-carp`, `--exporter.disable-openvpn`, `--exporter.disable-ipsec`; the key and secret from the `ExternalSecret` in `OPNSENSE_EXPORTER_OPS_API_KEY` and `OPNSENSE_EXPORTER_OPS_API_SECRET`; `ndots: 1`), its egress, `ServiceMonitor` (port 8080, 30 s), the rules `OPNsenseExporterDown` and `OPNsenseGatewayDown`. In the aggregator: a transform `syslog_parsed`, `filterlog` parsed into `filterlog.*` fields (the CSV printed by filterlog, [firewall logs](README.md#external-devices)). The dashboards 19366 (revision 6) and 21113 (revision 1), [why](README.md#external-devices). Push, then:
+
+  ```sh
+  flux -n observability get ks,hr
+  kubectl -n observability get vmstaticscrape
+  kubectl -n observability logs deploy/opnsense-exporter
+  curl -s localhost:8429/api/v1/targets | jq -r '.data.activeTargets[] | select(.labels.job | test("opnsense")) | .labels.job + " " + .health + " " + .lastError'
+  curl -s localhost:8428/api/v1/query --data-urlencode 'query=opnsense_up' | jq -c '.data.result[] | [.metric.opnsense_instance, .value[1]]'
+  curl -s localhost:8428/api/v1/query --data-urlencode 'query=opnsense_gateways_status' | jq -c '.data.result[] | [.metric.name, .value[1]]'
+  hubble observe -P --from-label app.kubernetes.io/name=opnsense-exporter --verdict DROPPED --verdict AUDIT --since 10m
+  hubble observe -P --from-label app.kubernetes.io/name=vmagent --verdict DROPPED --verdict AUDIT --since 10m
+  ```
+
+  Expected: no `403` nor TLS error in the logs of the exporter, both jobs `up`, `opnsense_up` 1 for `fw-01`, one series per gateway enabled and monitored (1 online, 0 offline), no dropped or audited flow, both dashboards showing the firewall. In *Explore*, a blocked connection (a logging block rule) as fields:
+
+  ```logsql
+  _time:15m host:fw-01 appname:filterlog | fields _time, filterlog.action, filterlog.interface, filterlog.src, filterlog.dst, filterlog.dstport
+  ```
+
+  Then `os-node_exporter` stopped for 10 minutes (*Services → Node Exporter*): `[FIRING:1] OPNsenseNodeExporterDown (observability)`, then `[RESOLVED]`. From now on, the daily volume of the firewall logs, every day for a week:
+
+  ```logsql
+  _time:1d host:fw-01 | stats count() as events, sum_len(_msg) as bytes
+  ```
+
+- [x] **Access point, module (5f).** `observability/snmp-exporter/generator.yml` (module `gwn_ap`, [the Grandstream module](README.md#external-devices)) and the recipe `just kube snmp-generate` (the ZIP of Grandstream downloaded, its sha256 checked, the BOM of its MIBs removed, the IETF MIBs of net-snmp `v5.9.4`, `prom/snmp-generator` of the version of the exporter, the network cut): the generated `snmp-gwn.yml` committed in `app/`. Then:
+
+  ```sh
+  just kube snmp-generate
+  git --no-pager diff --stat
+  ```
+
+  Expected: the module generated without error, no diff on `snmp-gwn.yml`: the system info, the status, channel and power of the radios, the WLAN and client tables, the text columns as labels, the client index fixed (a `gauge` index, the MAC lookup last), `max_repetitions: 1`.
+
+- [x] **Access point (5f).** On `ap-01`: the device name `ap-01`, syslog over TCP to `syslog.kube-cluster01.shelltopia.net:514`, level `Info`. `observability/snmp-exporter/`: the release (chart `prometheus-snmp-exporter` 9.21.1, `nameOverride: snmp-exporter`; the default modules of the image, `snmp-gwn.yml` and `snmp-auths.yml` as more `--config.file`, `--config.expand-environment-variables` with the variables from the `ExternalSecret` `ap-01-snmp`; Reloader through a post-renderer), two `ServiceMonitor` (target `ap-01.shelltopia.net.`, the auth `ap-01`, `instance` `ap-01`): `snmp-exporter-ap-01` (`system`, `if_mib`, `hrDevice` and `ucd_la_table`, 30 s) and `snmp-exporter-ap-01-wifi` (`gwn_ap`, 5 min, [why](README.md#external-devices)), its egress, the rule `SNMPTargetDown`, the dashboard 20347 (revision 2, vendored in `snmp-device.json`, [why](README.md#the-release-of-the-stack)) and the Wi-Fi dashboard of the repository (`wifi.json`). Push, then:
+
+  ```sh
+  flux -n observability get ks,hr
+  kubectl -n observability port-forward svc/snmp-exporter 9116
+  time curl -s 'localhost:9116/snmp?target=ap-01.shelltopia.net.&module=gwn_ap&auth=ap-01' | grep -c '^gwn'
+  curl -s 'localhost:9116/snmp?target=ap-01.shelltopia.net.&module=gwn_ap&auth=ap-01' | grep -aE '^gwn(RadioStatus|RadioTransmitPower|ClientRSSI|ClientTxRate)'
+  curl -s 'localhost:9116/snmp?target=ap-01.shelltopia.net.&module=hrDevice,ucd_la_table&auth=ap-01' | grep -v '^#'
+  curl -s localhost:8429/api/v1/targets | jq -r '.data.activeTargets[] | select(.labels.job == "snmp-exporter") | .labels.target + " " + .health + " " + (.lastScrapeDuration | tostring) + " " + .lastError'
+  curl -s localhost:8428/api/v1/query --data-urlencode 'query=max by (module) (max_over_time(snmp_scrape_walk_duration_seconds{instance="ap-01"}[1h]))' | jq -c '.data.result[] | [.metric.module, .value[1]]'
+  curl -s localhost:8428/api/v1/query --data-urlencode 'query=max by (module) (max_over_time(snmp_scrape_packets_retried{instance="ap-01"}[1h]))' | jq -c '.data.result[] | [.metric.module, .value[1]]'
+  curl -s localhost:8428/api/v1/query --data-urlencode 'query=count by (__name__) ({__name__=~"ifHCInOctets|ifInOctets", instance="ap-01"})' | jq -c '.data.result[] | [.metric.__name__, .value[1]]'
+  hubble observe -P --from-label app.kubernetes.io/name=snmp-exporter --verdict DROPPED --verdict AUDIT --since 10m
+  ```
+
+  Expected: `gwn*` series (radios, SSIDs, clients) in under 60 s, the client series labelled by their real MAC (`gwnClientMACAddress="xx:xx:…"`, no `^@`) with their hostname, IP (`192.168.x.x`) and ESSID (the SSID name, not a MAC), the CPU per core and the load of the AP, the targets `ap-01` and `ap-01-wifi` `up` on both replicas (`ap-01-wifi` under 60 s), the longest walk per module over an hour (`gwn_ap` under 60 s, the others about a second), few retries (`snmp_scrape_packets_retried`), the 64-bit counters `ifHCInOctets` (read by 20347; 12492 otherwise, which falls back on the 32-bit ones), no dropped or audited flow, both dashboards showing the AP (in `wifi.json`, the CPU, the load and the traffic per radio filled; in *SNMP device*, one dashboard, in the folder of `wifi.json`, none left in *Community*, and no `cluster` or `prometheus` column in the interface table), `_time:15m host:ap-01` in *Explore*. In the client table of `wifi.json`, only the clients associated now (no row left from the series before the fix), their signal in dBm and their rates in Mbit/s matching the web UI of the AP within a few units, the transmit power of the radios in dBm as in the UI ([units](README.md#external-devices)). Then SNMP disabled on the AP for 10 minutes: `[FIRING:1] SNMPTargetDown (observability)`, then `[RESOLVED]`.
+
+- [x] **HTTP checks (5g).** `observability/blackbox-exporter/`: the release (chart `prometheus-blackbox-exporter` 11.21.3, `nameOverride: blackbox-exporter`; `ndots: 1`; no network policy, the targets are public), the modules `http_2xx_ipv4` and `http_2xx_ipv6` (`preferred_ip_protocol` `ip4` or `ip6`, `ip_protocol_fallback: false`, `fail_if_not_ssl: true`; the default `http_2xx` removed), the four targets (two URLs, two modules) every minute, `instance` the URL and `module` the module on the targets and the series (`relabelings`), the rules `HTTPProbeFailed` and `HTTPCertExpirySoon`, the dashboard 14928 (revision 6, vendored in `blackbox.json`, [why](README.md#the-release-of-the-stack)). Push, then:
+
+  ```sh
+  flux -n observability get ks,hr
+  curl -s localhost:8429/api/v1/targets | jq -r '.data.activeTargets[] | select(.labels.job == "blackbox-exporter") | .labels.instance + " " + .labels.module + " " + .health + " " + .lastError'
+  curl -s localhost:8428/api/v1/query --data-urlencode 'query=probe_success' | jq -c '.data.result[] | [.metric.instance, .metric.module, .value[1]]'
+  curl -s localhost:8428/api/v1/query --data-urlencode 'query=(probe_ssl_earliest_cert_expiry - time()) / 86400' | jq -c '.data.result[] | [.metric.instance, .metric.module, .value[1]]'
+  kubectl -n observability port-forward svc/blackbox-exporter 9115
+  curl -s 'localhost:9115/probe?target=https://expired.badssl.com/&module=http_2xx_ipv4&debug=true' | grep -E 'probe_success|x509'
+  ```
+
+  In each `vmalert` pod (the port-forwards of [*Rules loaded*](#4-alert-rules-and-the-dead-mans-switch)):
+
+  ```sh
+  curl -s localhost:8080/api/v1/rules | jq -r '.data.groups[] | select(.name == "blackbox-exporter") | .rules[] | .name + " " + .labels.severity + " " + .health + " " + .lastError'
+  ```
+
+  Expected: four targets `up` under `job="blackbox-exporter"` (the name of the Service), `probe_success` 1 for the four (IPv6 included: the pods reach the internet in IPv6), the days left of each certificate, `probe_success 0` and the certificate error for `expired.badssl.com`, the three rules `ok` in both `vmalert` (`HTTPProbeFailed`, `HTTPCertExpirySoon` `warning` and `critical`). The dashboard listing the four targets (`pocket-id-ipv4`...): one dashboard, in the folder of `wifi.json`, none left in *Community*, and the TLS version table with the target and the version only. Then a family that cannot answer, through the same port-forward (`curl -s 'localhost:9115/probe?target=https://ipv4.google.com/&module=http_2xx_ipv6' | grep probe_success`, a name without `AAAA`): `probe_success 0`, no fallback to IPv4.
+
+- [ ] **Alert pass (a week after 5b).** From the measures of the week ([alerts](README.md#external-devices)):
+  - `SyslogHostSilent`: the longest gap between two events per host over the week, read on `syslog_events_total`; 1 hour by default, a second rule for the quiet hosts, `unless` the device is down (its exporter alert).
+  - `DeviceCPUSustainedHigh` on `fw-01` and `sw-01`, from their CPU over the week.
+  - The other candidates: UPS runtime, gateway loss and latency, the filesystem of `fw-01`, temperature and PSU of `sw-01`, the certificate of `api-ssl`, a radio of the AP down.
+  - The noise of `TargetDown` on these jobs, the size of `VLSingle` from the daily volume of `fw-01`.
+  - The collectors of `opnsense-exporter` not needed, disabled with their privilege on `fw-01`.
+
+  Expected: the rules written and loaded (`ok` in both `vmalert`), the resize of `VLSingle` decided.
+
+Expected, for each device: in its dashboards, its logs searchable by `host`, an alert when it stops answering.

@@ -1,0 +1,96 @@
+---
+# nut_exporter (DRuggeri), the UPS read from its NUT server
+# (docs/observability/README.md#external-devices): the server is a name, so the UPS can move to
+# another host without touching the cluster. One replica: a scrape missed while it moves with a
+# node is harmless.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: nut-exporter
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: nut-exporter
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    controllers:
+      nut-exporter:
+        containers:
+          app:
+            image:
+              repository: ghcr.io/druggeri/nut_exporter
+              tag: 3.3.0
+            # The UPS is not here: the scrape gives it (`ups` parameter, below). The trailing dot
+            # skips the search domains of the pod, one query per scrape instead of six. No
+            # credentials: reading the variables needs no login in NUT. An empty
+            # `--nut.vars_enable` exports every variable, `ups.status` included: the warning
+            # "started without ups.status" in the logs at startup is about the flag, not the
+            # export. `--nut.statuses` keeps its default, every flag absent from the status
+            # exported at 0 (`OB`, `LB`, `RB`...).
+            args:
+              - --nut.server=ups-01-dmz.shelltopia.net.
+              - --nut.vars_enable=
+            # `/metrics`, the exporter itself: `/ups_metrics` depends on the NUT server, and a
+            # down UPS host must not restart the pod.
+            probes:
+              liveness:
+                enabled: true
+                type: HTTP
+                path: /metrics
+              readiness:
+                enabled: true
+                type: HTTP
+                path: /metrics
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: ["ALL"]
+            # To resize from the metrics.
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 64Mi
+
+    # `restricted`: the image (Alpine) runs as root by default, 65534 (nobody) here.
+    defaultPodOptions:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+
+    service:
+      app:
+        controller: nut-exporter
+        ports:
+          http:
+            port: 9199
+
+    # `job="nut-exporter"` (the `app.kubernetes.io/name` of the Service, the default `jobLabel`),
+    # read by `UPSExporterDown`. The exporter adds no `ups` label to the series: set from the
+    # parameter, for the dashboard (19308) and to tell the UPS apart if a second one comes.
+    serviceMonitor:
+      app:
+        service:
+          identifier: app
+        endpoints:
+          - port: http
+            path: /ups_metrics
+            params:
+              ups: [eaton-ellipse]
+            interval: 30s
+            scrapeTimeout: 10s
+            relabelings:
+              - sourceLabels: [__param_ups]
+                targetLabel: ups

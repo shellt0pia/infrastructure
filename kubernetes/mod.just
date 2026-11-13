@@ -222,6 +222,59 @@ volsync-restore app snapshot='':
         fi
     done
 
+# The MIBs of the Grandstream module of snmp_exporter (docs/observability/README.md#external-devices):
+# the ZIP of the tools page of Grandstream (https://www.grandstream.com/support/tools), checked
+# against its sha256, and the IETF MIBs it imports, from a tag of net-snmp. Both updated by hand
+# when Grandstream publishes a new ZIP.
+gwn_mib_url := "https://www.grandstream.com/hubfs/MIBs/GWN_SNMP_MIB_2026Jan.zip"
+gwn_mib_sha256 := "85a0541174c2ef607b36b798d1b1cb80150fedd8a294a4bb53b3d251ccc07116"
+net_snmp_mibs := "https://raw.githubusercontent.com/net-snmp/net-snmp/v5.9.4/mibs"
+
+# The generator image has the version of the exporter (the tag in its values) and no MIB: they are
+# mounted with generator.yml, the network cut. It fails on a MIB parse error. The MIBs are not
+# kept: only the generated module is committed.
+[group('observability')]
+[doc('Generate the Grandstream module of snmp_exporter (observability/snmp-exporter/app/snmp-gwn.yml) from generator.yml')]
+snmp-generate:
+    app='{{ justfile_directory() }}/kubernetes/apps/observability/snmp-exporter'
+    version="$(yq '.spec.values.image.tag' "$app/app/helmrelease.yaml")"
+    work="$(mktemp --directory)"
+    trap 'rm -rf "$work"' EXIT
+    mkdir "$work/mibs"
+    {{ just }} log info "Downloading the MIBs..." zip '{{ gwn_mib_url }}' net_snmp '{{ net_snmp_mibs }}'
+    curl --fail --silent --show-error --location --output "$work/gwn.zip" '{{ gwn_mib_url }}'
+    if ! sha256sum --check --status <<< "{{ gwn_mib_sha256 }}  $work/gwn.zip"; then
+        {{ just }} log fatal "The Grandstream ZIP does not match its sha256" zip '{{ gwn_mib_url }}' sha256 "$(sha256sum "$work/gwn.zip" | cut --delimiter ' ' --fields 1)"
+    fi
+    # The AP MIB and the two it imports. They start with a UTF-8 BOM, which hides their module
+    # name from net-snmp: removed.
+    for mib in GRANDSTREAM-GWN-ROOT-MIB GRANDSTREAM-GWN-PRODUCTS-MIB GRANDSTREAM-GWN-PRODUCTS-AP-MIB; do
+        unzip -p "$work/gwn.zip" "*/$mib.txt" | sed '1s/^\xEF\xBB\xBF//' > "$work/mibs/$mib"
+    done
+    for mib in SNMPv2-SMI SNMPv2-TC SNMPv2-CONF SNMPv2-MIB IANAifType-MIB IF-MIB; do
+        curl --fail --silent --show-error --location --output "$work/mibs/$mib" "{{ net_snmp_mibs }}/$mib.txt"
+    done
+    cp "$app/generator.yml" "$work/"
+    {{ just }} log info "Generating..." image "docker.io/prom/snmp-generator:$version"
+    podman run --rm --network none --volume "$work:/opt:z" "docker.io/prom/snmp-generator:$version" generate --output-path snmp-gwn.yml
+    # The client table of the AP differs from its MIB: a first column holds the row number (1,
+    # 2...), which indexes the table instead of the MAC, and every column of the MIB is one further
+    # (the MAC in 2, the IP in 3, a string, and so on). Read as the MIB says, the index gives NUL
+    # bytes and every label and value is the one of the previous column. The client metrics and
+    # their lookups moved one column further, the IP read as a string, the index read as a number,
+    # then the MAC column as a last lookup, which replaces the label with the MAC. A `type`
+    # override in generator.yml would also turn the MAC into a number.
+    yq --inplace '
+        with(.modules.gwn_ap.metrics[] | select(.indexes[0].labelname == "gwnClientMACAddress");
+            (.oid, .lookups[].oid) |= (split(".") | .[:-1] + [(.[-1] | to_number) + 1 | to_string] | join(".")) |
+            .help |= sub(" - [0-9.]+$"; "") | .help += " - " + .oid |
+            (.lookups[] | select(.labelname == "gwnClienttIPAddress") | .type) = "DisplayString" |
+            .indexes[0].type = "gauge" |
+            .lookups += [{"labels": ["gwnClientMACAddress"], "labelname": "gwnClientMACAddress", "oid": "1.3.6.1.4.1.42397.1.1.3.3.1.2", "type": "DisplayString"}])
+    ' "$work/snmp-gwn.yml"
+    cp "$work/snmp-gwn.yml" "$app/app/snmp-gwn.yml"
+    {{ just }} log info "Module written" file "$app/app/snmp-gwn.yml"
+
 # Namespace of an application: the one of its ReplicationSource (named like the application).
 [private]
 volsync-namespace app:

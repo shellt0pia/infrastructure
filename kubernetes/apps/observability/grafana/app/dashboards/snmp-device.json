@@ -1,0 +1,1830 @@
+{
+  "title": "SNMP device",
+  "uid": "cf6a2228-f5f6-4250-be8a-1033dfa307fb",
+  "description": "The interfaces of the SNMP devices (snmp-exporter, if_mib). Vendored from grafana.com 20347 revision 2: the DS_PROMETHEUS input replaced by a data source variable, and the interface table drops the external labels of VMAgent (cluster, prometheus), which its organize step does not know. See docs/observability/README.md#the-release-of-the-stack.",
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 117,
+      "panels": [],
+      "title": "General",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "id": 155,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sysUpTime{instance=\"$instance\"} / 100",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Uptime",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 4,
+        "y": 1
+      },
+      "id": 157,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "max(irate(ifHCInOctets{instance=\"$instance\"}[5m]))",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Max In (Current)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 9,
+        "y": 1
+      },
+      "id": 158,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "max(delta(ifHCInOctets{instance=\"$instance\"}[$__range]))",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Total In",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow",
+                "value": null
+              }
+            ]
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 14,
+        "y": 1
+      },
+      "id": 156,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "max(irate(ifHCOutOctets{instance=\"$instance\"}[5m]))",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Max Out (Current)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow",
+                "value": null
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 19,
+        "y": 1
+      },
+      "id": 159,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "max(delta(ifHCOutOctets{instance=\"$instance\"}[$__range]))",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Total Out",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 41,
+      "panels": [],
+      "title": "Interface status",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Oper status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "1": {
+                        "color": "dark-green",
+                        "index": 0,
+                        "text": "Up"
+                      },
+                      "2": {
+                        "color": "dark-red",
+                        "index": 1,
+                        "text": "Down"
+                      },
+                      "3": {
+                        "color": "orange",
+                        "index": 2,
+                        "text": "Testing"
+                      },
+                      "4": {
+                        "color": "orange",
+                        "index": 3,
+                        "text": "Unknown"
+                      },
+                      "5": {
+                        "color": "orange",
+                        "index": 4,
+                        "text": "Dormant"
+                      },
+                      "6": {
+                        "color": "orange",
+                        "index": 5,
+                        "text": "Not Present"
+                      },
+                      "7": {
+                        "color": "orange",
+                        "index": 6,
+                        "text": "Lower Layer Down"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Bandwidth"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "Mbits"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Uptime"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "timeticks"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "index": 0,
+                        "text": "/"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Admin status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "1": {
+                        "color": "dark-green",
+                        "index": 0,
+                        "text": "Up"
+                      },
+                      "2": {
+                        "color": "dark-red",
+                        "index": 1,
+                        "text": "Down"
+                      },
+                      "3": {
+                        "color": "orange",
+                        "index": 2,
+                        "text": "Testing"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 17,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "id": 79,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": [],
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Alias"
+          }
+        ]
+      },
+      "pluginVersion": "10.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "ifPhysAddress{instance=\"$instance\",ifName=~\"$interface\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "ifOperStatus{instance=\"$instance\",ifName=~\"$interface\"}",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "ifHighSpeed{instance=\"$instance\",ifName=~\"$interface\"}",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "ifMtu{instance=\"$instance\",ifName=~\"$interface\"}",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "scalar(sysUpTime{instance=\"$instance\"}) - ifLastChange{instance=\"$instance\",ifName=~\"$interface\"}",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "ifAdminStatus{instance=\"$instance\",ifName=~\"$interface\"}",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "",
+          "range": false,
+          "refId": "F"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "ifName",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "exclude": {
+              "pattern": "^(cluster|prometheus)( \\d+)?$"
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true,
+              "Time 5": true,
+              "Time 6": true,
+              "Value #A": true,
+              "Value #B": false,
+              "__name__ 1": true,
+              "__name__ 2": true,
+              "__name__ 3": true,
+              "__name__ 4": true,
+              "__name__ 5": true,
+              "container": true,
+              "container 2": true,
+              "container 3": true,
+              "container 4": true,
+              "container 5": true,
+              "container 6": true,
+              "endpoint": true,
+              "endpoint 2": true,
+              "endpoint 3": true,
+              "endpoint 4": true,
+              "endpoint 5": true,
+              "endpoint 6": true,
+              "ifAlias 2": true,
+              "ifAlias 3": true,
+              "ifAlias 4": true,
+              "ifAlias 5": true,
+              "ifAlias 6": true,
+              "ifDescr": true,
+              "ifDescr 2": true,
+              "ifDescr 3": true,
+              "ifDescr 4": true,
+              "ifDescr 5": true,
+              "ifIndex": true,
+              "ifIndex 2": true,
+              "ifIndex 3": true,
+              "ifIndex 4": true,
+              "ifIndex 5": true,
+              "ifIndex 6": true,
+              "ifName": false,
+              "instance": true,
+              "instance 2": true,
+              "instance 3": true,
+              "instance 4": true,
+              "instance 5": true,
+              "instance 6": true,
+              "job": true,
+              "job 2": true,
+              "job 3": true,
+              "job 4": true,
+              "job 5": true,
+              "job 6": true,
+              "namespace": true,
+              "namespace 2": true,
+              "namespace 3": true,
+              "namespace 4": true,
+              "namespace 5": true,
+              "namespace 6": true,
+              "pod": true,
+              "pod 2": true,
+              "pod 3": true,
+              "pod 4": true,
+              "pod 5": true,
+              "pod 6": true,
+              "service": true,
+              "service 2": true,
+              "service 3": true,
+              "service 4": true,
+              "service 5": true,
+              "service 6": true,
+              "target": true,
+              "target 2": true,
+              "target 3": true,
+              "target 4": true,
+              "target 5": true,
+              "target 6": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Time": 8,
+              "Time 2": 21,
+              "Time 3": 34,
+              "Time 4": 46,
+              "Time 5": 59,
+              "Time 6": 71,
+              "Value #A": 20,
+              "Value #B": 6,
+              "Value #C": 3,
+              "Value #D": 4,
+              "Value #E": 7,
+              "Value #F": 5,
+              "__name__ 1": 9,
+              "__name__ 2": 22,
+              "__name__ 3": 35,
+              "__name__ 4": 47,
+              "__name__ 5": 72,
+              "container": 10,
+              "container 2": 23,
+              "container 3": 36,
+              "container 4": 48,
+              "container 5": 60,
+              "container 6": 73,
+              "endpoint": 11,
+              "endpoint 2": 24,
+              "endpoint 3": 37,
+              "endpoint 4": 49,
+              "endpoint 5": 61,
+              "endpoint 6": 74,
+              "ifAlias": 1,
+              "ifAlias 2": 25,
+              "ifAlias 3": 38,
+              "ifAlias 4": 50,
+              "ifAlias 5": 62,
+              "ifAlias 6": 75,
+              "ifDescr": 12,
+              "ifDescr 2": 26,
+              "ifDescr 3": 51,
+              "ifDescr 4": 63,
+              "ifDescr 5": 76,
+              "ifIndex": 13,
+              "ifIndex 2": 27,
+              "ifIndex 3": 39,
+              "ifIndex 4": 52,
+              "ifIndex 5": 64,
+              "ifIndex 6": 77,
+              "ifName": 0,
+              "ifPhysAddress": 2,
+              "instance": 14,
+              "instance 2": 28,
+              "instance 3": 40,
+              "instance 4": 53,
+              "instance 5": 65,
+              "instance 6": 78,
+              "job": 15,
+              "job 2": 29,
+              "job 3": 41,
+              "job 4": 54,
+              "job 5": 66,
+              "job 6": 79,
+              "namespace": 16,
+              "namespace 2": 30,
+              "namespace 3": 42,
+              "namespace 4": 55,
+              "namespace 5": 67,
+              "namespace 6": 80,
+              "pod": 17,
+              "pod 2": 31,
+              "pod 3": 43,
+              "pod 4": 56,
+              "pod 5": 68,
+              "pod 6": 81,
+              "service": 18,
+              "service 2": 32,
+              "service 3": 44,
+              "service 4": 57,
+              "service 5": 69,
+              "service 6": 82,
+              "target": 19,
+              "target 2": 33,
+              "target 3": 45,
+              "target 4": 58,
+              "target 5": 70,
+              "target 6": 83
+            },
+            "renameByName": {
+              "Value #B": "Oper status",
+              "Value #C": "Bandwidth",
+              "Value #D": "MTU",
+              "Value #E": "Uptime",
+              "Value #F": "Admin status",
+              "ifAlias": "Alias",
+              "ifName": "Interface",
+              "ifPhysAddress": "MAC",
+              "target 2": "",
+              "target 3": ""
+            }
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "number",
+                "targetField": "Bandwidth"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 3,
+      "panels": [],
+      "title": "Interface throughput",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "Bps"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Out"
+            },
+            "properties": [
+              {
+                "id": "custom.transform",
+                "value": "negative-Y"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 25
+      },
+      "id": 1,
+      "maxPerRow": 4,
+      "options": {
+        "legend": {
+          "calcs": [
+            "min",
+            "max",
+            "mean",
+            "last"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "repeat": "interface",
+      "repeatDirection": "h",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(ifHCInOctets{instance=\"$instance\",ifName=\"$interface\"}[$__rate_interval])",
+          "instant": false,
+          "legendFormat": "In",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "rate(ifHCOutOctets{instance='$instance',ifName=~'$interface'}[$__rate_interval])",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Out",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "$interface",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 105
+      },
+      "id": 179,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "opacity",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              },
+              "unit": "Bps"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Out"
+                },
+                "properties": [
+                  {
+                    "id": "custom.transform",
+                    "value": "negative-Y"
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 0,
+            "y": 26
+          },
+          "id": 201,
+          "maxPerRow": 4,
+          "options": {
+            "legend": {
+              "calcs": [
+                "min",
+                "max",
+                "mean",
+                "last"
+              ],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "repeat": "interface",
+          "repeatDirection": "h",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "rate(ifHCInUcastPkts{instance=\"$instance\",ifName=\"$interface\"}[$__rate_interval])",
+              "instant": false,
+              "legendFormat": "In",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "rate(ifHCOutUcastPkts{instance=\"$instance\",ifName=\"$interface\"}[$__rate_interval])",
+              "hide": false,
+              "instant": false,
+              "legendFormat": "Out",
+              "range": true,
+              "refId": "B"
+            }
+          ],
+          "title": "$interface",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Unicast packets",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 106
+      },
+      "id": 181,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "opacity",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              },
+              "unit": "pps"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Out"
+                },
+                "properties": [
+                  {
+                    "id": "custom.transform",
+                    "value": "negative-Y"
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 0,
+            "y": 27
+          },
+          "id": 202,
+          "maxPerRow": 4,
+          "options": {
+            "legend": {
+              "calcs": [
+                "min",
+                "max",
+                "mean",
+                "last"
+              ],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "repeat": "interface",
+          "repeatDirection": "h",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "rate(ifHCInBroadcastPkts{instance=\"$instance\",ifName=\"$interface\"}[$__rate_interval]) or rate(ifInBroadcastPkts{instance=\"$instance\",ifName=\"$interface\"}[$__rate_interval])",
+              "instant": false,
+              "legendFormat": "In",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "rate(ifHCOutBroadcastPkts{instance=\"$instance\",ifName=\"$interface\"}[$__rate_interval]) or rate(ifOutBroadcastPkts{instance=\"$instance\",ifName=\"$interface\"}[$__rate_interval])",
+              "hide": false,
+              "instant": false,
+              "legendFormat": "Out",
+              "range": true,
+              "refId": "B"
+            }
+          ],
+          "title": "$interface",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Broadcast packets",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 107
+      },
+      "id": 180,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "opacity",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              },
+              "unit": "pps"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Out"
+                },
+                "properties": [
+                  {
+                    "id": "custom.transform",
+                    "value": "negative-Y"
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 0,
+            "y": 28
+          },
+          "id": 203,
+          "maxPerRow": 4,
+          "options": {
+            "legend": {
+              "calcs": [
+                "min",
+                "max",
+                "mean",
+                "last"
+              ],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "repeat": "interface",
+          "repeatDirection": "h",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "rate(ifHCInMulticastPkts{instance=\"$instance\",ifName=\"$interface\"}[$__rate_interval]) or rate(ifInMulticastPkts{instance=\"$instance\",ifName=\"$interface\"}[$__rate_interval])",
+              "instant": false,
+              "legendFormat": "In",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "rate(ifHCOutMulticastPkts{instance=\"$instance\",ifName=\"$interface\"}[$__rate_interval]) or rate(ifOutMulticastPkts{instance=\"$instance\",ifName=\"$interface\"}[$__rate_interval]) ",
+              "hide": false,
+              "instant": false,
+              "legendFormat": "Out",
+              "range": true,
+              "refId": "B"
+            }
+          ],
+          "title": "$interface",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Multicast packets",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 108
+      },
+      "id": 463,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "opacity",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              },
+              "unit": "pps"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Out"
+                },
+                "properties": [
+                  {
+                    "id": "custom.transform",
+                    "value": "negative-Y"
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 0,
+            "y": 29
+          },
+          "id": 502,
+          "maxPerRow": 4,
+          "options": {
+            "legend": {
+              "calcs": [
+                "min",
+                "max",
+                "mean",
+                "last"
+              ],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "repeat": "interface",
+          "repeatDirection": "h",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "rate(ifInErrors{instance=\"$instance\",ifName=\"$interface\"}[$__rate_interval])",
+              "instant": false,
+              "legendFormat": "In",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "rate(ifOutErrors{instance=\"$instance\",ifName=\"$interface\"}[$__rate_interval])",
+              "hide": false,
+              "instant": false,
+              "legendFormat": "Out",
+              "range": true,
+              "refId": "B"
+            }
+          ],
+          "title": "$interface",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Errors",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 109
+      },
+      "id": 464,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "opacity",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              },
+              "unit": "pps"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Out"
+                },
+                "properties": [
+                  {
+                    "id": "custom.transform",
+                    "value": "negative-Y"
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 0,
+            "y": 30
+          },
+          "id": 503,
+          "maxPerRow": 4,
+          "options": {
+            "legend": {
+              "calcs": [
+                "min",
+                "max",
+                "mean",
+                "last"
+              ],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "repeat": "interface",
+          "repeatDirection": "h",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "rate(ifInDiscards{instance=\"$instance\",ifName=\"$interface\"}[$__rate_interval])",
+              "instant": false,
+              "legendFormat": "In discards",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "rate(ifInUnknownProtos{instance=\"$instance\",ifName=\"$interface\"}[$__rate_interval])",
+              "hide": false,
+              "instant": false,
+              "legendFormat": "In unknown protos",
+              "range": true,
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "rate(ifOutDiscards{instance=\"$instance\",ifName=\"$interface\"}[$__rate_interval])",
+              "hide": false,
+              "instant": false,
+              "legendFormat": "Out discards",
+              "range": true,
+              "refId": "C"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "rate(ifOutUnknownProtos{instance=\"$instance\",ifName=\"$interface\"}[$__rate_interval])",
+              "hide": false,
+              "instant": false,
+              "legendFormat": "Out unknown protos",
+              "range": true,
+              "refId": "D"
+            }
+          ],
+          "title": "$interface",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Discards",
+      "type": "row"
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 39,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Data source",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {
+          "text": "VictoriaMetrics",
+          "value": "VictoriaMetrics"
+        }
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(snmp_scrape_duration_seconds,instance)",
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "instance",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(snmp_scrape_duration_seconds,instance)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(ifInOctets{instance=\"$instance\"},ifName)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "interface",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(ifInOctets{instance=\"$instance\"},ifName)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 7,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "version": 75,
+  "weekStart": "",
+  "gnetId": 20347
+}

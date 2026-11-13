@@ -1,0 +1,21 @@
+---
+# The exporter of the OPNsense API, see docs/observability/README.md#external-devices. Needs the
+# ClusterSecretStore (the API key). No dependsOn on the CRDs of its ServiceMonitor and
+# PrometheusRule: there long before it, as for nut-exporter.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: opnsense-exporter
+spec:
+  dependsOn:
+    - name: external-secrets-stores
+      namespace: external-secrets
+  interval: 1h
+  path: ./kubernetes/apps/observability/opnsense-exporter/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: observability
+  wait: true

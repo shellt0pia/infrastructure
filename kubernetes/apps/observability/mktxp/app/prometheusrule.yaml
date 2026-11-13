@@ -1,0 +1,30 @@
+---
+# The alerts of the MikroTik devices (docs/observability/README.md#external-devices). Converted
+# to a VMRule by the operator of the stack.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: mktxp
+spec:
+  groups:
+    - name: mktxp
+      rules:
+        # Not `up`: MKTXP answers the scrape even when a device fails (unreachable, TLS, login),
+        # it only leaves the series of that device out. Its identity is collected whatever the
+        # collectors: its absence covers the device, its API, the credentials, the certificate
+        # and the exporter itself. One `absent` per device (`or absent(...)` for gw-01 later).
+        # `namespace` in the selector: `absent` only keeps its equality matchers as labels, and
+        # the notifications are grouped and titled by namespace.
+        # A `warning`: if the switch itself were down, the cluster would be cut off with it.
+        - alert: MikrotikDown
+          expr: absent(mktxp_system_identity_info{namespace="observability", routerboard_name="sw-01"})
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "The MikroTik device {{ $labels.routerboard_name }} has not been read for 5 minutes."
+            description: >-
+              MKTXP returns no series for {{ $labels.routerboard_name }}: the device or its
+              `api-ssl` service is unreachable, the login or the certificate check fails, or
+              the exporter is down. The logs of mktxp give the error. After a failure, MKTXP
+              retries every 30 s at first, then up to every 5 minutes.

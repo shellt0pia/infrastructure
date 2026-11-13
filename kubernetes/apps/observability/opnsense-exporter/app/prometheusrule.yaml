@@ -1,0 +1,43 @@
+---
+# The alerts of the OPNsense API (docs/observability/README.md#external-devices). The series carry
+# `namespace` (observability) and `opnsense_instance` (fw-01). Converted to a VMRule by the operator
+# of the stack.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: opnsense-exporter
+spec:
+  groups:
+    - name: opnsense-exporter
+      rules:
+        # The exporter answers the scrape even when the API fails (unreachable, TLS, the key
+        # refused): `opnsense_up` is 0 then, from the status call of each scrape. `up` covers the
+        # exporter itself. A `warning`: if the firewall itself were down, no notification would
+        # leave anyway (the dead man's switch).
+        - alert: OPNsenseExporterDown
+          expr: up{job="opnsense-exporter"} == 0 or opnsense_up{job="opnsense-exporter"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "The OPNsense API has not been read for 5 minutes."
+            description: >-
+              The scrape of opnsense-exporter fails, or the exporter cannot read the API of
+              fw-01 (`opnsense_up` 0): the firewall or its web UI is unreachable, the API key is
+              refused, or the certificate check fails. The logs of opnsense-exporter give the
+              error.
+        # 0 is `Offline` (1 `Online`, 2 `Unknown`, 3 `Pending`, 4 `Packetloss`, 5 `Latency`,
+        # 6 `Offline (forced)`, the worst of a combined status). Only the gateways enabled and
+        # monitored have a status. A gateway forced down is deliberate, not alerted; the loss and
+        # latency thresholds come with the alert pass.
+        - alert: OPNsenseGatewayDown
+          expr: opnsense_gateways_status{job="opnsense-exporter"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "The gateway {{ $labels.name }} of {{ $labels.opnsense_instance }} is offline."
+            description: >-
+              OPNsense reports the gateway {{ $labels.name }} offline for 5 minutes: its monitor
+              ({{ $labels.address }}) does not answer. The traffic routed through it is cut or
+              failed over to another gateway.

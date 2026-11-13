@@ -1,0 +1,21 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./ocirepository.yaml
+  - ./externalsecret.yaml
+  - ./helmrelease.yaml
+  - ./ciliumnetworkpolicy.yaml
+  - ./prometheusrule.yaml
+# The modules and auths added to the defaults of the image (extraArgs of helmrelease.yaml). The
+# `${...}` of snmp-auths.yml are expanded by the exporter, not by Flux.
+configMapGenerator:
+  - name: snmp-exporter-config
+    files:
+      - ./snmp-gwn.yml
+      - ./snmp-auths.yml
+    options:
+      disableNameSuffixHash: true
+      annotations:
+        kustomize.toolkit.fluxcd.io/substitute: disabled

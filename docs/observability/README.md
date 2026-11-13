@@ -4,7 +4,7 @@ What watches the cluster and the devices around it: metrics, logs, dashboards an
 
 | Document | Content |
 | --- | --- |
-| [bootstrap.md](bootstrap.md) | First deployment: prerequisites, then the steps in order (stages 1 to 4 run, the noise pass of stage 4 two weeks later, stage 5 to do). |
+| [bootstrap.md](bootstrap.md) | First deployment: prerequisites, then the steps in order (stages 1 to 4 run, the noise pass of stage 4 two weeks later, stage 5 written, to do). |
 | [evaluations.md](evaluations.md) | What was considered or rejected, what is still to verify, and the open points. |
 
 The manifests are in `kubernetes/apps/observability` and `kubernetes/apps/observability-agents` ([Pod Security](#network-and-pod-security)):
@@ -14,7 +14,8 @@ The manifests are in `kubernetes/apps/observability` and `kubernetes/apps/observ
 | `observability/victoria-metrics-k8s-stack` | `app/`: the release of the [stack](#the-release-of-the-stack) (the VictoriaMetrics operator and its CRDs, `VMSingle`, `VLSingle`, `VMAgent`, `VMAlert` and its internal `VMAuth`, `VMAlertmanager`, kube-state-metrics, node-exporter deployed in `observability-agents`, the data sources of Grafana, the default rules and dashboards, the mixins of the [alerting](#alerting)) and the ExternalSecret of the Alertmanager. `config/`: the second Flux Kustomization (`victoria-metrics-k8s-stack-config`), the etcd scrape and the LogsQL rules (`VMRule`). |
 | `observability/grafana` | Grafana, its own release ([Grafana](#grafana)): the OIDC login, its ExternalSecret, its route, the `volsync` component for its volume, the community dashboards and the dashboards of this repository (`app/dashboards/`). |
 | `observability/prometheus-operator-crds` | The CRDs of the Prometheus operator (`ServiceMonitor`, `PodMonitor`, `PrometheusRule`), for the monitors that the other charts create. |
-| `observability/vector-aggregator` | The Vector aggregator: the syslog of the devices (stage 3). |
+| `observability/vector-aggregator` | The Vector aggregator: the syslog of the devices (stage 3), their `host` normalized, the firewall logs parsed and the per-host counter (stage 5). |
+| `observability/nut-exporter`, `observability/mktxp`, `observability/opnsense-exporter`, `observability/snmp-exporter`, `observability/blackbox-exporter` | The exporters of the [external devices](#external-devices) (stage 5): the UPS, the MikroTik devices, the OPNsense API, the access point, the HTTP checks. |
 | `observability-agents` | The namespace of the agents reading the nodes (`privileged`). node-exporter is deployed there by the release of the stack. |
 | `observability-agents/vector-agent` | The Vector agent, on every node: the pod logs, the Hubble flows and the Talos logs of its node (stage 3). |
 
@@ -31,7 +32,7 @@ The manifests are in `kubernetes/apps/observability` and `kubernetes/apps/observ
 | Flux alerts | Rules of `vmalert` on the metrics of the flux-operator (`flux_resource_info`) | Rules deployed with stage 4a. The events of the notification-controller (stage 1) removed |
 | Cluster scrape targets | From the stack: kubelet, cAdvisor, API server, scheduler, controller-manager, kube-state-metrics, node-exporter. By hand: etcd (`VMNodeScrape`). Monitors of the charts: Cilium agent, Cilium operator and Hubble, CoreDNS, cert-manager, External Secrets, flux-operator, Spegel, Reloader, external-dns, k8s-gateway, VolSync. Next to the applications: the Flux controllers (`PodMonitor`), Piraeus (LINSTOR controller, satellites and drbd-reactor, affinity controller), Envoy Gateway (controller and proxies). The Vector agent and aggregator (`podMonitor` of their chart) | Deployed (stage 2). Vector deployed (stage 3) |
 | Talos logs, Hubble flows | Vector, `machine.logging`, `KmsgLogConfig`, `hubble.export` | Hubble export in place. Talos destinations applied on both nodes, to the agent of the node (stage 3) |
-| External devices | snmp_exporter, Graphite, syslog, blackbox_exporter | Decided, [to verify](evaluations.md#to-verify) per device |
+| External devices | `nut_exporter`, MKTXP, `os-node_exporter` and `opnsense-exporter`, `snmp_exporter`, `blackbox_exporter`, syslog to the aggregator | The NAS syslog, the UPS, the MikroTik switch and OPNsense deployed (stages 5b to 5e). The access point and the HTTP checks written (stages 5f and 5g). The others decided, steps written ([stage 5](bootstrap.md#5-external-devices)), [to verify](evaluations.md#to-verify) per device. The NAS metrics deferred |
 
 ## Overview
 
@@ -39,13 +40,13 @@ The manifests are in `kubernetes/apps/observability` and `kubernetes/apps/observ
 flowchart TD
     subgraph SRC["Sources"]
         CLU["Cluster: monitors, kube-state-metrics, node-exporter, control plane"]
-        DEV["Devices: OPNsense, MikroTik, Wi-Fi AP, NAS"]
+        DEV["Devices: OPNsense, MikroTik, Wi-Fi AP, NAS, UPS"]
         EXT["Uptime Kuma, Pocket ID (PikaPods)"]
         LOGS["Pod logs, Hubble flows"]
         TAL["Talos service and kernel logs"]
     end
     CLU -->|scrape| VA["VMAgent, 2 replicas"]
-    DEV -->|"SNMP exporter, Graphite push"| VA
+    DEV -->|"exporters: NUT, MikroTik, OPNsense, SNMP"| VA
     EXT -->|"blackbox exporter"| VA
     VA -->|remote write| VM[("VMSingle")]
     LOGS --> VAG["Vector agent, DaemonSet"]
@@ -63,7 +64,7 @@ flowchart TD
 
 ## Objectives
 
-- Metrics and logs of the cluster (Kubernetes, Cilium, Flux, LINSTOR and DRBD, certificates, VolSync), of the Talos nodes, and of the devices: OPNsense, the MikroTik switch, the Grandstream access point, the NAS.
+- Metrics and logs of the cluster (Kubernetes, Cilium, Flux, LINSTOR and DRBD, certificates, VolSync), of the Talos nodes, and of the devices: OPNsense, the MikroTik switch, the Grandstream access point, the NAS, the UPS.
 - HTTP checks of Uptime Kuma and Pocket ID, which stay hosted at PikaPods. Uptime Kuma is already an independent observer from the outside: it stays that, the cluster does not replace it.
 - The logs needed to enforce the network policies: the audited and denied flows searchable by namespace ([cluster](../cluster/README.md#network-policies)).
 - Dashboards in Git, a single notification channel: everything goes through Alertmanager to Pushover.
@@ -77,7 +78,7 @@ Resources are not a constraint: the current hosts use a fraction of their RAM, a
 
 | Need | Tool | Why |
 | --- | --- | --- |
-| Metrics storage and scraping | `VMSingle` and `VMAgent` of the VictoriaMetrics operator | Frugal, single binary, reads the `ServiceMonitor`, `PodMonitor` and `PrometheusRule` objects (the operator converts them), natively ingests Graphite |
+| Metrics storage and scraping | `VMSingle` and `VMAgent` of the VictoriaMetrics operator | Frugal, single binary, reads the `ServiceMonitor`, `PodMonitor` and `PrometheusRule` objects (the operator converts them) |
 | Logs storage | `VLSingle` (VictoriaLogs, single node) | Same family, frugal, queried from Grafana |
 | Logs collection and reception | Vector, for everything | One tool and one configuration language for pod logs, Hubble files, Talos and device syslog ([why not vlagent](evaluations.md#vector-or-vlagent)) |
 | Dashboards | Grafana, provisioned from Git | No `vmui`: Grafana is the only UI |
@@ -107,7 +108,9 @@ Outside the stack: Grafana (its own release, [why](evaluations.md#grafana-apart-
   - The default ones of the stack: Kubernetes views, node-exporter, VictoriaMetrics, VictoriaLogs, operator, etcd, control plane.
   - Those of the Cilium chart, which follow its version: agent, operator, and Hubble (metrics, network overview, DNS and L7 HTTP). The Hubble ones mostly read flow metrics that are not enabled, only their `drop` panels can show data: to decide ([open points](evaluations.md#open-points)). The chart creates them in `observability` (`dashboards.namespace` in the values of Cilium), so the bootstrap creates that namespace before installing Cilium ([cluster](../cluster/README.md#overview)). Their `DS_PROMETHEUS` variable picks the default Prometheus data source, `VMSingle`. The ones on grafana.com (16611, 16612, 16613) date from Cilium 1.12.
   - Community dashboards by `gnetId` and `revision` in the values of the Grafana release, pinned, in the *Community* folder: cert-manager (20842), External Secrets (21640), external-dns (15038), LINSTOR and DRBD (15917), Envoy Gateway (24460) and the Envoy proxies (24459). Flux has none up to date on grafana.com: the *Flux Control Plane* dashboard of `fluxcd/flux2-monitoring-example`, by a URL pinned to a commit. Their inputs (`DS_METRICS`...) are replaced by the data source of the stack.
-  - The dashboards of the repository (the denied flows, `app/dashboards/denied-flows.json`) as JSON in Git, next to the Grafana release, a ConfigMap generated by kustomize and read by its sidecar, with `kustomize.toolkit.fluxcd.io/substitute: disabled`: the Kustomization of Grafana substitutes the variables of the `volsync` component, and Grafana uses `${...}` variables too.
+    - The dashboards of the [external devices](#external-devices) (stage 5), the same way: UPS (19308), MikroTik (13679), OPNsense (19366 for the host, 21113 for the API). A revision whose data source is hard-coded (no `DS_` input) cannot be fixed by the chart: the previous one is kept, as for the UPS (revision 3; the 4 hard-codes the uid `prometheus`, and only adds the power panels).
+  - **Vendored community dashboards** (decided 2026-11-13): the dashboards of the projects themselves follow upstream (the stack, the Cilium chart, the Flux example). Those published by individuals on grafana.com are seldom updated and written for another setup (labels, data source): they are vendored in `app/dashboards/` to adapt them. The `DS_` input becomes a `datasource` variable, the `uid` and `gnetId` are kept, and the `description` names the revision and the changes. The same `uid`: the *Community* provider has `disableDeletion`, so a dashboard gone from it stays in the database, unprovisioned, and the vendored copy takes it over. Two for now: *SNMP device* (20347 revision 2, `snmp-device.json`) and *Prometheus Blackbox Exporter* (14928 revision 6, `blackbox.json`). Both had a table that hides the labels by a fixed list, which misses the labels of the scrape and the external labels of `VMAgent` (`cluster`, and `prometheus`, added by the operator): the interface table of 20347 drops them by a filter, the TLS version table of 14928 keeps the `target` and `version` fields only. The others stay by `gnetId` until vendored ([open points](evaluations.md#open-points)).
+  - The dashboards of the repository (the denied flows, `app/dashboards/denied-flows.json`; the Wi-Fi of the access point, `wifi.json`; the vendored ones) as JSON in Git, next to the Grafana release, a ConfigMap generated by kustomize and read by its sidecar, with `kustomize.toolkit.fluxcd.io/substitute: disabled`: the Kustomization of Grafana substitutes the variables of the `volsync` component, and Grafana uses `${...}` variables too.
 - **Upgrades:** the chart is in 0.x, its minors may break: read its changelog before each upgrade, no automerge by Renovate ([roadmap](../roadmap.md#upgrades)).
 
 ### High availability
@@ -119,7 +122,7 @@ Level 1: the loss of a node costs a few minutes of access, never data.
 - The alert path is redundant by design, since a dead monitoring must still ring: `VMAlert` with two replicas, `VMAlertmanager` with two replicas (gossip between them), and a dead man's switch.
 - Grafana: one replica with the same failover. Its configuration is in Git, its small state (SQLite) goes through the `volsync` component. Two replicas would need session affinity because of the local SQLite.
 - No S3 storage for this: B2 covers `vmbackup` if the metrics are ever backed up ([backups](../backups/README.md#what-is-backed-up)). If an S3 service is ever needed, [Garage](evaluations.md#s3-storage) is the candidate.
-- UDP syslog is lost while the receiver is down: TCP wherever the device supports it, and always for Talos.
+- UDP syslog is lost while the receiver is down: TCP wherever the device supports it with a framing (not RouterOS, [MikroTik](#external-devices)), and always for Talos.
 
 ### Storage and retention
 
@@ -132,7 +135,7 @@ Level 1: the loss of a node costs a few minutes of access, never data.
 | Vector agent | `hostPath` `/var/lib/vector` | Disk buffer, `max_size` about 1.25 Gi per node |
 | Grafana | The `volsync` component, `replicated` | Backed up to B2 |
 
-Sizes estimated, to check in the dashboards of VictoriaMetrics and VictoriaLogs after two weeks. The volumes can be expanded later, the retentions changed at any time.
+Sizes estimated, to check in the dashboards of VictoriaMetrics and VictoriaLogs after two weeks. The volumes can be expanded later, the retentions changed at any time. The firewall logs of OPNsense (stage 5) are the largest unknown: their daily volume is measured over a week, then `VLSingle` resized.
 
 Every component has modest requests and a memory limit from the start, with a comment saying they are to resize from the metrics ([roadmap](../roadmap.md#cluster-tools)). Exception: the memory limits of Vector (1 Gi for the agent, 512 Mi for the aggregator) are sized for the catch-up, not for the idle use ([memory of Vector](evaluations.md#memory-of-vector)).
 
@@ -157,8 +160,12 @@ Every component has modest requests and a memory limit from the start, with a co
   | `flux-system/flux-operator/app` | The Flux alerts (above) |
   | `kube-system/cilium/app` | `NetworkPolicyAuditedFlows` (`info`, any audited flow over the last hour, without `for`: the rare ones too), `NetworkPolicyDroppedFlows` (`warning`, dropped for 10 minutes); `namespace` from the side whose policy decides |
   | `observability-agents/vector-agent/app`, `observability/vector-aggregator/app` | The same rules on the `job` of each: `VectorComponentErrors` and `VectorDiscardedEvents` (over 15 minutes, `increase_pure`: Vector creates the counters at the first event), `VectorSinkStalled` (a sink receiving events and sending none for 15 minutes: an unreachable destination, which Vector retries without limit and without a component error), `VectorBufferFillingUp` (a disk buffer over 80 % for 10 minutes) |
+  | `observability/nut-exporter/app` | The UPS alerts of the [external devices](#external-devices): `UPSExporterDown`, `UPSOnBattery`, `UPSLowBattery`, `UPSReplaceBattery` |
+  | `observability/mktxp/app` | `MikrotikDown`, one per MikroTik device of the [external devices](#external-devices) |
   | `piraeus-datastore/piraeus-operator/cluster` | `linstorStoragePoolAtCapacity` `critical`, under 10 % free |
   | `observability/victoria-metrics-k8s-stack/config` | `SELinuxUnlabeledDenials` (LogsQL, below) |
+
+  The rules of the external devices come with stage 5 ([below](#external-devices)).
 
 - **Upstream rules, followed rather than written** where the project publishes them:
   - **Mixins**, fetched by the sync-job of the stack (`defaultRules.sources`, from `monitoring-mixins/website`, `master`, unpinned like the default rules): cert-manager (`CertManagerAbsent`, `CertManagerCertExpirySoon` `warning`, `CertManagerCertNotReady` `critical`, `CertManagerHittingRateLimits`), CoreDNS (its `job="kube-dns"` rewritten to the regexp `coredns-metrics|k8s-gateway-metrics`, the cluster DNS and k8s-gateway; `CoreDNSDown` then only fires when both are absent) and Cilium (the mixin of Isovalent, on the metrics of the open-source agent and operator). Disabled in the values: the Cilium groups not used here (`IPAM`, `Clustermesh`, `Kvstoremesh`), `Cilium Drops` (its only rule duplicates `NetworkPolicyDroppedFlows`, without namespaces), and `RunningOutOfCiliumClusterIdentities` (its template fails when the alert is rendered).
@@ -181,11 +188,11 @@ Every component has modest requests and a memory limit from the start, with a co
 - **The node of the Talos logs** is the node of the agent (`VECTOR_SELF_NODE_NAME`). Sending them to the aggregator did not name the node of the kernel logs: `KmsgLogConfig` takes no tag, and for the node running the replica the peer address was its `cilium_host` address, without PTR ([evaluations](evaluations.md#to-verify)).
 - **Fields** common to every source:
   - `log_source`: `pods`, `hubble`, `talos-service`, `talos-kernel` or `syslog`, the first stream field everywhere (`log_source:hubble` in a query);
-  - `node`: the Kubernetes name of the node, every source except syslog (the device sets `host`, the aggregator adds `source_ip`: it listens on `[::]`, so IPv4 peers show up as `::ffff:a.b.c.d`, a prefix it strips).
+  - `node`: the Kubernetes name of the node, every source except syslog (the device sets `host`, the aggregator adds `source_ip`: it listens on `[::]`, so IPv4 peers show up as `::ffff:a.b.c.d`, a prefix it strips; it removes `hostname`, the raw copy of `host` made by the syslog source).
 - **Stream fields:** the pods by namespace, pod and container; Hubble by node; Talos by node and `talos-service`; the syslog by `host`.
 - **Hubble flows:** the JSON of the flow is merged at the root (`flow.verdict`, `flow.source.namespace`, `flow.drop_reason_desc`...), with a short message: `VERDICT DIRECTION namespace/pod -> namespace/pod DROP_REASON Summary` (the IP when there is no pod).
 - **Sinks:** the Elasticsearch API of VictoriaLogs (`/insert/elasticsearch/`, `_msg_field`, `_time_field` and `_stream_fields` as parameters), disk buffers that block the sources when full. No `dependsOn` on VictoriaLogs: the buffers cover its absence. Batches of 1 MiB (`batch.max_bytes`) instead of 10 MiB by default: during a catch-up (a backlog of pod logs, the disk buffers after an outage), the batches fill at once and the default ones led the agent to an OOM kill at 256 Mi ([memory of Vector](evaluations.md#memory-of-vector)).
-- At stage 5, Vector enriches and filters per device (for instance the pf noise of OPNsense) before VictoriaLogs.
+- **Devices** (stage 5, [external devices](#external-devices)): the aggregator normalizes `host` (lower case, the domain removed), parses the firewall logs of OPNsense into `filterlog.*` fields, and counts the events per `host` (`syslog_events_total`, for the silent hosts).
 
 ### Metrics
 
@@ -193,7 +200,7 @@ Every component has modest requests and a memory limit from the start, with a co
 - **The operator only looks for the Prometheus CRDs at its start:** when the `monitoring.coreos.com` API is missing then, it disables the conversion of the `ServiceMonitor`, `PodMonitor`, `PrometheusRule` and `Probe` objects until its next restart (its log says `controller disabled either by provided flag or respective CRD is not found`). The CRDs are applied by `just bootstrap crds` before the applications, and the Kustomization of the stack depends on `prometheus-operator-crds`. If the CRDs ever arrive after the operator (no converted `VMServiceScrape` outside of the stack, only its own targets): `kubectl -n observability rollout restart deploy victoria-metrics-k8s-stack-victoria-metrics-operator`.
 - The Hubble metrics (`drop`, `policy`) are enabled with the workload contexts, for the dashboard and the alert of the denied flows. At each end: the namespace (`source_namespace`, `destination_namespace`, from `labelsContext`), and in `source` or `destination` the workload, else the `app` label (Hubble only knows the workload of the pods of its own node), else the reserved identity (`reserved:world`, `reserved:host`...): `sourceContext` and `destinationContext` set to `workload-name|app|reserved-identity`. `hubble_drop_total` adds `reason` and `protocol`, `hubble_policy_verdicts_total` adds `direction`, `match` and `action` (`forwarded`, `dropped`, `audit`, `redirected`).
 - VolSync checks the caller of its metrics endpoint (HTTPS, a TokenReview): a post-renderer of its release adds the ServiceAccount token of `VMAgent` to its ServiceMonitor.
-- Graphite: `VMAgent` listens for it (`-graphiteListenAddr`) behind a LoadBalancer Service on the [pinned addresses](../reference.md#pinned-loadbalancer-addresses) `192.168.19.3` and `fd38:4c4d:8f66:13::3`, named `graphite.kube-cluster01.shelltopia.net`. The TrueNAS exporter only takes an IP: the name is reserved for the devices that take one.
+- **Devices:** scraped through their exporters ([external devices](#external-devices)), `os-node_exporter` of OPNsense directly by `VMAgent`. Nothing is pushed: no Graphite listener ([why](evaluations.md#rejected-and-alternative-options)).
 - The data sources of Grafana are generated by the stack (ConfigMaps read by the sidecar of Grafana): `VMSingle` (Prometheus type), VictoriaLogs (plugin `victoriametrics-logs-datasource`), the Alertmanager.
 
 ### Grafana
@@ -210,21 +217,133 @@ Every component has modest requests and a memory limit from the start, with a co
 
 ### External devices
 
-| Device | Metrics | Logs |
-| --- | --- | --- |
-| OPNsense | `os-node_exporter` plugin | Remote syslog |
-| MikroTik CRS326 (RouterOS 7) | `snmp_exporter` | Remote syslog (BSD syslog or CEF, UDP, TCP or TLS, the address is an IP or text) |
-| Grandstream GWN7664 | `snmp_exporter` (SNMP v2/v3) | Syslog |
-| TrueNAS CE 25.10 | Graphite exporter of *Reporting* (pushed), received by `VMAgent` | Remote syslog |
-| Uptime Kuma, Pocket ID | `blackbox_exporter` (HTTP probes) | None |
+Stage 5 ([bootstrap](bootstrap.md#5-external-devices)). Each device is a metrics source, a log source (except the HTTP checks) and an alert when it stops answering:
 
-Each line has points to [verify](evaluations.md#to-verify) before it is relied on. Every device is in a separate VLAN, except that the NAS also has a leg in the nodes subnet: its traffic to the cluster comes from its main interface ([network](../network/README.md#nas-no-asymmetric-path)).
+| Device | Name | Metrics | Logs | Secret |
+| --- | --- | --- | --- | --- |
+| TrueNAS CE 25.10 | `nas-01.shelltopia.net` | Deferred (below) | Remote syslog, TCP | None |
+| UPS (NUT server, today on the NAS) | `ups-01-dmz.shelltopia.net:3493`, UPS `eaton-ellipse` | `nut_exporter` | None | None |
+| MikroTik CRS326, RouterOS 7 | `sw-01.shelltopia.net` | MKTXP, over `api-ssl` | Remote syslog, UDP, the topics in `appname` | `sw-01-mktxp` |
+| OPNsense 26.7.8 | `fw-01.shelltopia.net` | `os-node_exporter` (the host) and `opnsense-exporter` (the API) | Remote syslog, TCP, RFC 5424, the firewall logs parsed | `fw-01-opnsense-exporter` |
+| Grandstream GWN7664, standalone | `ap-01.shelltopia.net` | `snmp_exporter`, SNMPv3, the default modules and a Grandstream module | Syslog, TCP | `ap-01-snmp` |
+| Uptime Kuma, Pocket ID (PikaPods) | `uptime.shelltopia.org`, `id.shelltopia.org` | `blackbox_exporter`, HTTP probes in IPv4 and IPv6 | None | None |
+
+Each line has points to [verify](evaluations.md#to-verify) before it is relied on. Every device is in a separate VLAN, except that the NAS also has a leg in the nodes subnet (`nas-01-dmz.shelltopia.net`): its traffic to the cluster comes from its main interface ([network](../network/README.md#nas-no-asymmetric-path)).
+
+Later, outside stage 5:
+
+- **NAS metrics**, with the NAS platform work of the [Backups](../roadmap.md#backups) item (Backrest deployed with Doco-CD, FRR, Traefik, a DNS controller for Docker): `node_exporter` (ARC, filesystems, disks, network) and `smartctl_exporter`, scraped by `VMAgent`. Pool health and SMART already alert through the native TrueNAS alerts, routed to Pushover. Neither Graphite nor the API exporter of TrueNAS ([why](evaluations.md#rejected-and-alternative-options)).
+- **`gw-01.shelltopia.net`** (MikroTik KNOT Embedded LTE4), with the [LTE backup](../network/lte-backup.md) project: the `sw-01` pattern repeated, MKTXP with `lte = True`, item `gw-01-mktxp`, syslog.
+
+**Common to every device:**
+
+- **Names:** `fw-01`, `sw-01`, `ap-01`, `nas-01` (later `gw-01`) in `shelltopia.net`, with `AAAA` records only: every flow from the cluster to them is IPv6 (the pods leave through an address of their node, ULA or GUA, to check at the first scrape). The receiver keeps its `A` and `AAAA`.
+- **`host`:** each device is configured with its short name and sends it; the aggregator lowers it and keeps the first label, whatever the domain (a device sending its FQDN). An address is kept whole (`::ffff:` removed, as for `source_ip`): Vector puts the peer address in `host` when the line has no hostname (to confirm at stage 5b). It is the stream field of the syslog: a device is searched by `host:sw-01`. Two devices with the same short name in different domains share a `host`: the names of the devices are unique.
+- **Exporters:** their own applications in `observability/`. `snmp-exporter` and `blackbox-exporter` from their charts, the targets in their values (`serviceMonitor.params` for snmp-exporter, one `ServiceMonitor` per device; `serviceMonitor.targets` for blackbox-exporter), converted by the operator. `nut-exporter`, `mktxp` and `opnsense-exporter` have no usable chart: `app-template` ([conventions](../conventions.md#charts)), each with its own `ServiceMonitor`. `os-node_exporter` has no exporter to deploy: a `VMStaticScrape` in `config/` of the stack.
+- **Syslog:** TCP to `syslog.kube-cluster01.shelltopia.net:514` (UDP for the MikroTik devices, below), by name (every device takes one), level `info` and above. No TLS ([why](evaluations.md#open-points)).
+- **Scrape interval:** 30 s, the deduplication interval of `VMSingle`, except the HTTP checks (1 minute).
+
+| Path | Content |
+| --- | --- |
+| `observability/victoria-metrics-k8s-stack/app/ciliumnetworkpolicy.yaml` | `VMAgent`: egress to `fw-01.shelltopia.net` by FQDN |
+| `observability/victoria-metrics-k8s-stack/config/` | The `VMStaticScrape` of `os-node_exporter`, its rule |
+| `observability/nut-exporter/` | `app-template` release, egress by FQDN, `ServiceMonitor`, rules |
+| `observability/mktxp/` | `app-template` release, `ExternalSecret` (`sw-01-mktxp`, the credentials file), the ConfigMap of `mktxp.conf` and `_mktxp.conf`, egress by FQDN, `ServiceMonitor`, rules |
+| `observability/opnsense-exporter/` | `app-template` release (upstream only ships manifests in `deploy/k8s`), `ExternalSecret` (`fw-01-opnsense-exporter`), egress by FQDN, `ServiceMonitor`, rules |
+| `observability/snmp-exporter/` | Release, `ExternalSecret` (`ap-01-snmp`), the `auths` file, `generator.yml` and the generated Grandstream module, egress by FQDN, targets, rules |
+| `observability/blackbox-exporter/` | Release, the two modules, targets, rules |
+| `observability/vector-aggregator/app/` | The normalization of `host`, the parsing of the firewall logs, the per-host counter, its rule |
+| `observability/grafana/app/` | The community dashboards in the values, the Wi-Fi dashboard of the repository, the vendored *SNMP device* and *Prometheus Blackbox Exporter* |
+
+**NAS.** Syslog with *Include Audit Logs* (the middleware calls, `sudo`), hostname `nas-01`. No SMB share, so no SMB auditing.
+
+**UPS.** `nut_exporter` (DRuggeri) against the NUT server rather than an exporter on the NAS, so that the UPS can move to another host without touching the cluster side. Target `ups-01-dmz.shelltopia.net:3493`, the UPS in `params.ups` of the scrape, every variable exported. The scrape reads `/ups_metrics` (the UPS); `/metrics` is the exporter itself, for the probes, so that a NUT server down does not restart the pod. The exporter does not label the series with the UPS: the `ServiceMonitor` sets `ups` from the parameter (`__param_ups`), which the dashboard filters on. A NUT server unreachable or an unknown UPS fails the scrape (HTTP 500): `UPSExporterDown` covers both. No credentials: reading the variables of a UPS needs no login in NUT (`upsc` reads anonymously; the login serves `upsmon` and the instant commands), and `nut_exporter` only authenticates when given a username. The item `nas-01-nut-server` stays in the `infrastructure` vault, for `upsmon` on the nodes. The chart of DRuggeri is not used ([why](evaluations.md#rejected-and-alternative-options)).
+
+**MikroTik.** MKTXP for the RouterOS devices, rather than `snmp_exporter` ([why](evaluations.md#rejected-and-alternative-options)):
+
+- **On the device:** identity `sw-01`, a user `mktxp` in a group `policy=api,read`, its password in `sw-01-mktxp` (a *Login* item: `username`, `password`). `api` (8728) disabled, `api-ssl` (8729) kept. No `address=` on the user nor on `api-ssl`: `fw-01` already filters what reaches the switch. SNMP disabled and its user removed: an unused access is attack surface.
+- **TLS:** `sw-01` has a Let's Encrypt certificate, issued by the ACME client of `fw-01` and pushed to `www-ssl` and `api-ssl` by its automations (an SFTP upload, then an SSH script). MKTXP checks it: `use_ssl`, `ssl_certificate_verify` and `ssl_check_hostname` on, the trust store of the image (`ssl_ca_file` empty), `hostname = sw-01.shelltopia.net`, `port = 8729`. No trailing dot in the name (unlike `nut_exporter`): it is also the server name of the TLS check, which fails with one in Python. The pod has `ndots: 1` instead, so the name is asked as is first, not after the search domains.
+- **Configuration:** `mktxp.conf` (one section per device and `[default]`, `enabled = True` there: off when missing) and `_mktxp.conf` (the listen sockets `0.0.0.0:49090` and `[::]:49090`, one per family, [conventions](../conventions.md#listen-addresses); the timeouts) in a ConfigMap, versioned. The credentials stay out of it: the device section points to `credentials_file = /credentials/sw-01.yaml`, a Secret templated by the `ExternalSecret` from `sw-01-mktxp` (`username`, `password`), read once at startup: Reloader restarts the pod when it changes. MKTXP adds the keys missing from its files at startup and writes them back (read in its code, 2.1.0): an init container copies the ConfigMap into an `emptyDir`, and MKTXP runs with `--cfg-dir` on it.
+- **Collectors:** the defaults, plus `switch_port`, `routerboard` and `certificate` (the certificate of `api-ssl`: a broken push from `fw-01` shows there); off: `wireless`, `capsman`, `dhcp`, `pool`, `public_ip`, `netwatch`, `kid_control_*`. To read again on the first run.
+- **Exporter:** the speed test (`bandwidth`, to `8.8.8.8`) and `/probe` (`enable_probe`) off. MKTXP collects from the devices during each scrape: the probes of the pod are TCP, since every HTTP path is a collection. A device that fails (unreachable, login, TLS) is skipped and the scrape still answers 200, without its series: `MikrotikDown` is the absence of its identity, not `up`. After a failure it retries every 30 s at first, then up to every 5 minutes (`initial_delay_on_failure`, `max_delay_on_failure`, 2 and 15 s by default).
+- **Syslog:** a `remote` action, `remote=syslog.kube-cluster01.shelltopia.net`, `remote-port=514`, `remote-protocol=udp`, `remote-log-format=syslog` (BSD), `add-topics-string=yes`, `syslog-time-format=iso8601`, `syslog-facility=daemon`; one rule per topic, `info`, `warning`, `error`, `critical` (the topics of one rule must all be on an entry).
+  - UDP: over TCP, RouterOS only ends the CEF entries with a delimiter; the `syslog` ones follow each other in the stream, and Vector merges them until the connection closes ([why](evaluations.md#rejected-and-alternative-options)). The entries sent while the aggregator is unreachable are lost.
+  - `add-topics-string`: the BSD format of RouterOS has no tag, so Vector takes the first word of the message as `appname` (`user`, a session id). With the topics in front of the message, `appname` holds them (`system,info,account`, `ssh,info`) and the message stays whole.
+
+**OPNsense.** Both exporters: `os-node_exporter` for the host (the plugin, listening on `0.0.0.0:9100`, an OPNsense rule allows the nodes), `opnsense-exporter` for what the host view does not show (gateways, services, pf, WireGuard; also needed by the [LTE backup](../network/lte-backup.md) for the status of the gateways).
+
+- **API user:** a user `opnsense-exporter` without login, an API key: the key in `username`, the secret in `credential` of `fw-01-opnsense-exporter`. The exporter reaches the web UI on `fw-01.shelltopia.net:8443`. Its certificate is public (Let's Encrypt): verified, no `--opnsense.insecure`. `--exporter.instance-label=fw-01`.
+- **Collectors and privileges:** OPNsense has no read-only API: a privilege grants pages and API paths, the write endpoints of a module included (inferred from the ACL model, to confirm in the ACL files of 26.7). So only the collectors whose rights are acceptable are kept:
+
+  | Privilege | Collector | Also allows (to confirm) |
+  | --- | --- | --- |
+  | System: Gateways | Gateways (status, loss, latency) | Editing the gateways |
+  | Diagnostics: Firewall statistics, Lobby: Dashboard, System: Status | pf, pf states, mbuf, temperature | Little (dashboard widgets) |
+  | Reporting: Traffic, Diagnostics: Netstat | Interfaces | Nothing |
+  | Status: Services | Services up or down | Starting, stopping, restarting the services |
+  | VPN: WireGuard | WireGuard (the only VPN) | Editing the tunnels |
+
+  Disabled, with no privilege granted: Unbound (editing Unbound is a DNS hijack of the network), firmware (updating and rebooting the firewall), cron (creating jobs), ARP and the Kea leases (v4 and v6), CARP (not used), OpenVPN and IPsec (not used): `--exporter.disable-unbound`, `--exporter.disable-firmware`, `--exporter.disable-cron-table`, `--exporter.disable-arp-table`, `--exporter.disable-kea-dhcpv4`, `--exporter.disable-kea-dhcpv6`, `--exporter.disable-carp`, `--exporter.disable-openvpn`, `--exporter.disable-ipsec`. The key sits in a Secret of the cluster: a leak of `observability` still gives the write rights of the table on the firewall ([open points](evaluations.md#open-points)).
+- **Host:** `os-node_exporter` scraped by `VMAgent` (`VMStaticScrape`, `fw-01.shelltopia.net.:9100`, `instance` set to `fw-01`). A static scrape has no `namespace` label: `OPNsenseNodeExporterDown` adds it (`label_replace`), for the grouping of the notifications.
+- **Syslog:** TCP, RFC 5424, `info` and above, every application and facility. Hostname `fw-01`.
+- **Firewall logs:** sent, parsed by the aggregator into `filterlog.*` fields (the CSV of filterlog: rule, interface, reason, action, direction, IP version, protocol, source, destination, ports), all kept. A transform `syslog_parsed` after the normalization, so that the counter does not depend on it. The field names are those of the parser of OPNsense (`read_log.py`); the order is the one filterlog prints (`print-tcp.c` in `opnsense/ports`): TCP has a `window` field that this parser misses. Only the blocking rules log for now. The daily volume of `fw-01` is measured over a week, then `VLSingle` resized if needed ([storage](#storage-and-retention)).
+
+**Access point.** Standalone (configured on the device), device name `ap-01`, syslog over TCP.
+
+- **SNMPv3:** `authPriv`, `SHA` and `AES` (AES-128), the strongest the GWN offers (`MD5` or `SHA`, `DES` or `AES128`). The protocols in `snmp-auths.yml` (one auth per device, `ap-01`), in Git; the credentials read from environment variables (`--config.expand-environment-variables`, filled by the `ExternalSecret` from `ap-01-snmp`: an *API* item, `username` and `credential`, the privacy password in `privacy_key`). Read once at startup: Reloader restarts the exporter, its annotation added by a post-renderer (the chart has no value for it).
+- **Modules:** `system`, `if_mib`, the host modules `hrDevice` (the CPU per core) and `ucd_la_table` (the load), which the AP answers and the Grandstream MIB lacks, and `gwn_ap`. The `snmp.yml` of the image (the default modules), `snmp-gwn.yml` and `snmp-auths.yml` are three `--config.file`, merged by the exporter.
+- **Target:** `ap-01.shelltopia.net.`, with a trailing dot: the chart has no `dnsConfig`, and the search domains of the pod would be refused by the DNS rule of its network policy. `instance` is set to `ap-01` (on `up` and on the series). The release has `nameOverride: snmp-exporter`: the label `app.kubernetes.io/name` and the names of the resources, `job="snmp-exporter"`. Two entries, so two `ServiceMonitor`, told apart by `target`: `ap-01` (the standard modules, 30 s) and `ap-01-wifi` (`gwn_ap`, 5 min, timeout 90 s).
+- **The slow agent:** the agent of the AP computes every Grandstream value on its own, about 0.5 s per radio value (0.05 s for the WLAN and client tables), whatever the number of values per request, and answers nothing else meanwhile, not even the v3 discovery. Measured on 2026-11-13: the whole radio table in 23 s, the standard modules in under 0.1 s. Walked every 30 s by both `VMAgent` replicas, with up to 25 values per request (the default), the agent never caught up: every module timed out. Hence:
+  - `max_repetitions: 1` in the module: one value per request, for the walks and the gets. The scrapes interleave, and a walk does not compute the values past its subtree.
+  - The traffic and the errors of the radios from `if_mib`: the interfaces `wifi0` and `wifi1`, named like the radios, 64-bit, and their rates match the Grandstream counters. Only the status, the channel and the transmit power from `gwnRadioTable`.
+  - `gwn_ap` on its own every 5 minutes: the radio settings and the clients change slowly. With 2 minutes, a walk took 43 s (both replicas at once), and the scrapes of `ap-01` waiting behind it timed out, one in four. A scrape of `ap-01` can still fail when it meets the walk: `SNMPTargetDown` waits 5 minutes.
+- **The client table:** the AP does not follow its MIB. A first column holds the row number (1, 2...), which indexes the table instead of the MAC (a `DisplayString`), and every column of the MIB is one further: the MAC in 2, the IP in 3 (a string, not an `IpAddress`), up to the received bytes in 16; two more counters follow, undocumented and not read (walked 2026-11-13). Read as the MIB says, the index gives NUL bytes and every label and value is the one of the previous column. A `type` override in `generator.yml` also changes the MAC column, so the recipe fixes the generated module with `yq`: the client metrics and their lookups one column further, the IP read as a string, the index read as a number, then the MAC column as a last lookup, which replaces the label with the MAC.
+- **The Grandstream module:** `GRANDSTREAM-GWN-PRODUCTS-AP-MIB` (enterprise `42397`) from the ZIP of the [tools page](https://www.grandstream.com/support/tools) (`https://www.grandstream.com/hubfs/MIBs/GWN_SNMP_MIB_2026Jan.zip`, sha256 `85a0541174c2ef607b36b798d1b1cb80150fedd8a294a4bb53b3d251ccc07116`, read 2026-11-12). `generator.yml` in Git; the generated module (`snmp-gwn.yml`) committed and loaded as a second `--config.file`. The MIBs are not committed: a `just` recipe downloads the ZIP, checks its sha256 and runs the generator image (`prom/snmp-generator`, the version of the exporter), again when Grandstream publishes a new ZIP. A generated file, not a vendored one: there is no upstream to point to. The recipe also removes the UTF-8 BOM that starts the Grandstream MIBs (net-snmp does not see their module name behind it), downloads the IETF MIBs they import (`SNMPv2-SMI`, `SNMPv2-TC`, `SNMPv2-CONF`, `SNMPv2-MIB`, `IANAifType-MIB`, `IF-MIB`) from the tag `v5.9.4` of net-snmp (the generator image only has the NET-SNMP and UCD ones), and fixes [the client table](#external-devices).
+
+  | Table | Columns | Use |
+  | --- | --- | --- |
+  | `gwnRadioTable` | Name, status, channel, transmit power (the traffic and the errors from `if_mib`: [the slow agent](#external-devices)) | Per radio: channel and power changes |
+  | `gwnWlanTable` | ESSID, BSSID, Tx/Rx frames and data bytes | Traffic per SSID |
+  | `gwnClientTable` | MAC, IP, SSID, RSSI, association time, manufacturer, hostname, OS, Tx/Rx rate, frames, bytes | Clients per SSID, signal per client |
+
+  Kept: the numeric columns of the table above as metrics, the text columns as labels (`lookups` give the radio name and the SSID to the series), the system info (`gwnDevice*`) and `gwnApStatus` as info metrics, one per column (its value in a label of the same name). Accepted: client IPs and hostnames stored for the retention of `VMSingle`, and a new series when a client changes IP or rotates its random MAC (a few dozen clients). The MIB is sloppy (empty descriptions, no units, `gwnDevice*` defined twice: the module walks the copy of the AP, `gwnApSystemInfo`) and its counters are 32-bit (`rate()` handles the wraps; above 4 GiB in 5 minutes, about 14 MB/s for one SSID or client, a wrap goes unseen). The units, read against the web UI of the AP (2026-11-13): the transmit power of the radios in dBm; the client rates in Mbit/s (the *Link Rate* of the UI); the client bytes seen from the AP (`TxDataBytes` is the *RX* of the client in the UI); the RSSI above a noise floor of -95 dBm, the convention of the Qualcomm radios (`wifiN`, `athN` interfaces): the UI shows `RSSI - 95` within a few dB, and so does `wifi.json`.
+
+**HTTP checks.** Every minute, in IPv4 and in IPv6 (both names have `A` and `AAAA`): `https://id.shelltopia.org/.well-known/openid-configuration` and `https://uptime.shelltopia.org/` (no documented health endpoint for Uptime Kuma: the root, redirected to its dashboard). The pods resolve them through the fallthrough of k8s-gateway to Cloudflare ([dns](../dns/README.md#internal-k8s-gateway)), so they reach PikaPods as from the internet, in both families (the IPv6 egress of the pods, checked at stage 5g).
+
+- **Modules:** `http_2xx_ipv4` and `http_2xx_ipv6`, without fallback (`ip_protocol_fallback: false`): a broken family fails on its own. `fail_if_not_ssl`, the certificate checked against the trust store of the image. The default `http_2xx` of the chart removed.
+- **Targets:** `serviceMonitor.targets` of the chart (`prometheus-blackbox-exporter`), one `ServiceMonitor` per URL and module, named `<service>-ipv4` and `<service>-ipv6` (the `target` label). The chart sets `instance` (the URL) and `target` on the series only: `relabelings` set `instance` and `module` on the targets too, without which the four targets would have the same labels and `VMAgent` would keep one. `job="blackbox-exporter"`, the name of the Service.
+- **Pod:** `nameOverride: blackbox-exporter`, `ndots: 1` (the names asked as is first; no trailing dot, which would go into the `Host` header and `instance`). The modules are in a ConfigMap of the chart, whose checksum restarts the pod: no Reloader.
+- The certificate expiry is alerted. Later, `blackbox_exporter` also probes services of the cluster and of the private network ([network](#network-and-pod-security)).
+
+**Alerts.** The availability alerts ship with each device, the resource alerts after a week of data (the alert pass of [stage 5](bootstrap.md#5-external-devices), thresholds read on the real values):
+
+| Alert | Expression | `for` | Severity | Next to |
+| --- | --- | --- | --- | --- |
+| `UPSExporterDown` | `up{job="nut-exporter"} == 0` | 5m | `warning` | `nut-exporter/app` |
+| `UPSOnBattery` | `network_ups_tools_ups_status{flag="OB"} == 1` | 1m | `critical` | `nut-exporter/app` |
+| `UPSLowBattery` | `network_ups_tools_ups_status{flag="LB"} == 1` | 0 | `critical` | `nut-exporter/app` |
+| `UPSReplaceBattery` | `network_ups_tools_ups_status{flag="RB"} == 1` | 1h | `warning` | `nut-exporter/app` |
+| `MikrotikDown` | `absent(mktxp_system_identity_info{namespace="observability", routerboard_name="sw-01"})`, one `absent` per device (MKTXP answers the scrape when a device fails) | 5m | `warning` | `mktxp/app` |
+| `OPNsenseNodeExporterDown` | `label_replace(up{job="opnsense-node-exporter"} == 0, "namespace", "observability", "", "")` | 5m | `warning` | `config/` of the stack |
+| `OPNsenseExporterDown` | `up{job="opnsense-exporter"} == 0 or opnsense_up{job="opnsense-exporter"} == 0` (the exporter answers when the API fails) | 5m | `warning` | `opnsense-exporter/app` |
+| `OPNsenseGatewayDown` | `opnsense_gateways_status{job="opnsense-exporter"} == 0` (0 offline, 1 online, then unknown, pending, loss, latency, forced down; only the gateways enabled and monitored) | 5m | `warning` | `opnsense-exporter/app` |
+| `SNMPTargetDown` | `up{job="snmp-exporter"} == 0` (the exporter answers 500 when the walk fails) | 5m | `warning` | `snmp-exporter/app` |
+| `HTTPProbeFailed` | `probe_success{job="blackbox-exporter"} == 0`, per URL (`instance`) and `module` | 5m | `warning` | `blackbox-exporter/app` |
+| `HTTPCertExpirySoon` | `min by (namespace, instance) (probe_ssl_earliest_cert_expiry{job="blackbox-exporter"}) - time()` (the earliest of both families) under 14 days `warning`, under 7 days `critical`, one name (the inhibition, as `CertManagerCertExpirySoon`) | 1h | both | `blackbox-exporter/app` |
+| `SyslogHostSilent` | The hosts seen over the last 7 days `unless` those with events in the threshold `unless` the device is down, on `syslog_events_total` | Per host | `warning` | `vector-aggregator/app` |
+
+- **No `critical` for the firewall down:** the notifications leave through it. If it is down, nothing reaches Pushover; the dead man's switch of healthchecks.io notices it.
+- **`namespace`:** every device alert carries `observability`, the namespace of its scrape object: grouped by `alertname`, two devices down make one notification. The inhibition compares `instance`: a `critical` on one target does not hide the `warning` of another.
+- **Silent hosts:** thresholds per host rather than heartbeats ([why](evaluations.md#rejected-and-alternative-options)). A `log_to_metric` transform of the aggregator counts the events per `host` (`syslog_events_total`, exported by its `prom_exporter`). The exporter keeps a series 8 days after its last event (`flush_period_secs`, 60 s by default): an expired counter comes back at 1, the same value as before for a host sending every few minutes, so no increase. 8 days is over the 7 days of the rule, and the series of a host gone still expire. The thresholds are set after a week of the counter, 1 hour by default, longer for the quiet hosts (a second rule).
+- **The alert pass** (a week later): sustained CPU on `fw-01` and `sw-01` (`DeviceCPUSustainedHigh`, for instance above 80 % for an hour: these devices idle, so a long plateau is abnormal), UPS runtime, gateway loss and latency, the filesystem of `fw-01`, temperature, PSU and interface errors of `sw-01`, the certificate of `api-ssl`, a radio of the AP down; the default `TargetDown` muted on these jobs if it doubles them. Not duplicated: SMART and pool health (native TrueNAS alerts). Better signals of a compromise than the CPU, already there or planned: the unexpected egress from the cluster (the denied flows), DNS to mining pools (the blocklists of Unbound, its logs in VictoriaLogs), and for a ransomware on the NAS the write rate and the snapshot growth (with `node_exporter`, later).
+
+**Dashboards:** community ones ([dashboards](#the-release-of-the-stack)): UPS 19308 (`nut_exporter`), MikroTik 13679 (MKTXP), OPNsense 19366 (`os-node_exporter`, a job variable) and 21113 (`opnsense-exporter`), HTTP checks 14928 (revision 6, vendored in `grafana/app/dashboards/blackbox.json`; its `target` variable reads the label of the chart, one per URL and family; 13659 [rejected](evaluations.md#rejected-and-alternative-options)). 19366 stays at revision 6: the 7 hard-codes the uid `prometheus`, the 8 and 9 use the v2 schema of Grafana 12 (`apiVersion`, `kind`, `spec`), which the file provisioning does not read. None reads the Grandstream MIB: the interfaces of the access point in 20347 (*SNMP device*, vendored in `grafana/app/dashboards/snmp-device.json`, `if_mib`, every interface in one dashboard; its traffic reads the 64-bit counters only), the Wi-Fi (radios, SSIDs, clients, with the traffic of the radios, the CPU and the load of the AP from the standard modules) in a dashboard of the repository, `grafana/app/dashboards/wifi.json`. Later for the NAS: 1860 *Node Exporter Full*, a ZFS dashboard and a `smartctl_exporter` one.
 
 ### Network and Pod Security
 
-- **Receivers** (Vector aggregator, Graphite of `VMAgent`): one LoadBalancer Service each, on their own addresses pinned in the `internal` pool, IPv4 and IPv6, like every LoadBalancer address ([conventions](../conventions.md#loadbalancer-addresses)). Their names, in `shelltopia.net`, are static `A` and `AAAA` host overrides in Unbound, created by hand and kept in sync with the addresses ([dns](../dns/runbook.md#where-to-create-a-record)). Ingress from `world` is enough for the devices: OPNsense filters the VLANs, and the baseline policy of the namespace keeps any other pod out. Talos reaches the agent of its node from `host`, allowed by the baseline.
+- **Receiver** (Vector aggregator): a LoadBalancer Service on its own addresses pinned in the `internal` pool, IPv4 and IPv6, like every LoadBalancer address ([conventions](../conventions.md#loadbalancer-addresses)). Its name, in `shelltopia.net`, is a static `A` and `AAAA` host override in Unbound, created by hand and kept in sync with the addresses ([dns](../dns/runbook.md#where-to-create-a-record)). Ingress from `world` is enough for the devices: OPNsense filters the VLANs, and the baseline policy of the namespace keeps any other pod out. Talos reaches the agent of its node from `host`, allowed by the baseline.
 - **Scraping:** `VMAgent` reaches every pod (an exception in `kubernetes/apps/kube-system/cilium/policies/baseline.yaml`) and the node ports it scrapes (`host.yaml`: kubelet 10250, etcd 2381, scheduler 10259, controller-manager 10257, node-exporter 9100, the Cilium agent 9962 and operator 9963, Hubble 9965, drbd-reactor 9942).
 - **Other flows:** the Vector agent (`observability-agents`) to VictoriaLogs. The rest stays inside `observability`.
-- **Scrapers** (`snmp_exporter`, `blackbox_exporter`): egress by FQDN (`toFQDNs`), never by address, as the [conventions](../conventions.md#network-policies) ask for every pod reaching the internal network.
+- **Scrapers of the devices** (`nut_exporter`, MKTXP, `opnsense-exporter`, `snmp_exporter`, and `VMAgent` for `os-node_exporter`): egress by FQDN (`toFQDNs` with the DNS rule), never by address, as the [conventions](../conventions.md#network-policies) ask for every pod reaching the internal network; the baseline blocks the private networks otherwise. The DNS rule of `VMAgent` allows every name: it resolves the Service of `VMSingle` too, and the DNS proxy of Cilium refuses the names not listed. `blackbox_exporter` only probes public targets for now, allowed by the baseline: a later probe of the cluster or of the private network gets its own `toFQDNs` rule, added with the target.
 - **Pod Security:** `observability-agents` is `privileged`, for the Vector agent (`hostPath`: the pod logs, the Hubble files, its buffer; `hostPort` for Talos) and node-exporter (`hostNetwork`, `hostPID`, `hostPath`). `observability` is `restricted`: the values set the security context where a chart default does not meet it (the operator, the Alertmanager, the Job of the rules and dashboards, Grafana). For the resources of the operator, `useStrictSecurity` is not enough: any `securityContext` in the spec replaces its defaults, and the chart sets a partial one as soon as there is a volume, so the values write it out in full.
-- **Secrets**: ExternalSecrets from the `kubernetes` vault, one item per tool or device, named `<provider>-<app>` or `<host>-<service>` (`pushover-alertmanager`, `pocket-id-grafana`, `sw-01-snmp`, `ap-01-snmp`, the ping URL in `healthchecks`).
+- **Secrets**: ExternalSecrets from the `kubernetes` vault, one item per tool or device, named `<provider>-<app>` or `<host>-<service>` (`pushover-alertmanager`, `pocket-id-grafana`, `sw-01-mktxp`, `fw-01-opnsense-exporter`, `ap-01-snmp`, the ping URL in `healthchecks`).

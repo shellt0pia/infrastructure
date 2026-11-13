@@ -1,0 +1,55 @@
+---
+# The alerts of the HTTP checks (docs/observability/README.md#external-devices). The series carry
+# `namespace` (observability), `instance` (the URL) and `module` (the family). Converted to a
+# VMRule by the operator of the stack.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: blackbox-exporter
+spec:
+  groups:
+    - name: blackbox-exporter
+      rules:
+        # Per URL and family: an IPv6 path broken alone fires for that module only. The exporter
+        # itself down leaves no `probe_success`: the default `TargetDown` covers it.
+        - alert: HTTPProbeFailed
+          expr: probe_success{job="blackbox-exporter"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.instance }} has failed its {{ $labels.module }} check for 5 minutes."
+            description: >-
+              The HTTP check of {{ $labels.instance }} ({{ $labels.module }}) fails: the service
+              is down, answers an error, its certificate is refused, or that family is
+              unreachable from the cluster. The `debug=true` of the probe gives the reason
+              (docs/observability/bootstrap.md#5-external-devices).
+        # The earliest certificate of a URL, whatever the family (both may reach different
+        # servers). Two thresholds under one name, `instance` kept: the critical inhibits the
+        # warning of the same URL only, as CertManagerCertExpirySoon.
+        - alert: HTTPCertExpirySoon
+          expr: |
+            min by (namespace, instance) (probe_ssl_earliest_cert_expiry{job="blackbox-exporter"})
+              - time() < 14 * 86400
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "The certificate of {{ $labels.instance }} expires in {{ $value | humanizeDuration }}."
+            description: >-
+              The certificate served by {{ $labels.instance }} expires in less than 14 days: its
+              renewal is late. The service is hosted outside the cluster (PikaPods): the renewal
+              is theirs.
+        - alert: HTTPCertExpirySoon
+          expr: |
+            min by (namespace, instance) (probe_ssl_earliest_cert_expiry{job="blackbox-exporter"})
+              - time() < 7 * 86400
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: "The certificate of {{ $labels.instance }} expires in {{ $value | humanizeDuration }}."
+            description: >-
+              The certificate served by {{ $labels.instance }} expires in less than 7 days and
+              has not been renewed. The service is hosted outside the cluster (PikaPods): the
+              renewal is theirs.

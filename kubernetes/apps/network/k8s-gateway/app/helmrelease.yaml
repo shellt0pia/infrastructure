@@ -92,8 +92,9 @@ spec:
             parameters: . tls://2606:4700:4700::1111 tls://2606:4700:4700::1001 tls://1.1.1.1 tls://1.0.0.1
             configBlock: |-
               tls_servername cloudflare-dns.com
+          # `:9153`, one socket for both families (Go, docs/conventions.md#listen-addresses).
           - name: prometheus
-            parameters: 0.0.0.0:9153
+            parameters: :9153
           - name: reload
           - name: loadbalance
     # The ServiceMonitor selects the metrics Service (the `prometheus` plugin above, :9153), which

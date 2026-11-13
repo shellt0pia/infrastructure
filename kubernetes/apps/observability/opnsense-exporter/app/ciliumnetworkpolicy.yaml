@@ -1,0 +1,26 @@
+---
+# opnsense-exporter reads the API of fw-01 (internal network, out of the baseline): by name, never
+# by address. The DNS rule lets Cilium learn the addresses of the name from the answers of
+# CoreDNS. VMAgent scrapes the exporter through the baseline.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: opnsense-exporter-fw-01
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: opnsense-exporter
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchName: fw-01.shelltopia.net
+    - toFQDNs:
+        - matchName: fw-01.shelltopia.net

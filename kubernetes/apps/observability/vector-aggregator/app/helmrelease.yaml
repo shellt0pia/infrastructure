@@ -119,12 +119,67 @@ spec:
           type: internal_metrics
 
       transforms:
+        # `host`, the stream field: each device sends its short name or its FQDN, both become
+        # the short name in lower case, whatever the domain
+        # (docs/observability/README.md#external-devices). Not an address (the peer, when the
+        # line has no hostname): its first label would be `192`. `hostname`, the raw copy of
+        # `host` made by the source (`nas-01.` from TrueNAS), is removed.
         syslog_normalized:
           type: remap
           inputs: [syslog_tcp, syslog_udp]
           source: |
             .log_source = "syslog"
             .source_ip = replace(to_string(.source_ip) ?? "", r'^::ffff:', "")
+            del(.hostname)
+            host = downcase(to_string(.host) ?? "")
+            .host = if is_ipv4(host) || is_ipv6(host) {
+              replace(host, r'^::ffff:', "")
+            } else {
+              replace(host, r'\..*', "")
+            }
+        # The events per `host`, for the silent hosts (`SyslogHostSilent`). One counter per
+        # replica: sum them by `host`. The chart passes `customConfig` through `tpl`: the
+        # Vector template is escaped as a Go string, `{{ host }}` once rendered.
+        syslog_events:
+          type: log_to_metric
+          inputs: [syslog_normalized]
+          metrics:
+            - type: counter
+              field: host
+              name: syslog_events_total
+              tags:
+                host: "{{`{{ host }}`}}"
+        # The firewall logs of OPNsense (`appname` filterlog): the CSV of the message into
+        # `filterlog.*` fields, named as the parser of OPNsense names them
+        # (src/opnsense/scripts/filter/read_log.py, 26.7): the common part, then IPv4 or IPv6,
+        # then TCP or UDP (the ports). TCP has the `window` field that this parser misses, as
+        # filterlog prints it (opnsense/ports, filterlog/files/print-tcp.c). The empty fields
+        # dropped, the message kept. The other protocols (ICMP...) stop at the addresses; a
+        # line that is not CSV stays as it is.
+        syslog_parsed:
+          type: remap
+          inputs: [syslog_normalized]
+          source: |
+            if .appname == "filterlog" {
+              parts, err = parse_csv(.message)
+              if err == null && length(parts) > 8 {
+                keys = ["rulenr", "subrulenr", "anchorname", "rid", "interface", "reason", "action", "dir", "ipversion"]
+                protonum = null
+                if parts[8] == "4" {
+                  keys = append(keys, ["tos", "ecn", "ttl", "id", "offset", "ipflags", "protonum", "protoname", "length", "src", "dst"])
+                  protonum = parts[15]
+                } else if parts[8] == "6" {
+                  keys = append(keys, ["class", "flow", "hoplimit", "protoname", "protonum", "length", "src", "dst"])
+                  protonum = parts[13]
+                }
+                if protonum == "6" {
+                  keys = append(keys, ["srcport", "dstport", "datalen", "tcpflags", "seq", "ack", "window", "urp", "tcpopts"])
+                } else if protonum == "17" {
+                  keys = append(keys, ["srcport", "dstport", "datalen"])
+                }
+                .filterlog = compact(object_from_array(parts, keys))
+              }
+            }
 
       # The Elasticsearch API of VictoriaLogs, see the agent
       # (kubernetes/apps/observability-agents/vector-agent). Disk buffer of 1 GiB on the 2 Gi
@@ -133,7 +188,7 @@ spec:
       sinks:
         vlsingle:
           type: elasticsearch
-          inputs: [syslog_normalized]
+          inputs: [syslog_parsed]
           endpoints:
             - http://vlsingle-victoria-metrics-k8s-stack.observability.svc.cluster.local.:9428/insert/elasticsearch/
           api_version: v8
@@ -150,8 +205,14 @@ spec:
             type: disk
             max_size: 1073741824
             when_full: block
-        # Its port is the `prom-exporter` port of the pod, scraped by the podMonitor.
+        # Its port is the `prom-exporter` port of the pod, scraped by the podMonitor. A series
+        # not updated for `flush_period_secs` is dropped (60 s by default), and a counter of
+        # `syslog_events` then comes back at 1: for a host sending every few minutes, the same
+        # value as before, so no increase. 8 days, over the 7 days of `SyslogHostSilent`: the
+        # counter of a quiet host never restarts within the window. The series of a host gone
+        # still expire.
         prom_exporter:
           type: prometheus_exporter
-          inputs: [internal_metrics]
+          inputs: [internal_metrics, syslog_events]
           address: "[::]:9090"
+          flush_period_secs: 691200

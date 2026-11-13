@@ -200,6 +200,41 @@ spec:
         envoy-proxies:
           gnetId: 24459
           revision: 3
+        # The UPS (nut-exporter). Revision 3: the 4 hardcodes `"uid": "prometheus"`, with no
+        # `DS_` input that the chart could replace (the data source of the stack is
+        # `VictoriaMetrics`); it only adds the Power panels (`ups.realpower.nominal`). Published
+        # by Diaoul: not the dashboard of the nut_exporter repository (`dashboard/`), another
+        # one, without the Power panels either.
+        nut:
+          gnetId: 19308
+          revision: 3
+          datasource:
+            - name: DS_PROMETHEUS
+              value: VictoriaMetrics
+        # The MikroTik devices (mktxp), the official dashboard of MKTXP.
+        mikrotik:
+          gnetId: 13679
+          revision: 32
+          datasource:
+            - name: DS_PROMETHEUS
+              value: VictoriaMetrics
+        # The OPNsense firewall, its node_exporter plugin. Revision 6: the last one with a
+        # `DS_PROMETHEUS` input; the 7 hardcodes `"uid": "prometheus"`, the 8 and 9 use the v2
+        # schema of Grafana 12 (`apiVersion`, `kind`, `spec`), which the file provisioning does
+        # not read.
+        opnsense-node:
+          gnetId: 19366
+          revision: 6
+          datasource:
+            - name: DS_PROMETHEUS
+              value: VictoriaMetrics
+        # The OPNsense firewall, the dashboard of opnsense-exporter (its only revision).
+        opnsense-exporter:
+          gnetId: 21113
+          revision: 1
+          datasource:
+            - name: DS_PROMETHEUS-K0
+              value: VictoriaMetrics
         # Not on grafana.com: the dashboard of the Flux monitoring example, pinned to a commit.
         flux-control-plane:
           url: https://raw.githubusercontent.com/fluxcd/flux2-monitoring-example/7ab65dc8b90f7a6751d88f18bbb4e1bee33bf334/monitoring/configs/dashboards/control-plane.json
