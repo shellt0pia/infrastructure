@@ -29,6 +29,7 @@ The choices considered and set aside, and what is still to check or watch. The r
 | A `LimitRange` per namespace, with default requests and limits | It invents values for what has none, and hides the forgotten ones. |
 | A class below the applications (negative, `preemptionPolicy: Never`) | No workload to put there today: the backups and the exporters matter more than the applications. To add if one shows up. |
 | A `globalDefault` class for the applications | The default of a pod without class is already 0, below `infrastructure`. |
+| The classes of the charts and operators (`system-cluster-critical` for the Flux controllers, the Piraeus operator and the affinity controller) | A system class is never evicted by the kubelet and preempts `infrastructure`: only for what the network or the volumes of the running pods depend on ([README](README.md#resources-and-priorities)). |
 
 ## Intel DRA driver
 
@@ -50,3 +51,4 @@ The Intel device plugin is used through the operator, with `sharedDevNum: 3` (Pl
 | Renovate in the cluster | Renovate operator or plain CronJob, with a GitHub App or a fine-grained token ([roadmap](../roadmap.md#open-decisions)). |
 | Pod Security: VolSync movers | The movers run in the namespace of the application, so at `restricted`. With `moverSecurityContext` (component `kubernetes/components/volsync`) they should comply: check at the first application backed up ([checks](bootstrap.md#pod-security)). |
 | User namespaces (`hostUsers: false`) | Root in the container mapped to an unprivileged UID of the node. Stable and enabled (Kubernetes 1.37, kernel 6.18, containerd 2, `user.max_user_namespaces` set in `talos/patches/sysctls.yaml`), and a server dry run shows that Pod Security skips the non-root checks. Not tested with a real pod: start with a LINSTOR volume. Not for NFS volumes (no idmapped mounts) nor `hostNetwork` ([README](README.md#pod-security)). |
+| Pods kept after a node shutdown | The graceful node shutdown leaves the pods of the node `Failed` (`NodeShutdown`), replaced on the other node: 76 of the Cilium operator on 2026-11-13. Kubernetes only deletes the finished pods over 12 500 (`terminated-pod-gc-threshold` of the controller manager). Harmless (no resources, left out of `ContainerWithoutMemoryLimit`), but they fill `kubectl get pods`. To clean: a lower threshold (`KubeControllerManagerConfig`, every finished pod, the Jobs included), or `RemoveFailedPods` of the [descheduler](../cluster-tools.md#6-descheduler) with the `NodeShutdown` reason. |

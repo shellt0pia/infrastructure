@@ -6,7 +6,7 @@ Temporary document: the plan of the [Cluster tools](roadmap.md#cluster-tools) of
 
 | Step | Roadmap items | Why in this order | Status |
 | --- | --- | --- | --- |
-| [1](#1-resources-and-priorities) | Resources and `PriorityClass`es: the convention, the classes, the checks | The convention first: every tool deployed after it (metrics-server, VPA, Headlamp) follows it from the start. | In progress: the inventory left |
+| [1](#1-resources-and-priorities) | Resources and `PriorityClass`es: the convention, the classes, the checks | The convention first: every tool deployed after it (metrics-server, VPA, Headlamp) follows it from the start. | Done |
 | [2](#2-kubelet-serving-certificates-metrics-server-and-vpa) | kubelet serving certificates, metrics-server, VPA and Goldilocks | Grouped: metrics-server needs the verified kubelet certificates, the VPA recommender needs metrics-server. | To do |
 | [3](#3-sizing) | Resources and `PriorityClass`es: the sizing | From the recommendations of step 2, checked against the history of VictoriaMetrics (since 2026-11-03). | To do |
 | [4](#4-oidc-authentication) | Kubernetes OIDC authentication | Before the UIs: both log in through it, and their rights are the bindings of its groups. | To do |
@@ -39,7 +39,7 @@ In the [conventions](conventions.md#resources-and-priorities), the why in [clust
 
 - [x] **Convention.** A *Resources and priorities* section of [conventions.md](conventions.md), the why in [cluster/README.md](cluster/README.md).
 - [x] **Classes.** `kubernetes/apps/kube-system/priority-classes/`, applied before any pod names them: a pod that names an unknown class is refused. Also applied by the bootstrap helmfile, before Cilium (`presync` hook).
-- [x] **Checks.** The alerts `ContainerWithoutMemoryLimit` (`info` until step 3) and `ContainerOOMKilled`, in `kubernetes/apps/observability/victoria-metrics-k8s-stack/app/prometheusrule.yaml`. Their checks in [bootstrap](cluster/bootstrap.md#resources-and-priorities), to run after the push.
+- [x] **Checks.** The alerts `ContainerWithoutMemoryLimit` (`info` until step 3) and `ContainerOOMKilled`, in `kubernetes/apps/observability/victoria-metrics-k8s-stack/app/prometheusrule.yaml`. Their checks in [bootstrap](cluster/bootstrap.md#resources-and-priorities), done on 2026-11-13.
 - [x] **Inventory.** Each release rendered (`helm template`, in `.scratch/inventory/`, the charts unpacked in `.scratch/charts/`), and the pods created by an operator read in the cluster: per container, init containers and sidecars included, its requests, limits and class, and how to set them ([below](#inventory)).
 - [x] **Docs:** [conventions](conventions.md), [cluster](cluster/README.md) (decisions, status and [checks](cluster/bootstrap.md#resources-and-priorities)), [observability](observability/README.md#alerting) (the rules), [reference](reference.md#priority-classes) (the classes).
 
@@ -100,12 +100,12 @@ Rendered on 2026-11-13, at the versions of the repository; the pods created by a
 What it shows:
 
 - **Nothing names `infrastructure`.** The system classes: the Cilium agent and Envoy, the Cilium operator, CoreDNS, every pod of Piraeus, and three Flux controllers (`system-cluster-critical` upstream, not notification-controller).
-- **Classes of the operators against the convention:** the LINSTOR controller and the CSI controller are `system-node-critical`, not `system-cluster-critical`. The Piraeus operator, the affinity controller and the Flux controllers are `system-cluster-critical`, not `infrastructure`.
+- **Classes of the operators against the convention:** the LINSTOR controller and the CSI controller are `system-node-critical`, not `system-cluster-critical`. The Piraeus operator, the affinity controller and the Flux controllers are `system-cluster-critical`, not `infrastructure`. The convention wins ([cluster](cluster/README.md#resources-and-priorities)): set in [step 3](#3-sizing).
 - **Without a memory limit**: cert-manager, External Secrets, the Cilium agent, Envoy and operator, Hubble Relay, snapshot-controller, external-dns, every pod of Piraeus, the Envoy proxies and their `shutdown-manager`, the config reloaders of the VictoriaMetrics resources, the Jobs of cert-manager, Envoy Gateway and Hubble, the init `download-dashboards` of Grafana, and the VolSync movers.
 - **CPU limits** of the defaults, against the convention: VolSync, flux-operator and the Flux controllers, the init `install-cni-binaries` of Cilium, CoreDNS, the Intel operator, k8s-gateway. Removed in the values (`cpu: null` clears a default of the chart). The GPU plugin keeps the one of its operator.
 - **Memory limit equal to the request** (chart defaults): CoreDNS, k8s-gateway, Spegel, the init of mktxp. To recheck with the sizing.
 - **No field for the class**: the Intel device plugin operator (a `postRenderers` patch), the Jobs `certgen` of Envoy Gateway and `sync-job` of the stack, the VolSync movers (the class of their application), the GPU plugin (neither the resources nor the class, set by its operator: 40m / 45Mi, limits 100m / 115Mi).
-- **Finished pods kept**: 77 pods of an old ReplicaSet of the Cilium operator, two revisions of cert-manager and k8s-gateway. Kubernetes only deletes the finished pods over 12 500 (`terminated-pod-gc-threshold`). `ContainerWithoutMemoryLimit` leaves them out.
+- **Finished pods kept**: 77 pods of an old ReplicaSet of the Cilium operator (76 `NodeShutdown`, 1 `Terminated`), two revisions of cert-manager and k8s-gateway. `ContainerWithoutMemoryLimit` leaves them out; their cleaning is an [open point](cluster/evaluations.md#open-points).
 
 #### From the cluster
 
@@ -129,7 +129,7 @@ Roadmap item as written ([roadmap](roadmap.md#cluster-tools)), and the tools of 
 ## 3. Sizing
 
 - [ ] **Recommendations.** Goldilocks, after 8 days of data for the VPA recommender, against the history of VictoriaMetrics (the peak of `container_memory_working_set_bytes`, the 95th percentile of the CPU), so that the nightly backups and the reconciliations are in it. The queries kept here.
-- [ ] **Apply**, one namespace per commit, the network and the storage first. The requests, the limits and the class of each component, with `dependsOn` `priority-classes` on its Kustomization. Spegel moves from `system-node-critical` (its chart default) to `infrastructure`, its section of [cluster](cluster/README.md#spegel) with it. After each push: no pod `Pending`, the requests per node (`kubectl describe node`), no OOM kill.
+- [ ] **Apply**, one namespace per commit, the network and the storage first. The requests, the limits and the class of each component, with `dependsOn` `priority-classes` on its Kustomization. The class of the convention where the chart or the operator sets another: Spegel (`system-node-critical`, its section of [cluster](cluster/README.md#spegel) with it), the Flux controllers, the Piraeus operator and the affinity controller to `infrastructure`; the LINSTOR controller and the CSI controller to `system-cluster-critical`. After each push: no pod `Pending`, the requests per node (`kubectl describe node`), no OOM kill.
 - [ ] **Alert** `ContainerWithoutMemoryLimit` to `warning`, once it no longer fires.
 - [ ] **Check** two weeks later: the usage against the requests and limits, adjusted.
 - [ ] **Docs:** the status in [cluster](cluster/README.md), the item ticked in the [roadmap](roadmap.md#cluster-tools).

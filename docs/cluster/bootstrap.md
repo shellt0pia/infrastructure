@@ -531,3 +531,5 @@ The class `infrastructure` and the alerts of the convention ([README](README.md#
   ```
 
   Expected: `OOMKilled`. The alert `firing` for `debug/oom-test` at the next evaluation (no `for`), notified on the phone (`warning`); it resolves once the pod is deleted.
+
+  Done on 2026-11-13: the four checks as expected.

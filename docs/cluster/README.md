@@ -17,7 +17,7 @@ How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap he
 | CNI, kube-proxy replacement | Cilium | In use ([below](#cilium)) |
 | Network policies, Hubble Relay and UI | Cilium | Enforced since 2026-11-13 ([below](#network-policies)). Hubble UI deployed |
 | Pod Security | Pod Security Admission | `restricted` by default, to apply (Talos and Flux), [checks](bootstrap.md#pod-security) in progress ([below](#pod-security)) |
-| Resources and priorities | `PriorityClass`, alerts on kube-state-metrics | Convention written, class `infrastructure` and alerts added, not deployed yet ([checks](bootstrap.md#resources-and-priorities)). The sizing of the existing components [to do](../cluster-tools.md) ([below](#resources-and-priorities)) |
+| Resources and priorities | `PriorityClass`, alerts on kube-state-metrics | Convention written, class `infrastructure` and alerts deployed on 2026-11-13 ([checks](bootstrap.md#resources-and-priorities)). The sizing of the existing components [to do](../cluster-tools.md) ([below](#resources-and-priorities)) |
 | Cluster DNS | CoreDNS | In use ([below](#coredns)) |
 | GPU | Intel device plugin | In use on kube-01 ([below](#gpu)) |
 | Registry mirror between the nodes | Spegel | Deployed by the bootstrap and Flux, [checks](bootstrap.md#spegel) not run yet ([below](#spegel)) |
@@ -147,13 +147,15 @@ A component wins under memory pressure with a request that covers its real use, 
   | --- | --- |
   | `system-node-critical` | Cilium agent and Envoy, LINSTOR satellites, CSI node plugin |
   | `system-cluster-critical` | CoreDNS, Cilium operator, LINSTOR controller, CSI controller, HA controller |
-  | `infrastructure` | Flux, External Secrets, cert-manager, Envoy Gateway and the Envoy proxies of the Gateways, VolSync, Spegel, Reloader, external-dns, k8s-gateway, the observability (`VMSingle`, `VLSingle`, `VMAgent`, `VMAlert`, Alertmanager, Grafana, Vector) and the exporters of the devices |
-  | None (0) | The applications |
+  | `infrastructure` | Flux, External Secrets, cert-manager, Envoy Gateway and the Envoy proxies of the Gateways, VolSync, snapshot-controller, Spegel, Reloader, external-dns, k8s-gateway, cloudflare-ddns, Hubble Relay and UI, the Piraeus operator and the LINSTOR affinity controller, the Intel device plugin operator, the observability (`VMSingle`, `VLSingle`, `VMAgent`, `VMAlert`, Alertmanager, Grafana, Vector, kube-state-metrics, node-exporter, the VictoriaMetrics operator) and the exporters of the devices, `volsync-monitor` |
+  | None (0) | The applications. The Intel GPU plugin: its operator sets no class |
+
+- **The class of the convention, not the default of the chart or operator**: the system classes only for what the network or the volumes of the running pods depend on. The charts take the highest class that exists everywhere; here, `infrastructure` already puts a component above the applications, and a system class only adds that the kubelet never evicts it (a leak then evicts the others) and that it preempts `infrastructure`. So the Flux controllers, the Piraeus operator and the affinity controller, `system-cluster-critical` upstream, are in `infrastructure`: the cluster keeps running without them. Within the system classes too, the convention wins (the LINSTOR controller and the CSI controller, `system-node-critical` from the operator), so that the class reads in the table.
 
 - **The Envoy proxies in `infrastructure`**, not `system-cluster-critical`: the cluster does not depend on them (`kubectl` and Flux do not go through the Gateways), their two replicas are spread over the nodes, and `infrastructure` already puts them above the applications.
 - **Capacity**: sized for the two nodes up, about 28 GiB allocatable. Until kube-02 joins, the loss of a node may leave pods `Pending`: nothing is critical before the [migration](../roadmap.md#migration). `KubeMemoryOvercommit` stays disabled until then ([observability](../observability/README.md#the-release-of-the-stack)).
 - **Sizing**: from the recommendations of Goldilocks (VPA recommender), checked against the usage in VictoriaMetrics ([plan](../cluster-tools.md)).
-- **Checks**: the alerts `ContainerWithoutMemoryLimit` and `ContainerOOMKilled` ([observability](../observability/README.md#alerting)). Not an admission policy ([evaluations](evaluations.md#rejected-options)).
+- **Checks**: the alerts `ContainerWithoutMemoryLimit` and `ContainerOOMKilled` ([observability](../observability/README.md#alerting)). Not an admission policy ([evaluations](evaluations.md#rejected-options)). The finished pods are left out: Kubernetes keeps them, those of a node shutdown included ([open points](evaluations.md#open-points)).
 - **Bootstrap**: `just bootstrap apps` applies the classes before its first release, so that the releases it installs can name them; Flux adopts them later.
 
 ## GPU
