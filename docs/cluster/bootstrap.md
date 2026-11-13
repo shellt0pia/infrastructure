@@ -421,7 +421,7 @@ The policies were first deployed in audit mode (`policyAuditMode: true` in `kube
   kubectl -n debug delete pod np-alert-test
   ```
 
-  Expected: `false`. The four connections of the test pod time out, DNS and HTTPS work. No other `DROPPED` flow with `Policy denied`, and every Kustomization stays `Ready`. `NetworkPolicyDroppedFlows` fires within 25 minutes (`for: 20m`), `direction="ingress"`, `namespace="observability"`, and notifies on the phone (`warning`); it resolves about 10 minutes after the pod is deleted (the `rate` window). No more `NetworkPolicyAuditedFlows`. Then update the status in the [README](README.md#status) and the [roadmap](../roadmap.md#security).
+  Expected: `false`. The four connections of the test pod time out, DNS and HTTPS work. No other `DROPPED` flow with `Policy denied`, and every Kustomization stays `Ready`. `NetworkPolicyDroppedFlows` fires within 25 minutes (`for: 20m`), `direction="ingress"`, `namespace="observability"`, its summary from `debug/(a pod without workload)` to `observability/vmsingle-victoria-metrics-k8s-stack`, and notifies on the phone (`warning`); it resolves about 10 minutes after the pod is deleted (the `rate` window). No more `NetworkPolicyAuditedFlows`. Then update the status in the [README](README.md#status) and the [roadmap](../roadmap.md#security).
 
 ### Pod Security
 

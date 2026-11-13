@@ -5,7 +5,8 @@
 # decides: the destination for an ingress verdict, the source for an egress one. The other drops
 # of Cilium (hubble_drop_total) carry no namespace and are not alerted. The rest of Cilium: its
 # mixin, in the stack (docs/observability/README.md#alerting). Converted to a VMRule by the
-# operator of the stack.
+# operator of the stack. An empty `source` or `destination` is a pod without workload nor app label
+# (a `kubectl run` pod): no pod name in the metrics, `hubble observe` on the namespace finds it.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -36,12 +37,17 @@ spec:
           labels:
             severity: info
           annotations:
-            summary: "{{ $value | humanize }} {{ $labels.direction }} flows from {{ $labels.source }} to {{ $labels.destination }} over the last hour would be dropped."
+            summary: >-
+              {{ $value | humanize }} {{ $labels.direction }} flows from
+              {{ with $labels.source_namespace }}{{ . }}/{{ end }}{{ or $labels.source "(a pod without workload)" }} to
+              {{ with $labels.destination_namespace }}{{ . }}/{{ end }}{{ or $labels.destination "(a pod without workload)" }}
+              over the last hour would be dropped.
             description: >-
               No policy allows the {{ $labels.direction }} flows from
-              {{ $labels.source_namespace }}/{{ $labels.source }} to
-              {{ $labels.destination_namespace }}/{{ $labels.destination }}: they will be dropped
-              once the policies are enforced. `hubble observe --verdict AUDIT`.
+              {{ with $labels.source_namespace }}{{ . }}/{{ end }}{{ or $labels.source "(a pod without workload)" }} to
+              {{ with $labels.destination_namespace }}{{ . }}/{{ end }}{{ or $labels.destination "(a pod without workload)" }}:
+              they will be dropped once the policies are enforced.
+              `hubble observe --verdict AUDIT --namespace {{ $labels.namespace }}`.
         # A sustained drop only: this one notifies. `for: 20m` on a 10-minute rate: drops spread
         # over 10 minutes at least. Not the flows to a deleted pod (a stale scrape target, the old
         # address of an Alertmanager peer for up to 6 minutes), which keep the rate over 0 for
@@ -65,9 +71,13 @@ spec:
           labels:
             severity: warning
           annotations:
-            summary: "{{ $labels.direction }} flows from {{ $labels.source }} to {{ $labels.destination }} dropped by the policies."
+            summary: >-
+              {{ $labels.direction }} flows from
+              {{ with $labels.source_namespace }}{{ . }}/{{ end }}{{ or $labels.source "(a pod without workload)" }} to
+              {{ with $labels.destination_namespace }}{{ . }}/{{ end }}{{ or $labels.destination "(a pod without workload)" }}
+              dropped by the policies.
             description: >-
               The policies drop the {{ $labels.direction }} flows from
-              {{ $labels.source_namespace }}/{{ $labels.source }} to
-              {{ $labels.destination_namespace }}/{{ $labels.destination }} for 10 minutes.
-              `hubble observe --verdict DROPPED`.
+              {{ with $labels.source_namespace }}{{ . }}/{{ end }}{{ or $labels.source "(a pod without workload)" }} to
+              {{ with $labels.destination_namespace }}{{ . }}/{{ end }}{{ or $labels.destination "(a pod without workload)" }}
+              for 10 minutes. `hubble observe -P --verdict DROPPED --namespace {{ $labels.namespace }}`.
