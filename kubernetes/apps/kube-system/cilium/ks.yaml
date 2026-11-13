@@ -48,3 +48,26 @@ spec:
     name: flux-system
     namespace: flux-system
   wait: true
+---
+# Separate Kustomization: the route and the login of Hubble UI (deployed by the release) need the
+# CRDs of Envoy Gateway and the ClusterSecretStore, which the bootstrap installs after Cilium.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cilium-hubble-ui
+spec:
+  dependsOn:
+    - name: cilium
+    - name: gateways
+      namespace: network
+    - name: external-secrets-stores
+      namespace: external-secrets
+  interval: 1h
+  path: ./kubernetes/apps/kube-system/cilium/hubble-ui
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: kube-system
+  wait: true

@@ -362,7 +362,19 @@ Not tested yet. The policies are first deployed in audit mode (`policyAuditMode:
 
   Expected: the Relay pod is `Running`, the CronJob exists. `hubble status` reports every node as connected (`-P` forwards the port of the Relay through the Kubernetes API).
 
-- [ ] **Audited flows.** Over a few weeks, so that the nightly backups, a Flux reconciliation of each Kustomization and a certificate renewal run at least once. Hubble only keeps the last flows of each node in memory: read the [export](README.md#network-policies) of each node, then, once the observability stack runs, query the logs instead:
+- [ ] **Hubble UI**, once the client is in the Pocket ID and its item in 1Password ([plan](../hubble-security.md#prerequisites)):
+
+  ```sh
+  flux -n kube-system get ks cilium cilium-hubble-ui
+  kubectl -n kube-system get pods -l k8s-app=hubble-ui
+  kubectl -n kube-system get externalsecret,httproute,securitypolicy
+  kubectl -n envoy-gateway-system logs deploy/envoy-gateway | grep -i -E 'error|oidc'
+  curl -sI https://hubble.shelltopia.org
+  ```
+
+  Expected: both Kustomizations `Ready`, the pod `Running` with its two containers, `SecretSynced`, the route and the policy `Accepted`, no error about the OIDC provider. `302` to `https://id.shelltopia.org/authorize`. In a browser, a member of `kubernetes_admins` sees the flows of a namespace, another user is refused by the Pocket ID ([README](README.md#network-policies)).
+
+- [x] **Audited flows.** Over a few weeks, so that the nightly backups, a Flux reconciliation of each Kustomization and a certificate renewal run at least once. Hubble only keeps the last flows of each node in memory: read the [export](README.md#network-policies) of each node, then, once the observability stack runs, query the logs instead:
 
   ```sh
   for pod in $(kubectl -n kube-system get pods -l k8s-app=cilium -o name); do
@@ -370,7 +382,7 @@ Not tested yet. The policies are first deployed in audit mode (`policyAuditMode:
   done | hubble observe --input-file - --verdict AUDIT
   ```
 
-  Expected: none, except the tests below. Each other flow is either needed (add an exception, [runbook](runbook.md#network-policies)) or must be denied (note why).
+  Expected: none, except the tests below. Each other flow is either needed (add an exception, [runbook](runbook.md#network-policies)) or must be denied (note why). Done: the `AUDIT` flows only come with a new tool or manifest, until its exceptions are written. The drops `INVALID_SOURCE_IP`, `UNKNOWN_L3_TARGET_ADDRESS` and `FORBIDDEN_ICMPV6_MESSAGE` have no verdict of the policies: [open points](evaluations.md#open-points), they do not wait for the enforcement.
 
 - [x] **Denied flows.** From a test pod on kube-01, towards the ports of another node (kubelet over IPv4, Talos API over ULA and GUA), and a private address outside of the cluster (the NAS, over ULA):
 

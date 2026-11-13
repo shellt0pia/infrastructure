@@ -46,8 +46,10 @@ Architecture and status: [observability/README.md](observability/README.md#statu
 
 ### Security
 
+The plan, its decisions and its steps: [hubble-security.md](hubble-security.md).
+
 - [ ] Cilium network policies: enforce them once the [observability](#observability) stack runs (the denied flows in the logs, the alert on the drops). Until then, they stay in audit mode: run the [checks](cluster/bootstrap.md#network-policies) and read the audited flows (exported on each node, then in the logs), then set `policyAuditMode: false`. The host firewall, the baseline of the pods, the exceptions and Hubble Relay are deployed ([cluster](cluster/README.md#network-policies)).
-- [ ] Optional: Hubble UI, on the `internal` Gateway (Relay and the `hubble` CLI are in place).
+- [ ] Optional: Hubble UI, on the `internal` Gateway (Relay and the `hubble` CLI are in place). Written, not deployed: the client in the Pocket ID and its item first ([plan](hubble-security.md#prerequisites)).
 
 ### Cluster tools
 
@@ -68,7 +70,7 @@ Architecture and status: [observability/README.md](observability/README.md#statu
   - Links in the Flux notifications: the page of each object of `FluxResourceNotReady` (`/resource/<kind>/<namespace>/<name>`: the full message, the events, the source and the managed objects), for the details the summary does not hold ([alerting](observability/README.md#alerting)). Pushover takes one URL per notification, which groups several objects: keep Grafana in `url` and put one link per object in the body (`html` of `pushover_configs`, to check in the Alertmanager version), or link the filtered list (`/resources?namespace=<namespace>&status=Failed`, to check that the filters load from the URL). Only reachable where the `internal` Gateway is.
 - [ ] Kubernetes OIDC authentication with the Pocket ID (hosted on PikaPods), for `kubectl`, Headlamp and the Flux web UI.
   - Gain: no long-lived `cluster-admin` client certificate on the workstation (the one from `talosctl kubeconfig` is valid one year), and rights by group.
-  - Pocket ID: one OIDC client with PKCE (public client for `kubelogin`), and one for each UI (Headlamp, Flux), or fewer if the audiences are shared. The first one is Grafana's, confidential, with the groups `grafana_admins` and `grafana_viewers` ([observability](observability/README.md#grafana)). Groups sent in the `groups` claim, for example `kube-admin` and `kube-viewer` for Kubernetes. Callback URLs of the UIs on the `internal` Gateway.
+  - Pocket ID: one OIDC client with PKCE (public client for `kubelogin`), and one for each UI (Headlamp, Flux), or fewer if the audiences are shared. The first one is Grafana's, confidential, with the groups `grafana_admins` and `grafana_viewers` ([observability](observability/README.md#grafana)), then Hubble UI's, confidential, used by Envoy ([cluster](cluster/README.md#network-policies)). Groups sent in the `groups` claim: `kubernetes_admins` for the administrators of Kubernetes, already used by Hubble UI ([plan](hubble-security.md#decisions)), and a read-only group to name with Headlamp. Callback URLs of the UIs on the `internal` Gateway.
   - Talos: `AuthenticationConfiguration` of the kube-apiserver (several audiences and claim mappings, better than the `--oidc-*` flags) through the `cluster.apiServer` patch. Issuer URL of the Pocket ID, with the `groups` claim prefixed (for example `oidc:`) so that a group name cannot collide with a Kubernetes one. Restart and test on one control plane node before the other.
   - Workstation: `kubelogin` (`kubectl oidc-login`) in `mise`, a dedicated user in the kubeconfig, the `just` recipes unchanged.
   - `ClusterRoleBinding`s of the groups, in Git.
@@ -143,7 +145,7 @@ The points of each topic are kept in its `evaluations.md`.
 
 - [ ] Network: ECMP and multi-WAN on OPNsense, the NAS *Pre Init* script, the ISP prefix change, the Milkywan WireGuard tunnel (in place, left: DNS), Cilium `bpf.masquerade`: [network/evaluations.md](network/evaluations.md#open-points).
 - [ ] Nodes: watchdog, `nfsrahead`, Talos firmware updates, firmware reset to the factory Secure Boot keys, serial of SATA disks, `EthernetConfig` alias, TPM unlock failure seen once on kube-01, Dell *Microsoft UEFI CA*, reboot of kube-03 stuck on `error closing encrypted volume` (`r-storage`): [nodes/evaluations.md](nodes/evaluations.md#open-points).
-- [ ] Cluster: Intel DRA driver, network policies (Talos host DNS), ICMPv6 drops `INVALID_SOURCE_IP` seen by Hubble on every pod: [cluster/evaluations.md](cluster/evaluations.md#open-points).
+- [ ] Cluster: Intel DRA driver, network policies (Talos host DNS), drops seen by Hubble without a verdict of the policies (ICMPv6 `INVALID_SOURCE_IP` on every pod, `UNKNOWN_L3_TARGET_ADDRESS` at the deployments, `FORBIDDEN_ICMPV6_MESSAGE` from `kube-apiserver`): [cluster/evaluations.md](cluster/evaluations.md#open-points).
 - [ ] Storage: LINSTOR thin pool oversubscription, Talos and the LINSTOR VG, Piraeus `talos-loader-override`, restarts of the LINSTOR controller (lost lease, `linstorControllerOffline`): [storage/evaluations.md](storage/evaluations.md#open-points).
 - [ ] Ingress: Envoy Gateway listeners after an upgrade (`ecdhCurves`): [ingress/evaluations.md](ingress/evaluations.md#open-points).
 - [ ] Backups: Kopiur, to look at again in early 2027 ([checklist](backups/evaluations.md#kopiur-evaluated-to-revisit)).

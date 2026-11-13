@@ -101,6 +101,7 @@ A namespace whose applications are exposed on the internet carries the label `sh
 | `kubernetes` | `healthchecks` | Ping URLs of the checks, one field per check: the backups, the dead man's switch of Alertmanager (`kubecluster-01-alertmanager`) | [backups](backups/README.md#monitoring), [observability](observability/README.md#alerting) |
 | `kubernetes` | `pushover-alertmanager` | Alertmanager (field `username`: the Pushover user key, `credential`: the application token) | [observability](observability/README.md#alerting) |
 | `kubernetes` | `pocket-id-grafana` | Grafana, OIDC client of the Pocket ID (`username`: the client id, `credential`: the secret) | [observability](observability/README.md#grafana) |
+| `kubernetes` | `pocket-id-hubble` | Hubble UI, OIDC client of the Pocket ID used by Envoy (`username`: the client id, `credential`: the secret) | [cluster](cluster/README.md#network-policies) |
 | `kubernetes` | `sw-01-mktxp`, `fw-01-opnsense-exporter`, `ap-01-snmp` | The exporters of the devices: MKTXP (*Login*: `username`, `password`), opnsense-exporter (`username`: the API key, `credential`: its secret), snmp-exporter (*API*, plus `privacy_key`) | [observability](observability/README.md#external-devices) |
 | `kubernetes` | `backblaze-b2-cnpg` | CloudNativePG, later | [backups](backups/README.md#destination-backblaze-b2) |
 | `personal` | Token of the workstation service account | The shell of the workstation | [secrets](secrets/README.md#on-the-workstation-a-read-only-service-account) |
@@ -117,7 +118,7 @@ The tokens to renew and their consumers are in the [secrets runbook](secrets/run
 | 1Password | Every secret | [secrets](secrets/README.md) |
 | healthchecks.io | Checks of the backups, dead man's switch of Alertmanager | [backups](backups/README.md#monitoring), [observability](observability/README.md#alerting) |
 | Pushover | Notifications of Alertmanager | [observability](observability/README.md#alerting) |
-| Pocket ID (PikaPods) | OIDC login of Grafana, later; HTTP check of blackbox-exporter | [observability](observability/README.md#grafana), [checks](observability/README.md#external-devices) |
+| Pocket ID (PikaPods) | OIDC login of Grafana and Hubble UI, later of Kubernetes; HTTP check of blackbox-exporter | [observability](observability/README.md#grafana), [cluster](cluster/README.md#network-policies), [checks](observability/README.md#external-devices) |
 | Uptime Kuma (PikaPods) | External observer; HTTP check of blackbox-exporter | [observability](observability/README.md#external-devices) |
 | GitHub | The repository followed by Flux | [cluster](cluster/README.md#decisions) |
 | Docker Hub | Pulls through the credentials of containerd | [secrets](secrets/bootstrap.md#3-docker-hub) |

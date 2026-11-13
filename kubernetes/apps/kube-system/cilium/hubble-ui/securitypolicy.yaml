@@ -1,0 +1,32 @@
+---
+# Login on the Pocket ID in front of Hubble UI, which has none (docs/cluster/README.md#network-policies):
+# whoever passes it sees every flow of the cluster. The group (kubernetes_admins) is checked by the
+# Pocket ID, through the allowed groups of the client.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: hubble-ui
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: hubble-ui
+  oidc:
+    provider:
+      # The endpoints are discovered from its .well-known/openid-configuration.
+      issuer: https://id.shelltopia.org
+    # Secret `client-id` and `client-secret` keys (externalsecret.yaml).
+    clientIDRef:
+      name: hubble-ui-oidc
+    clientSecret:
+      name: hubble-ui-oidc
+    redirectURL: https://hubble.shelltopia.org/oauth2/callback
+    logoutPath: /logout
+    scopes:
+      - openid
+      - profile
+      - email
+      - groups
+    # The default, written out: the UI keeps its stream when the ID token expires. Without the
+    # Pocket ID, a refresh fails as a new login does.
+    refreshToken: true
