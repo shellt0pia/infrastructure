@@ -428,7 +428,7 @@ Answered on 2026-11-14:
 
 1. **Cilium agent**: its peak, 140m / 832Mi, limit 1664Mi. A kill cuts the network of its node, and a start comes back at each upgrade. Its daily peaks (`cilium-agent.csv`) hold a single point, not enough to read.
 2. **A floor for the limits**: 64Mi, the request unchanged. A limit reserves nothing; at 32Mi, a burst of a Go binary (a list, a CSI operation) kills it.
-3. **VolSync movers**: 128Mi, limit 256Mi. `movers-memory.csv` and `movers-cpu.csv` hold one run of restic only (9 MiB, 1.6m), too few for its peak.
+3. **VolSync movers**: 128Mi, limit 256Mi. `movers-memory.csv` and `movers-cpu.csv` hold one run of restic only (9 MiB, 1.6m), too few for its peak. On 2026-11-14, the first backup of Grafana into the new bucket ([rename](cluster-rename.md#8-b2-bucket)), a full upload, was killed at 256Mi on each retry. restic writes its packs to `/tmp`, a memory `emptyDir` of the mover (code of VolSync), and its buffers grow with the CPUs of the node. Measured locally with restic 0.19 on 12 CPUs (`.scratch/restic-test`): 520 MiB for a first backup of 1 GiB (440 MiB RSS, 80 MiB in `/tmp`), 180 MiB RSS on 4 CPUs; 60 MiB for a backup without change, 160 MiB with 20 MiB changed, 60 MiB for `forget --prune`, 110 MiB for a restore. Now 256Mi, limit 1Gi: the request covers the daily runs, the limit the first one; not twice the request, the movers of every application start at the same time. The restore recipe (`just kube volsync-restore`) copies them from the ReplicationSource.
 
 ### Sizing plan
 

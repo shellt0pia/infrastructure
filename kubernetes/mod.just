@@ -190,6 +190,7 @@ volsync-restore app snapshot='':
               restoreAsOf: $as_of,
               cacheStorageClassName: .spec.restic.cacheStorageClassName,
               cleanupCachePVC: true,
+              moverResources: .spec.restic.moverResources,
               moverSecurityContext: .spec.restic.moverSecurityContext
             }
           }

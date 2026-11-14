@@ -24,14 +24,18 @@ spec:
       daily: 28
       weekly: 8
       monthly: 6
-    # The default of every application (docs/conventions.md#resources-and-priorities): one restic
-    # run measured at 9 MiB. No field for the class: the one of the application.
+    # The default of every application (docs/conventions.md#resources-and-priorities). restic writes
+    # its packs to /tmp, a memory emptyDir of the mover, and its buffers grow with the CPUs of the
+    # node (no CPU limit). Measured with restic on 12 CPUs: 520 MiB for a first backup of 1 GiB
+    # (440 MiB RSS, 80 MiB in /tmp), 60 to 160 MiB for the next ones. The request covers the daily
+    # runs, the limit the first one: not twice the request, the movers of every application start
+    # at the same time. No field for the class: the one of the application.
     moverResources:
       requests:
         cpu: 10m
-        memory: 128Mi
-      limits:
         memory: 256Mi
+      limits:
+        memory: 1Gi
     moverSecurityContext:
       runAsNonRoot: true
       runAsUser: ${VOLSYNC_UID:=1000}

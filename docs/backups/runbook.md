@@ -232,10 +232,19 @@ Manual equivalent:
        restoreAsOf: "2026-10-20T01:30:41Z"   # date of the backup (restic snapshots), UTC
        cacheStorageClassName: replicated-temporary
        cleanupCachePVC: true
-       moverSecurityContext:
+       moverResources:            # the values of kubernetes/components/volsync
+         requests:
+           cpu: 10m
+           memory: 256Mi
+         limits:
+           memory: 1Gi
+       moverSecurityContext:      # the values of kubernetes/components/volsync
+         runAsNonRoot: true
          runAsUser: 1000          # VOLSYNC_UID / VOLSYNC_GID of the application
          runAsGroup: 1000
          fsGroup: 1000
+         seccompProfile:
+           type: RuntimeDefault
    EOF
    kubectl -n "$NS" wait replicationdestination/"$APP"-restore --for=jsonpath='{.status.lastManualSync}'=restore --timeout=2h
    kubectl -n "$NS" get replicationdestination "$APP"-restore -o jsonpath='{.status.latestMoverStatus}'
