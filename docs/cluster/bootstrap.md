@@ -220,8 +220,8 @@ Checks on the cluster:
 - [x] **Deployment:**
 
   ```sh
-  flux -n kube-system get hr reloader
-  kubectl -n kube-system get pods -l app=reloader
+  flux -n cluster-tools get hr reloader
+  kubectl -n cluster-tools get pods -l app=reloader
   ```
 
   Expected: the HelmRelease is `Ready`, one pod `Running`.
@@ -260,7 +260,7 @@ Checks on the cluster:
   kubectl -n debug rollout status deploy/reloader-test
   kubectl -n debug logs deploy/reloader-test
   kubectl -n debug get deploy reloader-test -o jsonpath='{.spec.template.metadata.annotations}'
-  kubectl -n kube-system logs deploy/reloader | grep reloader-test
+  kubectl -n cluster-tools logs deploy/reloader | grep reloader-test
   kubectl -n debug delete deploy/reloader-test configmap/reloader-test
   ```
 

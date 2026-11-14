@@ -83,8 +83,8 @@ Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: dis
 | `observability` | `victoria-metrics-k8s-stack` (operator, `VMSingle`, `VLSingle`, `VMAgent`, `VMAlert`, `VMAlertmanager`, kube-state-metrics), Grafana, `prometheus-operator-crds`, the Vector aggregator. Deployed by stage ([status](observability/README.md#status)) | `restricted` | [observability](observability/README.md#network-and-pod-security) |
 | `observability-agents` | node-exporter (from the stack), the Vector agent | `privileged` | [observability](observability/README.md#network-and-pod-security) |
 | `debug` | Throwaway test pods, `kubectl debug node` | `privileged` | [cluster](cluster/README.md#pod-security) |
-| `cluster-tools` | kubelet-csr-approver, metrics-server, the VPA recommender, Goldilocks | `restricted` | [cluster](cluster/README.md#pod-security) |
-| `kube-system` | Cilium, CoreDNS, Intel device plugin, Reloader, snapshot-controller, Spegel | exempt | [cluster](cluster/README.md) |
+| `cluster-tools` | kubelet-csr-approver, metrics-server, the VPA recommender, Goldilocks, Reloader, snapshot-controller | `restricted` | [cluster](cluster/README.md#pod-security) |
+| `kube-system` | Cilium, CoreDNS, Intel device plugin, Spegel | exempt | [cluster](cluster/README.md) |
 
 A namespace whose applications are exposed on the internet carries the label `shelltopia.net/gateway-external: "true"` ([ingress](ingress/runbook.md#exposing-an-application)).
 

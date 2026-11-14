@@ -26,6 +26,18 @@ spec:
       pdb:
         maxUnavailable: 1
       priorityClassName: infrastructure
+      # restricted (docs/conventions.md#pod-security): the chart sets neither the seccomp profile
+      # nor allowPrivilegeEscalation.
+      podSecurityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 1000
       # From the usage (docs/conventions.md#resources-and-priorities).
       resources:
         requests:

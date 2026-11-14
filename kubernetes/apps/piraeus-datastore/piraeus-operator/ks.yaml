@@ -27,7 +27,7 @@ spec:
   dependsOn:
     - name: piraeus-operator
     - name: snapshot-controller
-      namespace: kube-system
+      namespace: cluster-tools
   interval: 1h
   path: ./kubernetes/apps/piraeus-datastore/piraeus-operator/cluster
   prune: true

@@ -8,7 +8,7 @@ metadata:
 spec:
   dependsOn:
     - name: snapshot-controller
-      namespace: kube-system
+      namespace: cluster-tools
     - name: priority-classes
       namespace: kube-system
   interval: 1h

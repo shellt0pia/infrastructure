@@ -11,3 +11,5 @@ resources:
   - ./metrics-server/ks.yaml
   - ./vertical-pod-autoscaler/ks.yaml
   - ./goldilocks/ks.yaml
+  - ./reloader/ks.yaml
+  - ./snapshot-controller/ks.yaml
