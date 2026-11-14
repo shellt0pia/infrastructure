@@ -108,8 +108,8 @@ The class of each component and the why in [cluster](cluster/README.md#resources
 | Client `kubelogin` | Public, PKCE, callbacks `http://localhost:8000` and `http://localhost:18000`, its id in `oidc.kubelogin_client_id` | [cluster](cluster/README.md#oidc-authentication) |
 | Client `flux` | Confidential, callback `https://flux.shelltopia.org/oauth2/callback`, item `pocket-id-flux`. No audience in Talos | [cluster](cluster/README.md#flux-web-ui) |
 | Client `headlamp` | Confidential, PKCE, callback `https://headlamp.shelltopia.org/oidc-callback`, item `pocket-id-headlamp`. Its id also an audience in Talos, `oidc.headlamp_client_id` | [cluster](cluster/README.md#headlamp) |
-| Group `kubernetes_admins` | `oidc:kubernetes_admins`, `cluster-admin`. Also lets in Hubble UI and Goldilocks | [cluster](cluster/README.md#oidc-authentication) |
-| Group `kubernetes_viewers` | `oidc:kubernetes_viewers`, `view` and `oidc:cluster-view` (read only). Also in the Flux web UI and Headlamp, read only | [cluster](cluster/README.md#oidc-authentication) |
+| Group `kubernetes_admins` | `oidc:kubernetes_admins`, `cluster-admin`. Also lets in Hubble UI and Goldilocks, and `GrafanaAdmin` in Grafana | [cluster](cluster/README.md#oidc-authentication) |
+| Group `kubernetes_viewers` | `oidc:kubernetes_viewers`, `view` and `oidc:cluster-view` (read only). Also in the Flux web UI and Headlamp, read only, and `Viewer` in Grafana | [cluster](cluster/README.md#oidc-authentication) |
 | `kubeconfig` | OIDC, at the root, `just talos kubeconfig` | [runbook](cluster/runbook.md#logging-in) |
 | `kubeconfig-admin` | `system:masters`, at the root, `just bootstrap kubeconfig`, deleted after use | [runbook](cluster/runbook.md#break-glass) |
 

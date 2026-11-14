@@ -110,10 +110,10 @@ spec:
         email_attribute_path: email
         name_attribute_path: name
         groups_attribute_path: groups
-        allowed_groups: grafana_admins grafana_viewers
+        allowed_groups: kubernetes_admins kubernetes_viewers
         role_attribute_path: >-
-          contains(groups[*], 'grafana_admins') && 'GrafanaAdmin' ||
-          contains(groups[*], 'grafana_viewers') && 'Viewer'
+          contains(groups[*], 'kubernetes_admins') && 'GrafanaAdmin' ||
+          contains(groups[*], 'kubernetes_viewers') && 'Viewer'
         role_attribute_strict: true
         allow_assign_grafana_admin: true
         # Off, so that an outage of the Pocket ID does not end the open sessions.
