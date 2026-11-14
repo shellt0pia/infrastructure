@@ -1,6 +1,6 @@
 # Cluster: first deployment
 
-The Git repository, the checks before the bootstrap, `just bootstrap cluster` and the checks of the cluster, of the network policies and of Pod Security. Architecture: [README.md](README.md). The order of the whole bootstrap is in [first-bootstrap.md](../first-bootstrap.md).
+The Git repository, the checks before the bootstrap, `just bootstrap cluster` and the checks of the cluster, of the network policies, of Pod Security and of the OIDC login. Architecture: [README.md](README.md). The order of the whole bootstrap is in [first-bootstrap.md](../first-bootstrap.md).
 
 Create every prerequisite of a step before starting it, then follow the steps in order. The statuses and checkboxes track `kubecluster-01`.
 
@@ -22,13 +22,13 @@ Create every prerequisite of a step before starting it, then follow the steps in
 - [x] **Flux source.** In `kubernetes/apps/flux-system/flux-instance/app/helmrelease.yaml`:
   - `url`: the real URL of the GitHub repository;
   - `ref`: the branch Flux must follow.
-- [x] **Commit and push.** Meanwhile, check that the working copy holds neither `talosconfig`, `kubeconfig` nor `*.iso`:
+- [x] **Commit and push.** Meanwhile, check that the working copy holds neither `talosconfig`, `kubeconfig`, `kubeconfig-admin` nor `*.iso`:
 
   ```sh
   git status
   ```
 
-  Expected: none of the three files listed.
+  Expected: none of these files listed.
 
 The branch matters: helmfile installs the bootstrap apps from the local working copy, but Flux then applies what is **on GitHub**, on the configured branch. So either merge into `main` before the bootstrap, or temporarily set `refs/heads/migrate-to-k8s` and switch back to `main` after the merge. Either way, **commit and push** the `sync.ref` value of `kubernetes/apps/flux-system/flux-instance/app/helmrelease.yaml` before the bootstrap: Flux reapplies this HelmRelease from the pushed commit, and an older value would switch the `GitRepository` to another branch (every Kustomization then fails with `kustomization path not found`). To recover, patch `spec.values.instance.sync.ref` of the `flux-instance` HelmRelease in the cluster, then:
 
@@ -86,6 +86,8 @@ These checks have no impact on the nodes.
   ```sh
   just bootstrap apps
   ```
+
+  The bootstrap works with the admin kubeconfig, `kubeconfig-admin`: Flux has not created the bindings of the OIDC groups yet. On a running cluster, a single stage (`crds`, `apps`) needs it too: `just bootstrap kubeconfig` first, and `rm kubeconfig-admin` after ([runbook](runbook.md#break-glass)). The checks below use the OIDC `kubeconfig` once the [OIDC login](#oidc-authentication) is checked, `kubeconfig-admin` before.
 
 - [x] **Checks of each node:** [nodes/bootstrap.md](../nodes/bootstrap.md#4-checks-after-the-bootstrap).
 
@@ -752,3 +754,66 @@ A VPA per workload and the dashboard behind the Pocket ID ([README](README.md#go
   Expected: `SecretSynced`, the route and the policy `Accepted`, no error about the OIDC provider. `302` to `https://id.shelltopia.org/authorize`. In a browser, a member of `kubernetes_admins` sees the namespaces and their recommendations, another user is refused by the Pocket ID.
 
   Done on 2026-11-13: the three checks as expected, after a second run with `ignore-controller-kind: Job` and the `VMAgent` readable. Only the CronJobs `volsync-monitor` and `hubble-generate-certs` without a recommendation between two runs. In the logs, the resources of VictoriaMetrics, LINSTOR and the Intel GPU plugin, at each event of a pod of their namespace.
+
+### OIDC authentication
+
+`kubectl` logs in with the Pocket ID, the rights come from its groups ([README](README.md#oidc-authentication)). After Flux: the bindings come before the Talos patch, harmless until then. Prerequisites in the Pocket ID: the groups `kubernetes_admins` and `kubernetes_viewers`, the public client `kubelogin` (PKCE, callbacks `http://localhost:8000` and `http://localhost:18000`, both groups allowed), its client id in `talos/vars.yaml` (`oidc`).
+
+- [x] **Claims**, from the workstation, before the cluster:
+
+  ```sh
+  kubelogin setup --oidc-issuer-url=https://id.shelltopia.org --oidc-client-id=<client id> --oidc-extra-scope=profile --oidc-extra-scope=groups --oidc-extra-scope=offline_access
+  ```
+
+  Expected: the ID token holds `preferred_username`, `groups`, `aud` the client id, `exp - iat` of 1 h. `setup` caches nothing: the refresh token shows with `kubelogin get-token` and the same arguments (a `refresh_token` key in `~/.kube/cache/oidc-login/`), then `--force-refresh` gets a new token without the browser.
+
+- [x] **Bindings.** Push, then with `kubeconfig-admin`:
+
+  ```sh
+  flux -n kube-system get ks oidc
+  kubectl get clusterrolebinding oidc:kubernetes_admins oidc:kubernetes_viewers
+  kubectl auth can-i get pods/log -A --as=oidc:test --as-group=oidc:kubernetes_viewers
+  kubectl auth can-i get secrets -A --as=oidc:test --as-group=oidc:kubernetes_viewers
+  kubectl auth can-i patch deployments -A --as=oidc:test --as-group=oidc:kubernetes_viewers
+  kubectl auth can-i '*' '*' -A --as=oidc:test --as-group=oidc:kubernetes_admins
+  ```
+
+  Expected: `Ready`, the two bindings to `cluster-admin` and `view`, then `yes`, `no`, `no`, `yes`.
+
+- [x] **Kubeconfig**, without the cluster:
+
+  ```sh
+  just talos kubeconfig
+  ```
+
+- [x] **Talos**, one node at a time ([runbook](runbook.md#logging-in)):
+
+  ```sh
+  just talos apply-node kube-01 --dry-run
+  just talos apply-node kube-01
+  KUBECONFIG=kubeconfig-admin kubectl -n kube-system get pod kube-apiserver-kube-01
+  kubectl --server https://kube-01.shelltopia.net:6443 --tls-server-name kubecluster-01.shelltopia.net auth whoami
+  kubectl --server https://kube-03.shelltopia.net:6443 --tls-server-name kubecluster-01.shelltopia.net auth whoami
+  KUBECONFIG=kubeconfig-admin kubectl -n kube-system logs kube-apiserver-kube-01 | grep -i -E 'authentication|oidc|jwt'
+  kubectl --server https://kube-01.shelltopia.net:6443 --tls-server-name kubecluster-01.shelltopia.net get --raw /metrics | grep -E '^apiserver_authentication_(jwt|config)'
+  ```
+
+  Expected: the dry-run adds the `jwt` entry only, `anonymous` stays. The API server restarts (a young pod). Through kube-01: `oidc:<username>`, the uid the `sub`, `oidc:kubernetes_admins` among the groups (every group of the user, prefixed); through kube-03, `Unauthorized` until its turn. No JWT error in the logs (`No x509 certificates provided` is expected: the certificate of the Pocket ID is public). In the metrics, a JWKS fetch with `result="success"`. Then kube-03, the same, and through the endpoint:
+
+  ```sh
+  kubectl auth whoami
+  kubectl get nodes
+  ```
+
+  Done on 2026-11-14: the checks as expected, on both nodes.
+
+- [x] **Break-glass:**
+
+  ```sh
+  KUBECONFIG=kubeconfig-admin kubectl auth whoami
+  rm kubeconfig-admin
+  ```
+
+  Expected: `admin`, groups `system:masters` and `system:authenticated`.
+
+  Done on 2026-11-14, then `kubeconfig-admin` deleted.

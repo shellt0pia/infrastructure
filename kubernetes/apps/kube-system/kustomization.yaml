@@ -10,5 +10,6 @@ resources:
   - ./cilium/ks.yaml
   - ./coredns/ks.yaml
   - ./intel-device-plugin/ks.yaml
+  - ./oidc/ks.yaml
   - ./priority-classes/ks.yaml
   - ./spegel/ks.yaml

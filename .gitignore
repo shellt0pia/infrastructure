@@ -20,6 +20,7 @@ ansible/files/coreos/*.ign
 # Kubernetes
 talosconfig
 kubeconfig
+kubeconfig-admin
 *.iso
 
 # OpenTofu (the states are in B2, see tofu/README.md; .terraform.lock.hcl is committed)

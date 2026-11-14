@@ -24,7 +24,7 @@ I chose the following software stack for my container hosts:
 
 ### Tooling
 
-The CLI tools (Ansible, talosctl, kubectl, helmfile, OpenTofu...) are pinned in `mise.toml`, run `mise install` to install them. kubectl and talosctl follow the versions deployed on the cluster (`talos/vars.yaml`). `mise` also points `KUBECONFIG` and `TALOSCONFIG` to the files generated at the repository root, and `MINIJINJA_CONFIG_FILE` to the `minijinja-cli` flags (`.minijinja.toml`).
+The CLI tools (Ansible, talosctl, kubectl, helmfile, OpenTofu...) are pinned in `mise.toml`, run `mise install` to install them. kubectl and talosctl follow the versions deployed on the cluster (`talos/vars.yaml`). `mise` also points `KUBECONFIG` and `TALOSCONFIG` to the files generated at the repository root, and `MINIJINJA_CONFIG_FILE` to the `minijinja-cli` flags (`.minijinja.toml`). `kubeconfig` logs in with the Pocket ID through `kubelogin` (`just talos kubeconfig`); the admin one, `kubeconfig-admin`, is only for the bootstrap and the break-glass ([cluster](docs/cluster/README.md#oidc-authentication)).
 
 `just`, `jq` and Node (for the `npm:` tools of `mise.toml`) are expected to be installed on the system. The 1Password CLI (`op`) runs in the toolbox with a read-only service account, the personal account through `host-spawn op`, see [docs/secrets/README.md](docs/secrets/README.md).
 

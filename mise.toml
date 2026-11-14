@@ -26,6 +26,9 @@ MINIJINJA_CONFIG_FILE = "{{ config_root }}/.minijinja.toml"
 "aqua:charmbracelet/gum" = "latest"
 # Flows seen by Cilium, through Hubble Relay (docs/cluster/runbook.md).
 "aqua:cilium/hubble" = "latest"
+# `kubectl` login with the Pocket ID: the exec plugin of the OIDC kubeconfig
+# (docs/cluster/README.md#oidc-authentication).
+"aqua:int128/kubelogin" = "latest"
 # Backups (`just kube volsync-*`, docs/backups/runbook.md). rclone reads the hidden B2 versions.
 "aqua:restic/restic" = "latest"
 "aqua:rclone/rclone" = "latest"

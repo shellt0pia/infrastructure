@@ -1,0 +1,16 @@
+---
+# The rights of the OIDC groups of the Pocket ID (docs/cluster/README.md#oidc-authentication).
+# No targetNamespace: the bindings are cluster-scoped.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: oidc
+spec:
+  interval: 1h
+  path: ./kubernetes/apps/kube-system/oidc/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  wait: true

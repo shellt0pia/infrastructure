@@ -1,11 +1,11 @@
 # Cluster: Kubernetes, Cilium and Flux
 
-How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap helmfile, Cilium and its network policies, Pod Security, the resources and priorities, CoreDNS, External Secrets and Flux, which then deploys everything in `kubernetes/apps`, and the cluster-wide tools (Spegel, Reloader, the approver of the kubelet serving certificates, metrics-server, the VPA recommender, Goldilocks). The nodes are in [nodes](../nodes/README.md), the network around the cluster in [network](../network/README.md). The decisions are [below](#decisions).
+How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap helmfile, Cilium and its network policies, Pod Security, the resources and priorities, CoreDNS, External Secrets and Flux, which then deploys everything in `kubernetes/apps`, the login of `kubectl` with the Pocket ID, and the cluster-wide tools (Spegel, Reloader, the approver of the kubelet serving certificates, metrics-server, the VPA recommender, Goldilocks). The nodes are in [nodes](../nodes/README.md), the network around the cluster in [network](../network/README.md). The decisions are [below](#decisions).
 
 | Document | Content |
 | --- | --- |
 | [bootstrap.md](bootstrap.md) | First deployment: cluster ranges, Git repository, dry checks, `just bootstrap cluster`, checks of the cluster, rollout of the network policies and of Pod Security. |
-| [runbook.md](runbook.md) | Day-to-day: the `just kube` recipes, the upgrades by hand, diagnosing Flux, diagnosing a flow dropped by the network policies, a pod refused by Pod Security, recovering Flux on the wrong branch. |
+| [runbook.md](runbook.md) | Day-to-day: the login, the `just kube` recipes, the upgrades by hand, diagnosing Flux, diagnosing a flow dropped by the network policies, a pod refused by Pod Security, recovering Flux on the wrong branch, the break-glass. |
 | [evaluations.md](evaluations.md) | The choices considered, and the points to check or watch. |
 
 ## Status
@@ -18,6 +18,7 @@ How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap he
 | Network policies, Hubble Relay and UI | Cilium | Enforced since 2026-11-13 ([below](#network-policies)). Hubble UI deployed |
 | Pod Security | Pod Security Admission | `restricted` by default, to apply (Talos and Flux), [checks](bootstrap.md#pod-security) in progress ([below](#pod-security)) |
 | Resources and priorities | `PriorityClass`, alerts on kube-state-metrics | Convention written, class `infrastructure` and alerts deployed on 2026-11-13 ([checks](bootstrap.md#resources-and-priorities)). Every component sized and classed on 2026-11-14, a check of the usage two weeks later ([plan](../cluster-tools.md#3-sizing), [below](#resources-and-priorities)) |
+| Login of `kubectl` | OIDC with the Pocket ID, kubelogin | In use since 2026-11-14, [checked](bootstrap.md#oidc-authentication) ([below](#oidc-authentication)) |
 | Cluster DNS | CoreDNS | In use ([below](#coredns)) |
 | GPU | Intel device plugin | In use on kube-01 ([below](#gpu)) |
 | Registry mirror between the nodes | Spegel | Deployed by the bootstrap and Flux, [checks](bootstrap.md#spegel) not run yet ([below](#spegel)) |
@@ -36,7 +37,7 @@ How the Kubernetes cluster is bootstrapped and kept up to date: the bootstrap he
 flowchart TD
     A[talosconfig] --> B[nodes: apply the machine configs]
     B --> C[etcd: bootstrap the first node]
-    C --> D[kubeconfig]
+    C --> D[kubeconfig: the admin one]
     D --> E[api-ready, nodes-ready]
     E --> F[secrets: 1Password token for External Secrets]
     F --> G[crds]
@@ -63,6 +64,7 @@ The chart source and version of each release come from its `OCIRepository`, and 
 - Secrets: External Secrets Operator with a read-only service account on the `kubernetes` vault ([secrets](../secrets/README.md)).
 - Pod Security: `restricted` by default, a lower level only for the namespaces that need it ([below](#pod-security)).
 - Resources: CPU requests without limits, memory requests and limits, a priority class for each component of the platform ([below](#resources-and-priorities)).
+- `kubectl` logs in with the Pocket ID, the rights come from its groups. The admin kubeconfig only for the bootstrap and the break-glass ([below](#oidc-authentication)).
 - No registry cache: Docker Hub credentials in containerd avoid the rate limit. Spegel shares the images already on the nodes between them, it is not a cache ([below](#spegel)).
 
 ## Cluster ranges
@@ -179,6 +181,20 @@ The Intel device plugin is deployed through the operator, with `sharedDevNum: 3`
 - **Ports**: NodePort TCP 30020 (containerd → local Spegel), TCP 5000 (registry), TCP and UDP 5001 (libp2p router, between the Spegel pods), TCP 9090 (metrics, scraped by `VMAgent` through its ServiceMonitor).
 - **Not for Talos itself**: the installer and system images are pulled by the containerd of Talos, which does not use these mirrors.
 - **Multi-tenancy**: any pod can get an image held by a node without credentials. Acceptable in a single-tenant cluster, to keep in mind for a private image.
+
+## OIDC authentication
+
+`kubectl` logs in with the Pocket ID (`https://id.shelltopia.org`): the API servers verify its ID tokens, and the rights come from the groups of the user. The admin kubeconfig (`system:masters`) is only for the bootstrap and the break-glass ([runbook](runbook.md#break-glass)).
+
+- **The API server**: a `KubeAuthenticationConfig` document (`talos/patches/authentication.yaml.j2`, [talos](../../talos/README.md#gotchas)). The issuer and the client id of `kubelogin` come from `talos/vars.yaml` (`oidc`). The client id is not a secret: it is in every authorization URL.
+- **Claims**: the user is `preferred_username` (set by the admins of the Pocket ID, the users cannot change it), the groups `groups`, both prefixed `oidc:`: they cannot match a user or a group of Kubernetes (`system:`). The uid is `sub`, stable when the username changes. Pocket ID sends every group of the user, it cannot limit them per client: only the `kubernetes_*` groups are bound.
+- **Rights**: the app `kube-system/oidc`, two `ClusterRoleBinding`s. `oidc:kubernetes_admins` to `cluster-admin`; `oidc:kubernetes_viewers` to `view`: read only, the logs and the events included, no Secrets, no nodes, PVs nor StorageClasses, no write nor restart. Groups only, never a user.
+- **Never bind a component of the cluster** (Flux, External Secrets) to an OIDC identity: it would depend on the Pocket ID. They keep their ServiceAccounts.
+- **One client per tool**, public, with PKCE: `kubelogin` today. The audience of each UI (Flux web UI, Headlamp) joins the list of `audiences`, with `audienceMatchPolicy: MatchAny` ([plan](../cluster-tools.md#5-flux-web-ui-and-headlamp)).
+- **Tokens**: the defaults of the client, an ID token of 1 h, a refresh token valid 30 days of inactivity. `kubelogin` caches both in `~/.kube/cache/oidc-login` and refreshes without the browser.
+- **The kubeconfigs**, at the root, ignored by Git: `kubeconfig` (OIDC), written without the cluster by `just talos kubeconfig`, and `kubeconfig-admin`, written by `just bootstrap kubeconfig` and deleted after use. At the bootstrap, Flux has not created the bindings yet: the bootstrap module uses `kubeconfig-admin`. Its certificate stays valid until it expires (a year): Kubernetes revokes no certificate, deleting the file is the only mitigation.
+- **A change restarts the API server** of the node: Talos includes the version of the authentication config in the one of its static pod. It does not start with an invalid config (`KubeAPIDown`): apply one node at a time, and check the login through it before the other ([talos](../../talos/README.md#gotchas)). No alert of its own: the reload of the file by the API server never happens here. The Pocket ID is checked by the blackbox exporter (`HTTPProbeFailed`). The API server fetches its keys on demand only (the first token, an unknown key): its JWKS metrics only tell about the last login.
+- **The health endpoints** (`/livez`, `/readyz`, `/healthz`) stay open without credentials: the default of Talos, repeated in the patch.
 
 ## Reloader
 

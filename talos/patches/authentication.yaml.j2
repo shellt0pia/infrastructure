@@ -1,0 +1,40 @@
+---
+# OIDC login to the API server with the Pocket ID (docs/cluster/README.md#oidc-authentication).
+# Control plane only: every node of this cluster is one.
+# `talosctl validate` checks the keys of this document, not the content of `configuration`:
+# machined checks its types, the API server all of it at its start. A change restarts the API
+# server of the node (its static pod), which does not start with an invalid config: apply one
+# node at a time, and check it (`kubectl auth whoami` through it) before the other. A valid but
+# wrong value (a misspelled claim) starts: the login shows it.
+# A patch replaces the whole `configuration` of Talos: its default `anonymous` is repeated below.
+# No `apiVersion` nor `kind`: machined sets them in the file (`apiserver.config.k8s.io/v1beta1`).
+apiVersion: v1alpha1
+kind: KubeAuthenticationConfig
+configuration:
+  # The default of Talos 1.14: the health endpoints without credentials, for the probes of the
+  # static pod and `just bootstrap api-ready`. The API server refuses a reload that changes it.
+  anonymous:
+    enabled: true
+    conditions:
+      - path: /livez
+      - path: /readyz
+      - path: /healthz
+  jwt:
+    - issuer:
+        url: {{ oidc.issuer }}
+        # One client per tool: the audience of each UI joins this list, with
+        # `audienceMatchPolicy: MatchAny`.
+        audiences:
+          - {{ oidc.kubelogin_client_id }}
+      claimMappings:
+        # Set by the admins of the Pocket ID, the users cannot change it. Prefixed, as the
+        # groups, so that it cannot match a user or a group of Kubernetes (`system:`).
+        username:
+          claim: preferred_username
+          prefix: "oidc:"
+        groups:
+          claim: groups
+          prefix: "oidc:"
+        # Stable when the username changes: the id of the user in the audit log.
+        uid:
+          claim: sub

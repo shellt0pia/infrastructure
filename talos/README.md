@@ -4,9 +4,9 @@ Machine configs of the cluster nodes, rendered by `just talos render-config <nod
 
 | Path | Content |
 | --- | --- |
-| `vars.yaml` | Variables shared by the templates (minijinja) and the recipes (yq): domain, cluster, network, versions, node list. |
+| `vars.yaml` | Variables shared by the templates (minijinja) and the recipes (yq): domain, cluster, network, versions, node list, OIDC issuer and client. |
 | `schematic.yaml` | Image Factory schematic (extensions, kernel arguments, Secure Boot). Its ID selects the installer image and the ISO. |
-| `patches/` | Patches common to all the nodes, including the hostname (`hostname.yaml.j2`). |
+| `patches/` | Patches common to all the nodes, including the hostname (`hostname.yaml.j2`) and the OIDC login of the API server (`authentication.yaml.j2`). |
 | `nodes/<node>.yaml` | Hardware-specific patches of a node (plain YAML): disks, NIC, labels. |
 
 ## Render layers
@@ -29,6 +29,9 @@ The rendered config contains the cluster PKI: never write it into the repository
 - `op inject` resolves every reference of the rendered output, comments included: never write a 1Password reference in a template comment.
 - `op inject` does not end a bare reference at a space: it must be followed by a quote or the end of the line. Otherwise use the enclosed syntax, escaped for minijinja (see `vars.yaml` and `patches/extensions.yaml.j2`).
 - Adding a node: add it to `nodes` in `vars.yaml` and create `nodes/<node>.yaml`. The first node of the list is used for the one-shot operations (etcd bootstrap, kubeconfig, `upgrade-k8s`).
+- Some fields replace the default of Talos instead of merging with it (`merge:"replace"` in the Go types of `pkg/machinery/config/types`): a patch must repeat what it keeps. `configuration` of `KubeAuthenticationConfig` is one: `authentication.yaml.j2` repeats the default `anonymous` block (the health endpoints without credentials, for the probes of the API server). Compare with the default of `talosctl gen config`, and read the dry-run.
+- `talosctl validate` does not check the content of `KubeAuthenticationConfig`: the API server does, at its start. A change of this document restarts the API server of the node, which does not start with an invalid config: apply it one node at a time, and check the login through the node before the other ([runbook](../docs/cluster/runbook.md#logging-in)). Talos sets its `apiVersion` and `kind`.
+- `just talos kubeconfig` writes the OIDC kubeconfig without the cluster (the endpoint of `vars.yaml`, the CA of the secrets bundle). The admin one is `just bootstrap kubeconfig`, for the bootstrap and the [break-glass](../docs/cluster/runbook.md#break-glass).
 
 ## Checking a change
 

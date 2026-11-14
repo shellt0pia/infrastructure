@@ -44,7 +44,7 @@ A missing tool is installed by the user (`mise install`), not by the agent.
 
 ## Files
 
-- `kubeconfig` and `talosconfig` at the root hold the admin credentials of the cluster: generated, ignored by Git, never read, printed or committed. Same for the generated `ansible/files/coreos/*.bu` and `*.ign`.
+- `kubeconfig` (OIDC, tokens of the user), `kubeconfig-admin` (admin, `system:masters`, only for the bootstrap and the break-glass) and `talosconfig` at the root hold credentials of the cluster: generated, ignored by Git, never read, printed or committed. Same for the generated `ansible/files/coreos/*.bu` and `*.ign`.
 - Temporary files (rendered charts, test outputs) go in `.scratch/`, ignored by Git.
 
 ## Versions

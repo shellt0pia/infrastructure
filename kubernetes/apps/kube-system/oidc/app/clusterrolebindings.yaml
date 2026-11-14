@@ -1,0 +1,32 @@
+---
+# The groups of the Pocket ID, as the API server sees them: the `groups` claim prefixed with
+# `oidc:` (talos/patches/authentication.yaml.j2), so that they cannot match a group of
+# Kubernetes. The token holds every group of the user (Pocket ID cannot limit them per client):
+# only the `kubernetes_*` groups are bound. Groups only, never a user. Never bind a component
+# of the cluster (Flux, External Secrets) to an OIDC identity: it would depend on the Pocket ID.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oidc:kubernetes_admins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: oidc:kubernetes_admins
+---
+# Read only: `view` (the logs and the events included, not the Secrets), no write nor restart.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oidc:kubernetes_viewers
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: oidc:kubernetes_viewers

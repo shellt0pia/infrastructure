@@ -9,7 +9,7 @@ Temporary document: the plan of the [Cluster tools](roadmap.md#cluster-tools) of
 | [1](#1-resources-and-priorities) | Resources and `PriorityClass`es: the convention, the classes, the checks | The convention first: every tool deployed after it (metrics-server, VPA, Headlamp) follows it from the start. | Done |
 | [2](#2-kubelet-serving-certificates-metrics-server-and-vpa) | kubelet serving certificates, metrics-server, VPA and Goldilocks | Grouped: metrics-server needs the verified kubelet certificates, the VPA recommender needs metrics-server. | Done |
 | [3](#3-sizing) | Resources and `PriorityClass`es: the sizing | From the history of VictoriaMetrics (since 2026-11-03), cross-checked with the recommendations of step 2. | Applied on 2026-11-14, the check two weeks later |
-| [4](#4-oidc-authentication) | Kubernetes OIDC authentication | Before the UIs: both log in through it, and their rights are the bindings of its groups. | To do |
+| [4](#4-oidc-authentication) | Kubernetes OIDC authentication | Before the UIs: both log in through it, and their rights are the bindings of its groups. | Done on 2026-11-14 |
 | [5](#5-flux-web-ui-and-headlamp) | Flux web UI, Headlamp | Grouped: same pattern (a client in the Pocket ID, an `HTTPRoute` on the `internal` Gateway, the groups of step 4). The Flux UI first: nothing to deploy. | To do |
 | [6](#6-descheduler) | Descheduler, `topologySpreadConstraints` | Once kube-02 joins: it uses the requests of step 3 and metrics-server of step 2. Stays in the roadmap until then. | Waits for kube-02 |
 
@@ -441,19 +441,57 @@ Answered on 2026-11-14:
 
 ## 4. OIDC authentication
 
-Roadmap item as written ([roadmap](roadmap.md#cluster-tools)). Questions and plan once step 3 is done.
+Roadmap item ([roadmap](roadmap.md#cluster-tools)): `kubectl` logs in with the Pocket ID, the rights come from its groups, the admin kubeconfig only for the break-glass.
 
-- [ ] Pocket ID: the public client of `kubelogin` (PKCE), the read-only group.
-- [ ] Talos: `AuthenticationConfiguration` of the API server, the `groups` claim prefixed, applied on one control plane node, then the other.
-- [ ] The `ClusterRoleBinding`s of the groups, in Git.
-- [ ] Workstation: `kubelogin` in `mise`, an OIDC user in the kubeconfig. Break-glass: `talosctl kubeconfig` checked.
+### OIDC upstream
+
+Checked on 2026-11-14.
+
+| Component | Notes |
+| --- | --- |
+| Talos 1.14.4 | A `KubeAuthenticationConfig` document (control plane only), its `configuration` field holds an `AuthenticationConfiguration`. Talos rejects an unknown key of the document, not of `configuration`: a typo in a claim passes (tested with `talosctl gen config` in `.scratch/oidc/`). The API server refuses the `--oidc-*` flags with it (string of the `talosctl` binary). |
+| Kubernetes 1.37 | The `AuthenticationConfiguration` file is GA and reloaded when it changes. `claimMappings.username.prefix` is required when `claim` is set. `claimMappings.uid` gives a stable id in the audit. The `email_verified` check only applies to the `email` claim. `kubectl auth whoami` shows the user and groups seen by the API server. |
+| Metrics of the API server | `apiserver_authentication_jwt_authenticator_jwks_fetch_last_timestamp_seconds{result}` per `apiserver_id_hash` and `jwt_issuer_hash` (feature gate `StructuredAuthenticationConfigurationJWKSMetrics`, beta, on). The keys are fetched on demand only (go-oidc `remoteKeySet`, code of 1.37.1): the first token after a start, or a key unknown to the cache. Not on a schedule: the metric tells about the last login only. `apiserver_authentication_config_controller_automatic_reloads_total{status}` and `…_automatic_reload_last_timestamp_seconds{status}` (BETA), per `apiserver_id_hash`: only after a change of the file, reset by a restart. A file that fails to parse or validate counts one failure, then is not retried until it changes; the API server keeps the previous config. At start, an invalid file stops the API server. A valid but wrong value (a misspelled claim) passes: the login fails. Already scraped by the stack ([observability](observability/README.md)). |
+| Pocket ID | `.well-known` of `https://id.shelltopia.org`: scopes `openid profile email groups offline_access`, PKCE `S256`, RS256, public clients (`none` at the token endpoint), refresh tokens. `preferred_username` and `groups` in `claims_supported`, their presence in the ID token to check. `email_verified: true` sent. Defaults of a client: access token 1 h, refresh token 30 days of inactivity. |
+| `kubelogin` | `aqua:int128/kubelogin` in the mise registry. `get-token` as an `exec` credential plugin, tokens cached in `~/.kube/cache/oidc-login`, browser through `xdg-open` (opens the browser of the host from the toolbox). Local callback on port 8000, then 18000. |
+| Host firewall | Filters the ingress only: the API server reaches the Pocket ID on PikaPods. |
+| `view` (1.37.1) | `pods/log`, events, the workloads, PVCs, ConfigMaps; no Secrets, nodes, PVs nor StorageClasses. |
+
+### OIDC answers
+
+Answered on 2026-11-14:
+
+1. **Groups**: `kubernetes_admins` (Victor, already used by Hubble UI and Goldilocks) and `kubernetes_viewers`, empty for now.
+2. **`kubernetes_admins`**: `cluster-admin`, directly.
+3. **`kubernetes_viewers`**: `view`, read only. No write nor restart, no operators group. Headlamp follows ([step 5](#5-flux-web-ui-and-headlamp)): the restarts are for the admins.
+4. **Bindings**: the app `kube-system/oidc`, as `priority-classes`.
+5. **Claims**: user `preferred_username` (the users of the Pocket ID cannot change it), groups `groups`, both prefixed `oidc:`; uid `sub`.
+6. **Clients**: one per tool. The audiences of Headlamp and Flux come with [step 5](#5-flux-web-ui-and-headlamp) (`audienceMatchPolicy: MatchAny`).
+7. **`cluster-rename.yaml`**: kept until the end of the [rename](cluster-rename.md), no conflict (other documents).
+8. **Kubeconfig**: `kubeconfig` at the root becomes the OIDC one. The admin one, `kubeconfig-admin`, only for the break-glass and the bootstrap, deleted after use. Its certificate stays valid until it expires (one year): Kubernetes revokes no certificate, deleting the file is the only mitigation.
+9. **Browser**: `xdg-open` from the toolbox.
+10. **Token lifetimes**: the defaults of the client (1 h, refresh 30 days of inactivity).
+11. **Monitoring**: no alert of its own. The Pocket ID is already checked by the blackbox exporter (`HTTPProbeFailed` on its `.well-known`); a JWKS alert was dropped (the keys are fetched at a login only, [above](#oidc-upstream)). The alert `KubernetesAuthenticationConfigReloadFailed`, first pushed, was removed on 2026-11-14: Talos restarts the API server at each change of the config ([Talos](#oidc-commits)), there is no reload. An invalid config stops the API server of the node: `KubeAPIDown` of the default rules, and the check through the node before the other.
+
+### OIDC commits
+
+One `wip` commit, amended. Each item pushed after the checks of the previous one.
+
+- [x] **Pocket ID**, by Victor: the group `kubernetes_viewers`; the public client `kubelogin` (PKCE, callbacks `http://localhost:8000` and `http://localhost:18000`, groups `kubernetes_admins` and `kubernetes_viewers`). Its client id is not a secret (in every authorization URL): in `talos/vars.yaml`, section `oidc` (`issuer`, `kubelogin_client_id`).
+- [x] **Workstation.** `kubelogin` in `mise.toml`. Check before the cluster, by Victor: `kubelogin setup --oidc-issuer-url=https://id.shelltopia.org --oidc-client-id=<id> --oidc-extra-scope=profile --oidc-extra-scope=groups --oidc-extra-scope=offline_access`, the ID token holds `preferred_username`, `groups`, `aud` the client id, `exp - iat` of 1 h. `setup` shows the claims of the ID token only and caches nothing: the refresh token is checked with `kubelogin get-token` (its `refresh_token` key in the cache, `~/.kube/cache/oidc-login/`), then `--force-refresh` without the browser.
+- [x] **Bindings.** The app `kube-system/oidc`: the `ClusterRoleBinding`s `oidc:kubernetes_admins` to `cluster-admin` and `oidc:kubernetes_viewers` to `view`. Harmless before Talos: no API server knows the issuer yet. First pushed with the alert `KubernetesAuthenticationConfigReloadFailed`, removed after the Talos item ([answer 11](#oidc-answers)): the app holds the bindings only, no `targetNamespace`.
+  - Check: `kubectl auth can-i --list --as=oidc:test --as-group=oidc:kubernetes_viewers` (and `kubernetes_admins`), with the admin kubeconfig: `view` covers `pods/log` and the events, no write. Done on 2026-11-14: the Kustomization `Ready`, the viewers read the logs, not the secrets, patch nothing; the admins everything. The nodes, PVs and StorageClasses are outside `view`: seen with Headlamp at [step 5](#5-flux-web-ui-and-headlamp).
+- [x] **Kubeconfigs**, before Talos: its check needs both. `just talos kubeconfig` writes the OIDC `kubeconfig` at the root without the cluster: `server` the endpoint of `vars.yaml`, `certificate-authority-data` the CA of the bundle (`.certs.k8s.crt`, base64), context `kubecluster-01`, user `oidc`, `exec` `kubelogin get-token` (`client.authentication.k8s.io/v1`, the scopes of the setup, `interactiveMode: Never` as in the output of `kubelogin setup`: no stdin with the browser login, kubectl keeps its own). `just bootstrap kubeconfig` writes `kubeconfig-admin` (the bootstrap module exports it): at the bootstrap Flux has not created the bindings yet. `kubeconfig-admin` in `.gitignore`. Rendered locally with a throwaway CA. By Victor: the current admin `kubeconfig` renamed `kubeconfig-admin`, then `just talos kubeconfig`.
+- [x] **Talos.** A patch `authentication.yaml.j2`: the `KubeAuthenticationConfig` from `vars.yaml` (issuer, audience the client id, the claims of [answer 5](#oidc-answers)), a comment that Talos does not validate its content. The field is `merge: replace` (`pkg/machinery/config/types/k8s/authentication.go`): a patch replaces the whole default of Talos, so its `anonymous` (`/livez`, `/readyz`, `/healthz`) is repeated in the patch. The first dry-run removed it; the API server refuses a reload that changes `anonymous`. No `apiVersion` nor `kind`: machined sets `apiserver.config.k8s.io/v1beta1` and `AuthenticationConfiguration` (`internal/app/machined/pkg/controllers/k8s/control_plane.go`). The dry-run must show the `jwt` entry only. Every node is a control plane: a worker joining would need it in a control plane patch. Rendered locally with throwaway secrets, merged with `kubernetes.yaml.j2` and `cluster-rename.yaml`, `talosctl validate` passes. Applied by Victor: `just talos apply-node kube-01 --dry-run`, then kube-01. Check through kube-01 alone, with the OIDC kubeconfig: `kubectl --server https://kube-01.shelltopia.net:6443 --tls-server-name kubecluster-01.shelltopia.net auth whoami` gives `oidc:<username>` and `oidc:kubernetes_admins`, kube-03 still answers `Unauthorized`, the logs of `kube-apiserver` without JWT error, its metrics a JWKS `success`. Whether Talos restarts the API server or rewrites the file under it: the age of the `kube-apiserver` pod. Then kube-03, the same. Done on 2026-11-14, kube-01 then kube-03: the dry-run showed the `jwt` entry only; `oidc:victor`, the uid the `sub`, `oidc:kubernetes_admins` and `system:authenticated`; kube-03 `Unauthorized` before its own; in the logs `No x509 certificates provided, will use host's root CA set` only (the Pocket ID certificate is public); the JWKS `success` and `apiserver_authentication_config_controller_last_config_info`. Talos restarts the API server (its pod 3 min old, the other 6 h): the version of its static pod includes the one of the authentication config (`render_config_static_pods.go`). The token holds every group of the user (`oidc:immich_admins`…): Pocket ID cannot limit them per client, only the `kubernetes_*` groups are bound.
+- [x] **Break-glass.** `kubectl auth whoami` with `kubeconfig-admin`: `admin`, `system:masters`. Then `kubeconfig-admin` deleted. The other `just` recipes use the OIDC `kubeconfig` (the admin group). Done on 2026-11-14.
+- [x] **Docs**, in the same commit: [cluster](cluster/README.md) (a section: the decisions, never bind a component of the cluster, Flux or ESO, to an OIDC identity; the status), [bootstrap](cluster/bootstrap.md) (the checks), [runbook](cluster/runbook.md) (the login, the break-glass), [talos](../talos/README.md), [reference](reference.md) (groups, client, app, files), [README](../README.md) (the kubeconfig), [AGENTS.md](../AGENTS.md#files) (`kubeconfig` and `kubeconfig-admin`, never read). The [roadmap](roadmap.md#cluster-tools) item ticked; in the Headlamp item, the default group read only, the restarts for the admins; "the `just` recipes unchanged" except the bootstrap.
 
 ## 5. Flux web UI and Headlamp
 
 Roadmap items as written ([roadmap](roadmap.md#cluster-tools)). Questions and plan once step 4 is done.
 
 - [ ] Flux web UI: OIDC in flux-operator, the `HTTPRoute` on the `internal` Gateway, the roles of the chart checked, then the links in the Flux notifications.
-- [ ] Headlamp: its release with the resources and class of the convention, OIDC, the `HTTPRoute` on the `internal` Gateway, the restart rights of the default group.
+- [ ] Headlamp: its release with the resources and class of the convention, OIDC, the `HTTPRoute` on the `internal` Gateway, the groups of [step 4](#oidc-answers) (no restart for `kubernetes_viewers`).
 
 ## 6. Descheduler
 

@@ -7,7 +7,10 @@ set script-interpreter := ['bash', '-euo', 'pipefail']
 set shell := ['bash', '-euo', 'pipefail', '-c']
 
 export TALOSCONFIG := justfile_directory() / "talosconfig"
-export KUBECONFIG := justfile_directory() / "kubeconfig"
+# The admin kubeconfig (system:masters): Flux has not created the bindings of the OIDC groups yet
+# (docs/cluster/README.md#oidc-authentication). Deleted after use; `just talos kubeconfig` writes
+# the OIDC one.
+export KUBECONFIG := justfile_directory() / "kubeconfig-admin"
 
 just := quote(just_executable()) + " --justfile " + quote(justfile())
 vars := justfile_directory() / "talos" / "vars.yaml"
@@ -47,7 +50,7 @@ etcd:
         sleep 10
     done
 
-[doc('Fetch the admin kubeconfig at the repository root')]
+[doc('Fetch the admin kubeconfig (kubeconfig-admin) at the repository root')]
 kubeconfig:
     {{ just }} log info "Running stage..." stage "{{ recipe_name() }}"
     mapfile -t fqdns < <({{ just }} talos node-fqdns)

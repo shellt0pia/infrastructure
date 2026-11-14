@@ -2,6 +2,31 @@
 
 Day-to-day operations on the cluster. Architecture: [README.md](README.md).
 
+## Logging in
+
+`kubectl` logs in with the Pocket ID ([README](README.md#oidc-authentication)). `mise` points `KUBECONFIG` to `kubeconfig` at the root.
+
+- [ ] **Write the kubeconfig**, once per workstation, again when the endpoint, the CA or the client change (no call to the cluster):
+
+  ```sh
+  just talos kubeconfig
+  kubectl auth whoami
+  ```
+
+  Expected: the browser opens at the first call (`xdg-open`, from the toolbox too), then `oidc:<username>` and its groups, `oidc:kubernetes_admins` among them. The tokens are cached in `~/.kube/cache/oidc-login` and refreshed without the browser for 30 days of inactivity.
+
+- [ ] **Log in again**, if a refresh fails (`Unauthorized`, a refresh token expired or revoked in the Pocket ID): `rm -r ~/.kube/cache/oidc-login`, then any `kubectl` command.
+- [ ] **Give the rights**: add the user to a group of the Pocket ID, `kubernetes_admins` (`cluster-admin`) or `kubernetes_viewers` (`view`, read only). The new group shows at the next token (within 1 h): `kubelogin get-token --force-refresh` with the arguments of the kubeconfig, or the cache deleted. A new right is a binding in `kubernetes/apps/kube-system/oidc/app`, to a group, never to a user.
+- [ ] **Change the authentication config** (`talos/patches/authentication.yaml.j2`): the API server of each node restarts, and does not start with an invalid config. One node at a time, and the login checked through it before the other:
+
+  ```sh
+  just talos apply-node kube-0X --dry-run
+  just talos apply-node kube-0X
+  kubectl --server https://kube-0X.shelltopia.net:6443 --tls-server-name kubecluster-01.shelltopia.net auth whoami
+  ```
+
+  Expected: the dry-run shows the change only, never the `anonymous` block removed ([talos](../../talos/README.md#gotchas)); then `oidc:<username>` and its groups. If the API server of the node does not come back, revert the patch and apply it again on this node, with `kubeconfig-admin` through the other one ([below](#break-glass)).
+
 ## The `just kube` recipes
 
 `kubernetes/mod.just` holds the recipes run from the workstation. For now, the restore recipes of the backups (`volsync-snapshots`, `volsync-restic`, `volsync-backup`, `volsync-restore`, [backups](../backups/runbook.md)).
@@ -195,3 +220,22 @@ If the `sync.ref` of the `flux-instance` HelmRelease pushed to GitHub is not the
    Expected: the `GitRepository` follows the right branch and the Kustomizations become `Ready` again (`flux get ks -A`).
 
 3. **Fix Git.** Commit and push the right `sync.ref` in `kubernetes/apps/flux-system/flux-instance/app/helmrelease.yaml`, otherwise Flux reapplies the wrong one.
+
+## Break-glass
+
+When the OIDC login fails for everyone: the Pocket ID down, a wrong authentication config, the bindings deleted. The admin kubeconfig (`system:masters`) goes through the Talos API, with the `talosconfig`, not through the Pocket ID ([README](README.md#oidc-authentication)).
+
+- [ ] **Write it**, at the root, ignored by Git:
+
+  ```sh
+  just bootstrap kubeconfig
+  KUBECONFIG=kubeconfig-admin kubectl auth whoami
+  ```
+
+  Expected: `admin`, groups `system:masters` and `system:authenticated`. Then `KUBECONFIG=kubeconfig-admin` before each command. The `just bootstrap` recipes use it already.
+
+- [ ] **Delete it** once done: its certificate stays valid for a year, and Kubernetes revokes no certificate.
+
+  ```sh
+  rm kubeconfig-admin
+  ```

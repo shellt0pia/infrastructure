@@ -45,6 +45,14 @@ ups:
   name: eaton-ellipse
   server: ups-01-dmz.shelltopia.net
 
+# OIDC login to the API server with the Pocket ID (docs/cluster/README.md#oidc-authentication),
+# read by patches/authentication.yaml.j2 and `just talos kubeconfig`. A client id is not a
+# secret: it is in every authorization URL.
+oidc:
+  issuer: https://id.shelltopia.org
+  # Public client with PKCE, for kubelogin (kubectl).
+  kubelogin_client_id: 145b99e4-4944-442a-968c-37b1338f701e
+
 # talosctl (mise.toml) is pinned to the same version.
 # renovate: datasource=docker depName=ghcr.io/siderolabs/installer
 talos_version: v1.14.4

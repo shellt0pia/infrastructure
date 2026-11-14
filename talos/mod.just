@@ -91,6 +91,37 @@ talosconfig:
     talosctl config node "${fqdns[0]}"
     echo "talosconfig written to $TALOSCONFIG"
 
+# No call to the cluster: the endpoint of vars.yaml, the CA of the cluster from the secrets bundle,
+# and kubelogin as the exec plugin: the browser at the first call, then its token cache
+# (~/.kube/cache/oidc-login). `Never`: kubelogin reads no stdin with the browser login, and
+# kubectl keeps its own (`kubectl apply -f -`). The admin kubeconfig, for the break-glass and the
+# bootstrap: `just bootstrap kubeconfig` (docs/cluster/runbook.md#break-glass).
+[doc('Generate the OIDC kubeconfig at the repository root')]
+kubeconfig:
+    name="$(yq -r '.cluster.name' '{{ vars }}')"
+    endpoint="$(yq -r '.cluster.endpoint' '{{ vars }}')"
+    issuer="$(yq -r '.oidc.issuer' '{{ vars }}')"
+    client_id="$(yq -r '.oidc.kubelogin_client_id' '{{ vars }}')"
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "$tmp"' EXIT
+    op document get '{{ op_item }}' --vault '{{ op_vault }}' | yq -r '.certs.k8s.crt' | base64 -d > "$tmp/ca.crt"
+    export KUBECONFIG="$tmp/kubeconfig"
+    kubectl config set-cluster "$name" --server="$endpoint" --certificate-authority="$tmp/ca.crt" --embed-certs >/dev/null
+    kubectl config set-credentials oidc \
+        --exec-api-version=client.authentication.k8s.io/v1 \
+        --exec-interactive-mode=Never \
+        --exec-command=kubelogin \
+        --exec-arg=get-token \
+        --exec-arg="--oidc-issuer-url=$issuer" \
+        --exec-arg="--oidc-client-id=$client_id" \
+        --exec-arg=--oidc-extra-scope=profile \
+        --exec-arg=--oidc-extra-scope=groups \
+        --exec-arg=--oidc-extra-scope=offline_access >/dev/null
+    kubectl config set-context "$name" --cluster="$name" --user=oidc >/dev/null
+    kubectl config use-context "$name" >/dev/null
+    mv "$tmp/kubeconfig" '{{ justfile_directory() }}/kubeconfig'
+    echo "kubeconfig written to {{ justfile_directory() }}/kubeconfig"
+
 [doc('Upgrade Talos on a node to the version and schematic of the repository')]
 [confirm('Upgrade Talos on ' + node + '? [y/N]')]
 upgrade-node node *args:

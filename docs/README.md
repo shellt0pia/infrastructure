@@ -52,7 +52,7 @@ Each topic has its own folder, with the same files (only those with content):
 | --- | --- |
 | [Nodes](nodes/README.md) | The machines: hardware, BIOS, Secure Boot, TPM disk encryption, Talos image. |
 | [Network](network/README.md) | OPNsense: DHCP, router advertisements, names, firewall, BGP, IPv6 prefix change. |
-| [Cluster](cluster/README.md) | Bootstrap, Cilium, network policies, Pod Security, CoreDNS, Flux, GPU, Spegel, Reloader. |
+| [Cluster](cluster/README.md) | Bootstrap, Cilium, network policies, Pod Security, CoreDNS, Flux, OIDC login of `kubectl`, GPU, Spegel, Reloader. |
 | [Secrets](secrets/README.md) | 1Password: the workstation service account, External Secrets. |
 | [Storage](storage/README.md) | Piraeus/LINSTOR and NFS. |
 | [Ingress](ingress/README.md) | Envoy Gateway, the Gateways, the certificate, HAProxy on OPNsense. |
