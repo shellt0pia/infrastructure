@@ -29,11 +29,12 @@ spec:
         # No NetworkPolicies of Flux: its `allow-egress` policy would allow every egress of the
         # namespace, over the Cilium baseline (docs/cluster/README.md#network-policies).
         networkPolicy: false
-      # Cancel the health checks of a Kustomization when a new revision arrives: without it, a
-      # Kustomization waiting on a broken release (wait: true, timeout = interval = 1h) ignores
-      # the commit that fixes it until the wait ends (docs/cluster/README.md#decisions).
       kustomize:
         patches:
+          # Cancel the health checks of a Kustomization when a new revision arrives: without it, a
+          # Kustomization waiting on a broken release (wait: true, timeout = interval = 1h)
+          # ignores the commit that fixes it until the wait ends
+          # (docs/cluster/README.md#decisions).
           - target:
               kind: Deployment
               name: kustomize-controller
@@ -41,6 +42,64 @@ spec:
               - op: add
                 path: /spec/template/spec/containers/0/args/-
                 value: --feature-gates=CancelHealthCheckOnNewRevision=true
+          # Not system-cluster-critical (upstream, none for notification-controller): the cluster
+          # keeps running without Flux (docs/cluster/README.md#resources-and-priorities).
+          - target:
+              kind: Deployment
+            patch: |
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: infrastructure
+          # From the usage (docs/conventions.md#resources-and-priorities): the whole `resources`
+          # replaced, without the CPU limits of upstream.
+          - target:
+              kind: Deployment
+              name: source-controller
+            patch: |
+              - op: add
+                path: /spec/template/spec/containers/0/resources
+                value:
+                  requests:
+                    cpu: 5m
+                    memory: 144Mi
+                  limits:
+                    memory: 288Mi
+          - target:
+              kind: Deployment
+              name: kustomize-controller
+            patch: |
+              - op: add
+                path: /spec/template/spec/containers/0/resources
+                value:
+                  requests:
+                    cpu: 40m
+                    memory: 224Mi
+                  limits:
+                    memory: 448Mi
+          - target:
+              kind: Deployment
+              name: helm-controller
+            patch: |
+              - op: add
+                path: /spec/template/spec/containers/0/resources
+                value:
+                  requests:
+                    cpu: 10m
+                    memory: 208Mi
+                  limits:
+                    memory: 416Mi
+          - target:
+              kind: Deployment
+              name: notification-controller
+            patch: |
+              - op: add
+                path: /spec/template/spec/containers/0/resources
+                value:
+                  requests:
+                    cpu: 5m
+                    memory: 48Mi
+                  limits:
+                    memory: 96Mi
       sync:
         kind: GitRepository
         # TODO: final repository URL and branch.

@@ -74,13 +74,14 @@ spec:
       capabilities:
         drop: ["ALL"]
 
-    # To resize from the metrics.
+    # From the usage (docs/conventions.md#resources-and-priorities).
+    priorityClassName: infrastructure
     resources:
       requests:
-        cpu: 10m
+        cpu: 5m
         memory: 32Mi
       limits:
-        memory: 128Mi
+        memory: 64Mi
 
     # Both families (docs/conventions.md#listen-addresses): one socket, the default `:9115` of the
     # exporter (Go). The probes of the pod read `/-/healthy`, which probes nothing.

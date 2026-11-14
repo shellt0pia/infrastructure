@@ -20,6 +20,17 @@ spec:
   values:
     # The CRDs are templates of the chart: Helm upgrades them.
     installCRDs: true
+    # Instead of system-cluster-critical (chart default): the volumes keep running without the
+    # operator (docs/cluster/README.md#resources-and-priorities).
+    priorityClassName: infrastructure
+    operator:
+      # From the usage (docs/conventions.md#resources-and-priorities).
+      resources:
+        requests:
+          cpu: 20m
+          memory: 96Mi
+        limits:
+          memory: 192Mi
   # Unlike the other charts, this one has no option to keep its CRDs: without this annotation,
   # uninstalling the release would delete the LinstorCluster and tear the storage down.
   postRenderers:

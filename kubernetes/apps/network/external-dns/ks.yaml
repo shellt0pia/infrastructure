@@ -12,6 +12,8 @@ spec:
       namespace: network
     - name: external-secrets-stores
       namespace: external-secrets
+    - name: priority-classes
+      namespace: kube-system
   interval: 1h
   path: ./kubernetes/apps/network/external-dns/app
   prune: true

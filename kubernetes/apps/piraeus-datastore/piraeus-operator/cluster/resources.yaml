@@ -1,0 +1,39 @@
+---
+# Requests and memory limits of the satellites, from the usage (docs/conventions.md#resources-and-priorities).
+# Class: system-node-critical, set by the operator. The init containers left after
+# talos-loader-override (talos.yaml): setup-lvm-configuration only.
+apiVersion: piraeus.io/v1
+kind: LinstorSatelliteConfiguration
+metadata:
+  name: resources
+spec:
+  podTemplate:
+    spec:
+      initContainers:
+        - name: setup-lvm-configuration
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+      containers:
+        - name: linstor-satellite
+          # The start script sets -Xmx2G: the heap at the request, the rest of the limit for the
+          # rest of the JVM. <APP>_OPTS comes after JAVA_OPTS, left to the operator.
+          env:
+            - name: SATELLITE_OPTS
+              value: -Xmx448m
+          resources:
+            requests:
+              cpu: 5m
+              memory: 448Mi
+            limits:
+              memory: 896Mi
+        - name: drbd-reactor
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              memory: 64Mi

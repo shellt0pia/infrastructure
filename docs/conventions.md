@@ -164,7 +164,7 @@ Every container has requests and a memory limit, and each component of the platf
 - CPU: a request, never a limit.
 - Memory: a request that covers the peak of the usage, plus about 20 %, and a limit about twice the request. The limit equal to the request for a database, and for a tool that sizes its caches from its limit (VictoriaMetrics, VictoriaLogs).
 - Every container: the init containers and sidecars, the Jobs and the VolSync movers, the pods created by an operator (through its resource: `EnvoyProxy`, `LinstorCluster`...). No `ephemeral-storage`, except for a pod that writes a lot in an `emptyDir`. Not the Talos static pods: they keep the settings of Talos.
-- The values come from the recommendations of Goldilocks, checked against the usage in VictoriaMetrics. A comment says why when they differ (the memory of Vector, sized for its catch-up).
+- The values come from the usage in VictoriaMetrics, over at least a week: the peak of the working set for the memory, the 95th percentile for the CPU. The recommendations of Goldilocks are the cross-check, and the first values of a new service. A comment says why when they differ (the memory limits of Vector, sized for its catch-up).
 - The class, in the values of the chart or through the resource of the operator, the one of the convention even when the chart or the operator sets another:
   - `system-node-critical`: the agents of each node without which it loses its network or its storage (Cilium, LINSTOR satellites, CSI node plugin);
   - `system-cluster-critical`: the cluster DNS and the controllers that the network and the volumes of the running pods depend on (not the operators that deploy them);

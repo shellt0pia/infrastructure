@@ -12,7 +12,18 @@ spec:
     kubernetes:
       envoyDeployment:
         replicas: 2
+        # From the usage (docs/conventions.md#resources-and-priorities).
+        container:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 80Mi
+            limits:
+              memory: 160Mi
         pod:
+          # Not a system class: the cluster does not depend on the Gateways
+          # (docs/cluster/README.md#resources-and-priorities).
+          priorityClassName: infrastructure
           # One proxy per node when possible. ScheduleAnyway: with 2 nodes, a strict constraint
           # would leave a replica Pending while a node is down.
           topologySpreadConstraints:
@@ -23,6 +34,21 @@ spec:
                 matchLabels:
                   gateway.envoyproxy.io/owning-gateway-name: internal
                   gateway.envoyproxy.io/owning-gateway-namespace: network
+        # The shutdown-manager has no field of its own (10m / 32Mi, no limit, in Envoy Gateway).
+        patch:
+          type: StrategicMerge
+          value:
+            spec:
+              template:
+                spec:
+                  containers:
+                    - name: shutdown-manager
+                      resources:
+                        requests:
+                          cpu: 5m
+                          memory: 32Mi
+                        limits:
+                          memory: 64Mi
       envoyPDB:
         minAvailable: 1
       envoyService:

@@ -24,3 +24,24 @@ spec:
       # which would otherwise intercept the creation of every pod in the cluster.
       devices:
         gpu: true
+    # From the usage (docs/conventions.md#resources-and-priorities).
+    resources:
+      requests:
+        cpu: 5m
+        memory: 32Mi
+      limits:
+        # Helm merges maps: null removes the CPU limit of the chart.
+        cpu: null
+        memory: 64Mi
+  # The chart has no value for the class. The GPU plugin keeps the one its operator sets.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              group: apps
+              kind: Deployment
+              name: inteldeviceplugins-controller-manager
+            patch: |
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: infrastructure

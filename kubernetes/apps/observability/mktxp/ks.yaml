@@ -8,6 +8,8 @@ metadata:
   name: mktxp
 spec:
   dependsOn:
+    - name: priority-classes
+      namespace: kube-system
     - name: external-secrets-stores
       namespace: external-secrets
   interval: 1h

@@ -53,16 +53,17 @@ spec:
               readOnlyRootFilesystem: true
               capabilities:
                 drop: ["ALL"]
-            # To resize from the metrics.
+            # From the usage (docs/conventions.md#resources-and-priorities).
             resources:
               requests:
-                cpu: 10m
-                memory: 32Mi
+                cpu: 5m
+                memory: 16Mi
               limits:
                 memory: 64Mi
 
     # `restricted`: the image (Alpine) runs as root by default, 65534 (nobody) here.
     defaultPodOptions:
+      priorityClassName: infrastructure
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534

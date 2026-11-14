@@ -139,7 +139,7 @@ Level 1: the loss of a node costs a few minutes of access, never data.
 
 Sizes estimated, to check in the dashboards of VictoriaMetrics and VictoriaLogs after two weeks. The volumes can be expanded later, the retentions changed at any time. The firewall logs of OPNsense (stage 5) are the largest unknown: their daily volume is measured over a week, then `VLSingle` resized.
 
-Every component has modest requests and a memory limit from the start, with a comment saying they are to resize from the metrics ([roadmap](../roadmap.md#cluster-tools)). Exception: the memory limits of Vector (1 Gi for the agent, 512 Mi for the aggregator) are sized for the catch-up, not for the idle use ([memory of Vector](evaluations.md#memory-of-vector)).
+Every component has requests, a memory limit and the class `infrastructure`, sized from its usage on 2026-11-14 ([convention](../conventions.md#resources-and-priorities), [plan](../cluster-tools.md#3-sizing)). Exception: the memory limits of Vector (1 Gi for the agent, 512 Mi for the aggregator) are sized for the catch-up, not for the idle use ([memory of Vector](evaluations.md#memory-of-vector)).
 
 ### Alerting
 
@@ -165,7 +165,7 @@ Every component has modest requests and a memory limit from the start, with a co
   | `observability/nut-exporter/app` | The UPS alerts of the [external devices](#external-devices): `UPSExporterDown`, `UPSOnBattery`, `UPSLowBattery`, `UPSReplaceBattery` |
   | `observability/mktxp/app` | `MikrotikDown`, one per MikroTik device of the [external devices](#external-devices) |
   | `piraeus-datastore/piraeus-operator/cluster` | `linstorStoragePoolAtCapacity` `critical`, under 10 % free |
-  | `observability/victoria-metrics-k8s-stack/app` | The checks of the [resources](../cluster/README.md#resources-and-priorities), from kube-state-metrics, without `for`: `ContainerWithoutMemoryLimit` (`info` until the [sizing](../cluster-tools.md#3-sizing), then `warning`; a container or an init container, out of `debug`, the static pods and the finished pods), `ContainerOOMKilled` (`warning`: restarted in the last 15 minutes after an OOM kill, or terminated by one) |
+  | `observability/victoria-metrics-k8s-stack/app` | The checks of the [resources](../cluster/README.md#resources-and-priorities), from kube-state-metrics, without `for`: `ContainerWithoutMemoryLimit` (`warning` since the [sizing](../cluster-tools.md#3-sizing); a container or an init container, out of `debug`, the static pods and the finished pods), `ContainerOOMKilled` (`warning`: restarted in the last 15 minutes after an OOM kill, or terminated by one; `increase_prometheus`: `increase` counts the first value of the new series of a new kube-state-metrics pod, and fired again for an OOM kill of the day before) |
   | `observability/victoria-metrics-k8s-stack/config` | `SELinuxUnlabeledDenials` (LogsQL, below) |
 
   The rules of the external devices come with stage 5 ([below](#external-devices)).

@@ -4,6 +4,8 @@ kind: Kustomization
 metadata:
   name: cilium
 spec:
+  dependsOn:
+    - name: priority-classes
   interval: 1h
   path: ./kubernetes/apps/kube-system/cilium/app
   prune: true

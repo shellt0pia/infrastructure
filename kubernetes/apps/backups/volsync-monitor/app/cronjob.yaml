@@ -29,6 +29,7 @@ spec:
           restartPolicy: Never
           serviceAccountName: volsync-monitor
           enableServiceLinks: false
+          priorityClassName: infrastructure
           securityContext:
             runAsNonRoot: true
             runAsUser: 65532

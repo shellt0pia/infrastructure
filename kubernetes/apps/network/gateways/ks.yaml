@@ -11,6 +11,8 @@ spec:
       namespace: envoy-gateway-system
     - name: cert-manager-issuers
       namespace: cert-manager
+    - name: priority-classes
+      namespace: kube-system
   interval: 1h
   path: ./kubernetes/apps/network/gateways/app
   prune: true

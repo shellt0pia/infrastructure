@@ -37,13 +37,14 @@ spec:
       podSecurityContext:
         seccompProfile:
           type: RuntimeDefault
-      # To resize from the metrics.
+      # From the usage (docs/conventions.md#resources-and-priorities).
+      priorityClassName: infrastructure
       resources:
         requests:
-          cpu: 20m
-          memory: 128Mi
+          cpu: 15m
+          memory: 112Mi
         limits:
-          memory: 256Mi
+          memory: 224Mi
 
     # Evaluates every VMRule of the cluster (selectAllByDefault), the PrometheusRules converted by
     # the operator included. Two replicas that evaluate the same rules: the Alertmanager
@@ -80,13 +81,21 @@ spec:
           readOnlyRootFilesystem: true
           capabilities:
             drop: ["ALL"]
-        # To resize from the metrics.
+        # From the usage (docs/conventions.md#resources-and-priorities). The config reloader
+        # values go to its init container `config-init` too.
+        priorityClassName: infrastructure
         resources:
           requests:
             cpu: 20m
-            memory: 64Mi
+            memory: 112Mi
           limits:
-            memory: 256Mi
+            memory: 224Mi
+        configReloaderResources:
+          requests:
+            cpu: 5m
+            memory: 32Mi
+          limits:
+            memory: 64Mi
 
     # The links of the alerts (their generatorURL): an Explore of their expression in Grafana,
     # from the start of the alert, on the default data source (`VictoriaMetrics`). With the
@@ -125,13 +134,21 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
-          # To resize from the metrics.
+          # From the usage (docs/conventions.md#resources-and-priorities). The config reloader
+          # values go to its init container `config-init` too.
+          priorityClassName: infrastructure
           resources:
             requests:
-              cpu: 10m
+              cpu: 15m
               memory: 32Mi
             limits:
-              memory: 128Mi
+              memory: 64Mi
+          configReloaderResources:
+            requests:
+              cpu: 5m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
 
     # The default rules, and the upstream rules of the applications that have them, created as
     # VMRules by the sync-job below. All enabled until the noise pass
@@ -225,11 +242,13 @@ spec:
           readOnlyRootFilesystem: true
           capabilities:
             drop: ["ALL"]
-        # To resize from the metrics.
+        # From the usage (docs/conventions.md#resources-and-priorities). The limit as the request:
+        # VictoriaMetrics sizes its caches from it.
+        priorityClassName: infrastructure
         resources:
           requests:
-            cpu: 100m
-            memory: 512Mi
+            cpu: 290m
+            memory: 1536Mi
           limits:
             memory: 1536Mi
 
@@ -261,11 +280,13 @@ spec:
           readOnlyRootFilesystem: true
           capabilities:
             drop: ["ALL"]
-        # To resize from the metrics.
+        # From the usage (docs/conventions.md#resources-and-priorities). The limit as the request:
+        # VictoriaLogs sizes its caches from it.
+        priorityClassName: infrastructure
         resources:
           requests:
-            cpu: 50m
-            memory: 256Mi
+            cpu: 25m
+            memory: 1Gi
           limits:
             memory: 1Gi
 
@@ -305,13 +326,21 @@ spec:
           readOnlyRootFilesystem: true
           capabilities:
             drop: ["ALL"]
-        # To resize from the metrics.
+        # From the usage (docs/conventions.md#resources-and-priorities). The config reloader
+        # values go to its init container `config-init` too.
+        priorityClassName: infrastructure
         resources:
           requests:
-            cpu: 50m
-            memory: 256Mi
-          limits:
+            cpu: 90m
             memory: 512Mi
+          limits:
+            memory: 1Gi
+        configReloaderResources:
+          requests:
+            cpu: 5m
+            memory: 32Mi
+          limits:
+            memory: 64Mi
 
     # The defaults of the subchart already meet `restricted`.
     kube-state-metrics:
@@ -438,13 +467,14 @@ spec:
           - apiGroups: [fluxcd.controlplane.io]
             resources: [fluxinstances]
             verbs: [list, watch]
-      # To resize from the metrics.
+      # From the usage (docs/conventions.md#resources-and-priorities).
+      priorityClassName: infrastructure
       resources:
         requests:
           cpu: 10m
-          memory: 64Mi
+          memory: 160Mi
         limits:
-          memory: 128Mi
+          memory: 320Mi
 
     # hostNetwork, hostPID and the root filesystem of the node: in the privileged namespace
     # (kubernetes/apps/observability-agents). Scraped on the port 9100 of the nodes.
@@ -456,13 +486,14 @@ spec:
           namespaceSelector:
             matchNames:
               - observability-agents
-      # To resize from the metrics.
+      # From the usage (docs/conventions.md#resources-and-priorities).
+      priorityClassName: infrastructure
       resources:
         requests:
           cpu: 10m
-          memory: 32Mi
+          memory: 48Mi
         limits:
-          memory: 64Mi
+          memory: 96Mi
 
     # The API server: the scrape of the chart as it is. The kubelet (and cAdvisor): verified, its
     # serving certificate is signed by the cluster CA (the caFile of the chart) and holds the
@@ -516,13 +547,14 @@ spec:
       extraVolumeMounts:
         - name: tmp
           mountPath: /tmp
-      # To resize from the metrics.
+      # From the usage (docs/conventions.md#resources-and-priorities). A post-install and
+      # post-upgrade hook: no value for its class, the default (0).
       resources:
         requests:
-          cpu: 10m
+          cpu: 25m
           memory: 64Mi
         limits:
-          memory: 256Mi
+          memory: 128Mi
     defaultDashboards:
       sources:
         # Follow kubeEtcd.enabled and coreDns.enabled, disabled above.
@@ -594,13 +626,21 @@ spec:
               resources:
                 requests:
                   storage: 1Gi
-        # To resize from the metrics.
+        # From the usage (docs/conventions.md#resources-and-priorities). The config reloader
+        # values go to its init container `config-init` too.
+        priorityClassName: infrastructure
         resources:
           requests:
             cpu: 10m
             memory: 64Mi
           limits:
             memory: 128Mi
+        configReloaderResources:
+          requests:
+            cpu: 5m
+            memory: 32Mi
+          limits:
+            memory: 64Mi
       # docs/observability/README.md#alerting. Rendered as is into the configuration Secret (no
       # Helm templating): the `{{ }}` are templates of the Alertmanager.
       config:

@@ -17,6 +17,30 @@ spec:
       retries: 3
   values:
     installCRDs: true
+    priorityClassName: infrastructure
+    # From the usage (docs/conventions.md#resources-and-priorities).
+    resources:
+      requests:
+        cpu: 10m
+        memory: 160Mi
+      limits:
+        memory: 320Mi
+    webhook:
+      priorityClassName: infrastructure
+      resources:
+        requests:
+          cpu: 5m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+    certController:
+      priorityClassName: infrastructure
+      resources:
+        requests:
+          cpu: 5m
+          memory: 96Mi
+        limits:
+          memory: 192Mi
     # One ServiceMonitor (and metrics Service) each for the controller, the webhook and the
     # cert-controller.
     serviceMonitor:

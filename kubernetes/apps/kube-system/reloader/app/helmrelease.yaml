@@ -39,14 +39,16 @@ spec:
       deployment:
         # A single replica without leader election: a short outage only delays a reload.
         replicas: 1
+        priorityClassName: infrastructure
         containerSecurityContext:
           allowPrivilegeEscalation: false
           capabilities:
             drop: ["ALL"]
+        # From the usage (docs/conventions.md#resources-and-priorities).
         resources:
           requests:
-            cpu: 10m
-            memory: 64Mi
+            cpu: 5m
+            memory: 128Mi
           limits:
             memory: 256Mi
       podMonitor:

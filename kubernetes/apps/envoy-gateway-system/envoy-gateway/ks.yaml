@@ -4,6 +4,9 @@ kind: Kustomization
 metadata:
   name: envoy-gateway
 spec:
+  dependsOn:
+    - name: priority-classes
+      namespace: kube-system
   interval: 1h
   path: ./kubernetes/apps/envoy-gateway-system/envoy-gateway/app
   prune: true

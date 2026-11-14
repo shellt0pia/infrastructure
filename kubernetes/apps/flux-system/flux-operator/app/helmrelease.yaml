@@ -20,6 +20,18 @@ spec:
     # the documentation of the operator advises when its metrics are scraped (default 5m).
     reporting:
       interval: 30s
+    # Not system-cluster-critical (the advice of the chart): the cluster keeps running without
+    # Flux (docs/cluster/README.md#resources-and-priorities).
+    priorityClassName: infrastructure
+    # From the usage (docs/conventions.md#resources-and-priorities).
+    resources:
+      requests:
+        cpu: 15m
+        memory: 320Mi
+      limits:
+        # Helm merges maps: null removes the CPU limit of the chart.
+        cpu: null
+        memory: 640Mi
     serviceMonitor:
       create: true
     web:

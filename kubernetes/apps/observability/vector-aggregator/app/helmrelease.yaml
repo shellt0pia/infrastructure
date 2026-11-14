@@ -61,13 +61,15 @@ spec:
     readinessProbe:
       tcpSocket:
         port: 5514
-    # To resize from the metrics. The limit is for the drain of the disk buffer after an outage of
-    # VictoriaLogs: about 265 MiB at the peak with 1 MiB batches, 495 MiB with the default ones
+    # The request from the usage (docs/conventions.md#resources-and-priorities). The limit is for
+    # the drain of the disk buffer after an outage of VictoriaLogs, not the usage: about 265 MiB at
+    # the peak with 1 MiB batches, 495 MiB with the default ones
     # (docs/observability/evaluations.md#memory-of-vector).
+    podPriorityClassName: infrastructure
     resources:
       requests:
-        cpu: 20m
-        memory: 64Mi
+        cpu: 30m
+        memory: 112Mi
       limits:
         memory: 512Mi
 

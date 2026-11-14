@@ -36,9 +36,10 @@ spec:
     # The chart default is system-cluster-critical: kubectl top and the VPA can wait.
     priorityClassName: infrastructure
     replicas: 1
+    # From the usage (docs/conventions.md#resources-and-priorities).
     resources:
       requests:
-        cpu: 10m
-        memory: 64Mi
+        cpu: 5m
+        memory: 48Mi
       limits:
-        memory: 128Mi
+        memory: 96Mi

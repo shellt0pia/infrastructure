@@ -8,7 +8,7 @@ Temporary document: the plan of the [Cluster tools](roadmap.md#cluster-tools) of
 | --- | --- | --- | --- |
 | [1](#1-resources-and-priorities) | Resources and `PriorityClass`es: the convention, the classes, the checks | The convention first: every tool deployed after it (metrics-server, VPA, Headlamp) follows it from the start. | Done |
 | [2](#2-kubelet-serving-certificates-metrics-server-and-vpa) | kubelet serving certificates, metrics-server, VPA and Goldilocks | Grouped: metrics-server needs the verified kubelet certificates, the VPA recommender needs metrics-server. | Done |
-| [3](#3-sizing) | Resources and `PriorityClass`es: the sizing | From the recommendations of step 2, checked against the history of VictoriaMetrics (since 2026-11-03). | To do |
+| [3](#3-sizing) | Resources and `PriorityClass`es: the sizing | From the history of VictoriaMetrics (since 2026-11-03), cross-checked with the recommendations of step 2. | Applied on 2026-11-14, the check two weeks later |
 | [4](#4-oidc-authentication) | Kubernetes OIDC authentication | Before the UIs: both log in through it, and their rights are the bindings of its groups. | To do |
 | [5](#5-flux-web-ui-and-headlamp) | Flux web UI, Headlamp | Grouped: same pattern (a client in the Pocket ID, an `HTTPRoute` on the `internal` Gateway, the groups of step 4). The Flux UI first: nothing to deploy. | To do |
 | [6](#6-descheduler) | Descheduler, `topologySpreadConstraints` | Once kube-02 joins: it uses the requests of step 3 and metrics-server of step 2. Stays in the roadmap until then. | Waits for kube-02 |
@@ -20,7 +20,7 @@ Temporary document: the plan of the [Cluster tools](roadmap.md#cluster-tools) of
 - Nodes: 16 GiB, `systemReserved` 500m and 1 GiB, `kubeReserved` 250m and 512 MiB, `evictionHard` `memory.available: 500Mi` (`talos/patches/kubernetes.yaml.j2`): about 14 GiB allocatable per node. Two nodes until kube-02 joins.
 - The pattern already used by 14 manifests (the observability tools, Hubble UI, Reloader, Spegel, cloudflare-ddns, volsync-monitor): CPU and memory requests, a memory limit, no CPU limit. Nothing says why.
 - No resources in the repository, the chart defaults (to check in the renders): cert-manager, Envoy Gateway (the controller, and the proxies through the `EnvoyProxy`s), External Secrets, flux-operator and the Flux controllers, the Cilium agent, operator, Envoy and Hubble Relay, CoreDNS, the Intel device plugin, snapshot-controller, external-dns, k8s-gateway, VolSync and its movers, Piraeus (operator, controller, satellites, CSI, HA controller).
-- Priorities: only CoreDNS sets one (`system-cluster-critical`). The defaults of the charts to check in the renders. The Talos static pods (API server, controller-manager, scheduler) keep the settings of Talos: etcd is a Talos service, in `systemReserved`.
+- Priorities: only CoreDNS sets one (`system-cluster-critical`). The defaults of the charts to check in the renders. The Talos static pods (API server, controller-manager, scheduler) keep the settings of Talos: etcd is a Talos service, in `podruntime` (`kubeReserved`).
 
 ### How Kubernetes uses them
 
@@ -39,7 +39,7 @@ In the [conventions](conventions.md#resources-and-priorities), the why in [clust
 
 - [x] **Convention.** A *Resources and priorities* section of [conventions.md](conventions.md), the why in [cluster/README.md](cluster/README.md).
 - [x] **Classes.** `kubernetes/apps/kube-system/priority-classes/`, applied before any pod names them: a pod that names an unknown class is refused. Also applied by the bootstrap helmfile, before Cilium (`presync` hook).
-- [x] **Checks.** The alerts `ContainerWithoutMemoryLimit` (`info` until step 3) and `ContainerOOMKilled`, in `kubernetes/apps/observability/victoria-metrics-k8s-stack/app/prometheusrule.yaml`. Their checks in [bootstrap](cluster/bootstrap.md#resources-and-priorities), done on 2026-11-13.
+- [x] **Checks.** The alerts `ContainerWithoutMemoryLimit` (`info` until step 3, then `warning`) and `ContainerOOMKilled`, in `kubernetes/apps/observability/victoria-metrics-k8s-stack/app/prometheusrule.yaml`. Their checks in [bootstrap](cluster/bootstrap.md#resources-and-priorities), done on 2026-11-13.
 - [x] **Inventory.** Each release rendered (`helm template`, in `.scratch/inventory/`, the charts unpacked in `.scratch/charts/`), and the pods created by an operator read in the cluster: per container, init containers and sidecars included, its requests, limits and class, and how to set them ([below](#inventory)).
 - [x] **Docs:** [conventions](conventions.md), [cluster](cluster/README.md) (decisions, status and [checks](cluster/bootstrap.md#resources-and-priorities)), [observability](observability/README.md#alerting) (the rules), [reference](reference.md#priority-classes) (the classes).
 
@@ -174,7 +174,8 @@ Roadmap item ([roadmap](roadmap.md#cluster-tools)): the requests, the memory lim
 - **VictoriaMetrics**: the usage of every container since 2026-11-03, every 30 s (cAdvisor, 90 days of retention). An init container or a Job only shows if it runs through a scrape. The bootstrap is in it: installs, restarts, the Talos applies.
 - **VPA recommender**, since 2026-11-13: for each workload, a target at the 90th percentile, plus 15 %. For the CPU, of the samples of each minute; for the memory, of the peak of each day over 8 days. Half-life of 24 h. Below the peak by design, where the [convention](conventions.md#resources-and-priorities) asks for the peak plus about 20 %.
 - **No VPA**: the Jobs (the hooks of the charts, the VolSync movers of Grafana), the init containers, the static pods (out of scope, the settings of Talos).
-- **A usage that follows the limit**: VMSingle and VLSingle size their caches at 60 % of the memory they see, so their usage reflects their limit, not their need. The LINSTOR controller and satellites run in a JVM, whose default heap is 25 % of the memory it sees: the node without a limit, the limit with one. To check.
+- **A usage that follows the limit**: VMSingle and VLSingle size their caches at 60 % of the memory they see, so their usage reflects their limit, not their need.
+- **The heap of LINSTOR**: set by its start scripts (`build.gradle` of LINSTOR v1.35.2): `-Xms256M -Xmx8G` for the controller, `-Xms32M -Xmx2G` for the satellites, then `JAVA_OPTS` (set by the operator: `-Djdk.tls.acknowledgeCloseNotify=true`), then the variable of the script (`CONTROLLER_OPTS`, `SATELLITE_OPTS`, `LINSTOR_CONFIG_OPTS`, from Gradle). An explicit `-Xmx` wins over `MaxRAMPercentage`: a memory limit does not cap the heap, only a later `-Xmx` does. The controller on 2026-11-14: 187 MiB of heap used out of 256 MiB committed, 54 MiB left in the old generation after a collection, 136 MiB outside the heap. The satellites export no JVM metrics.
 - **Shared with the bootstrap**: the helmfile reads the values of the HelmReleases of Cilium, CoreDNS, Spegel, kubelet-csr-approver, External Secrets, flux-operator and flux-instance. A change also applies at the next bootstrap.
 
 ### Queries
@@ -187,13 +188,17 @@ The owners, from the recording rule of the stack (kube-prometheus `k8s.rules.pod
 count by (workload_type) (namespace_workload_pod:kube_pod_owner:relabel)
 ```
 
+On 2026-11-13: `deployment`, `daemonset`, `statefulset`, `job`, `CronJob`, `staticpod`, `barepod`. The `cluster` label of the series changed with the rename of the cluster (`kube-cluster01`, then `kubecluster-01`): the owners are aggregated without it, else a pod has two owners over the window.
+
 The peak of the memory (`memory-peak.csv`):
 
 ```promql
 max by (namespace, workload_type, workload, container) (
   max_over_time(container_memory_working_set_bytes{container!="", container!="POD"}[$__range])
   * on (namespace, pod) group_left (workload_type, workload)
-    max_over_time(namespace_workload_pod:kube_pod_owner:relabel[$__range])
+    max by (namespace, pod, workload_type, workload) (
+      max_over_time(namespace_workload_pod:kube_pod_owner:relabel[$__range])
+    )
 )
 ```
 
@@ -203,7 +208,9 @@ The 95th percentile of the CPU, in cores (`cpu-p95.csv`):
 max by (namespace, workload_type, workload, container) (
   quantile_over_time(0.95, rate(container_cpu_usage_seconds_total{container!="", container!="POD"}[5m])[$__range:5m])
   * on (namespace, pod) group_left (workload_type, workload)
-    max_over_time(namespace_workload_pod:kube_pod_owner:relabel[$__range])
+    max by (namespace, pod, workload_type, workload) (
+      max_over_time(namespace_workload_pod:kube_pod_owner:relabel[$__range])
+    )
 )
 ```
 
@@ -222,12 +229,11 @@ talosctl -n kube-01.shelltopia.net cgroups --preset=memory
 talosctl -n kube-03.shelltopia.net cgroups --preset=memory
 ```
 
-Their history, if the kubelet exports these cgroups (`memory-system.csv`, may be empty):
+No history: the kubelet does not export these cgroups (the query on their `id` is empty). `MemCurrent` counts the page cache: the part that cannot be reclaimed (`anon`) is in `memory.stat`:
 
-```promql
-max by (node, id) (
-  max_over_time(container_memory_working_set_bytes{id=~"/(init|system|podruntime)(/[^/]+)?"}[$__range])
-)
+```sh
+talosctl -n kube-01.shelltopia.net read /sys/fs/cgroup/podruntime/runtime/memory.stat
+talosctl -n kube-01.shelltopia.net read /sys/fs/cgroup/podruntime/memory.stat
 ```
 
 The heap of the JVM of LINSTOR, its flags and their effect:
@@ -239,25 +245,199 @@ kubectl -n piraeus-datastore exec deploy/linstor-controller -- sh -c 'java -XX:+
 
 The same in a satellite (`ds/linstor-satellite.kube-01 -c linstor-satellite`). In Grafana, the heap used, if LINSTOR exports it: `{__name__=~"jvm_memory.*", namespace="piraeus-datastore"}`.
 
+The OOM kills over the window (`oom.csv`, empty if none):
+
+```promql
+max by (namespace, pod, container) (
+  max_over_time(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}[$__range])
+)
+```
+
+The VolSync movers (`movers-memory.csv`, `movers-cpu.csv`): Jobs, short, maybe missed by the scrapes. The memory peak, then the CPU peak in cores:
+
+```promql
+max by (namespace, container) (
+  max_over_time(container_memory_working_set_bytes{pod=~"volsync-(src|dst)-.*", container!=""}[$__range])
+)
+```
+
+```promql
+max by (namespace, container) (
+  max_over_time(rate(container_cpu_usage_seconds_total{pod=~"volsync-(src|dst)-.*", container!=""}[5m])[$__range:1m])
+)
+```
+
+The daily peaks of the Cilium agent, in *Range* mode, *Min step* `1d`:
+
+```promql
+max by (pod) (max_over_time(container_memory_working_set_bytes{namespace="kube-system", container="cilium-agent"}[1d]))
+```
+
 ### Sizing answers
 
 1. **Now, from VictoriaMetrics.** Its history is the source; the VPA, younger, is the check. The [convention](conventions.md#resources-and-priorities) says so, in the same commit.
 2. **Window**: the whole history, since 2026-11-03, bootstrap included: the peaks of a start come back at each upgrade or reboot. A peak far above the target of the VPA is read case by case (a one-off, such as the first reconciliation of the whole cluster).
 3. **Formula**: memory request = peak × 1.2, limit = 2 × request; CPU request = 95th percentile. Rounded up: the CPU by 5m up to 50m, then by 10m; the memory by 16Mi up to 256Mi, by 64Mi up to 1Gi, then by 256Mi. At least 5m and 16Mi (the minimums of the VPA).
 4. **VMSingle and VLSingle**: their current limits (1536Mi, 1Gi) as request and limit.
-5. **LINSTOR**: `JAVA_OPTS` only holds `-Djdk.tls.acknowledgeCloseNotify=true` in the controller and the satellites: no heap set. The process 1 is `pause` (shared process namespace). The java command line and its heap read before a limit ([queries](#queries)).
+5. **LINSTOR**: the heap set by the start scripts, 8 GiB for the controller, 2 GiB for the satellites ([above](#before-the-sizing)). A `-Xmx` in the variable of the script (`CONTROLLER_OPTS`, `SATELLITE_OPTS`) in the `podTemplate`, read after `JAVA_OPTS`, which stays the one of the operator, so that the heap stays under the memory limit: `-Xmx` at the memory request, the other half of the limit for the rest of the JVM (metaspace, code, threads).
 6. **Jobs and init containers**: their values in VictoriaMetrics when they show, else 10m / 32Mi, limit 128Mi. The VolSync movers: a default in `kubernetes/components/volsync`, from the peak of the movers of Grafana, to override per application later.
 7. **One pass, one commit**: the table of every component at once, then applied in a `wip` commit, amended and pushed by Victor, one wave after another, with the checks after each push. Its final message at the end.
-8. **The reservations of Talos** checked: the usage of `init`, `system` and `podruntime` against `systemReserved` and `kubeReserved`. Changed in Talos only if far off, then applied by Victor.
+8. **The reservations of Talos** checked: the usage of `init`, `system` and `podruntime` against `systemReserved` and `kubeReserved`. Changed in Talos only if far off, then applied by Victor. Not far off: the comment only ([below](#talos-reservations)).
+
+### Talos reservations
+
+Read on 2026-11-13 (`talosctl cgroups --preset=memory`), kube-01 / kube-03, current (peak since the boot):
+
+| Cgroup | kube-01 | kube-03 | Reserved by |
+| --- | --- | --- | --- |
+| `init` (machined) | 251 MiB (1.2 GiB) | 250 MiB (1.2 GiB) | `systemReserved` 1Gi |
+| `system` (Talos services) | 213 MiB (228 MiB) | 208 MiB (214 MiB) | `systemReserved` |
+| `podruntime/etcd` | 568 MiB (652 MiB) | 529 MiB (584 MiB) | `kubeReserved` 512Mi |
+| `podruntime/kubelet` | 147 MiB (162 MiB) | 111 MiB (146 MiB) | `kubeReserved` |
+| `podruntime/runtime` (containerd) | 4.0 GiB (4.6 GiB) | 1.1 GiB (1.1 GiB) | `kubeReserved` |
+| `podruntime/shim` | 212 MiB (268 MiB) | 146 MiB (161 MiB) | `kubeReserved` |
+| `kubepods` | 8.3 GiB (9.5 GiB), limit 14 GiB | 8.6 GiB (9.1 GiB), limit 14 GiB | |
+
+- etcd is in `podruntime`, not in `systemReserved` as the comment of `talos/patches/kubernetes.yaml.j2` said.
+- The kubelet only subtracts the reservations from the allocatable (it limits `kubepods` alone): their sum counts, not their split.
+- `memory.stat` of kube-01: `podruntime` 583 MiB `anon` (containerd 147 MiB) and about 40 MiB of kernel memory not reclaimable; its `file` (4.2 GiB, 3.7 GiB in containerd, mostly inactive) is page cache. With `init` and `system`: about 1.1 GiB not reclaimable, for 1.5 GiB reserved.
+- `kubepods/besteffort`: 2.5 GiB on kube-01, the pods without requests. They leave it with the sizing.
+
+Decided: the reservations stay, the comment of the patch and [cluster](cluster/README.md#resources-and-priorities) fixed. A comment only: nothing to apply, `just talos diff` to confirm (no change expected).
+
+### Sizing table
+
+From `.scratch/sizing/` (`table.py`), the [answers](#sizing-answers) applied. Peak and p95 from VictoriaMetrics (2026-11-03 to 2026-11-14); VPA: its target on 2026-11-13; today and new: requests CPU / memory, then limits CPU / memory. The static pods and the test pods of `debug` left out.
+
+| Namespace | Workload | Container | Peak | p95 | VPA | Today | New | Class |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `backups` | volsync | `manager` | 92Mi | 1.5m | 11m / 61Mi | 100m / 64Mi, 1 / 1Gi | 5m / 112Mi, 224Mi | `infrastructure` |
+| `cert-manager` | cert-manager | `cert-manager-controller` | 92Mi | 1.5m | 11m / 47Mi | - / -, - / - | 5m / 112Mi, 224Mi | `infrastructure` |
+| `cert-manager` | cert-manager-cainjector | `cert-manager-cainjector` | 118Mi | 1.9m | 11m / 89Mi | - / -, - / - | 5m / 144Mi, 288Mi | `infrastructure` |
+| `cert-manager` | cert-manager-webhook | `cert-manager-webhook` | 69Mi | 0.9m | 11m / 35Mi | - / -, - / - | 5m / 96Mi, 192Mi | `infrastructure` |
+| `cluster-tools` | goldilocks-controller | `goldilocks` | 32Mi | 2.8m | 11m / 35Mi | 10m / 64Mi, - / 128Mi | 5m / 48Mi, 96Mi | `infrastructure` |
+| `cluster-tools` | goldilocks-dashboard | `goldilocks` | 45Mi | 0.6m | 11m / 61Mi | 10m / 64Mi, - / 128Mi | 5m / 64Mi, 128Mi | `infrastructure` |
+| `cluster-tools` | kubelet-csr-approver | `kubelet-csr-approver` | 11Mi | 0.5m | 11m / 22Mi | 10m / 32Mi, - / 64Mi | 5m / 16Mi, 64Mi | `infrastructure` |
+| `cluster-tools` | metrics-server | `metrics-server` | 28Mi | 4.0m | 11m / 35Mi | 10m / 64Mi, - / 128Mi | 5m / 48Mi, 96Mi | `infrastructure` |
+| `cluster-tools` | vpa-recommender | `recommender` | 35Mi | 4.7m | 11m / 47Mi | 10m / 64Mi, - / 128Mi | 5m / 48Mi, 96Mi | `infrastructure` |
+| `envoy-gateway-system` | envoy-gateway | `envoy-gateway` | 88Mi | 3.0m | 11m / 105Mi | 100m / 256Mi, - / 1Gi | 5m / 112Mi, 224Mi | `infrastructure` |
+| `envoy-gateway-system` | envoy-network-external-b1d9befd ×2 | `envoy` | 33Mi | 5.5m | 11m / 35Mi | 100m / 512Mi, - / - | 10m / 48Mi, 96Mi | `infrastructure` |
+| `envoy-gateway-system` | envoy-network-external-b1d9befd ×2 | `shutdown-manager` | 22Mi | 0.3m | 11m / 35Mi | 10m / 32Mi, - / - | 5m / 32Mi, 64Mi | `infrastructure` |
+| `envoy-gateway-system` | envoy-network-internal-f0b82637 ×2 | `envoy` | 65Mi | 6.3m | 11m / 47Mi | 100m / 512Mi, - / - | 10m / 80Mi, 160Mi | `infrastructure` |
+| `envoy-gateway-system` | envoy-network-internal-f0b82637 ×2 | `shutdown-manager` | 22Mi | 0.3m | 11m / 35Mi | 10m / 32Mi, - / - | 5m / 32Mi, 64Mi | `infrastructure` |
+| `external-secrets` | external-secrets | `external-secrets` | 127Mi | 9.0m | 11m / 138Mi | - / -, - / - | 10m / 160Mi, 320Mi | `infrastructure` |
+| `external-secrets` | external-secrets-cert-controller | `cert-controller` | 73Mi | 1.9m | 11m / 89Mi | - / -, - / - | 5m / 96Mi, 192Mi | `infrastructure` |
+| `external-secrets` | external-secrets-webhook | `webhook` | 47Mi | 1.3m | 11m / 61Mi | - / -, - / - | 5m / 64Mi, 128Mi | `infrastructure` |
+| `flux-system` | flux-operator | `manager` | 221Mi | 13.7m | 23m / 215Mi | 100m / 64Mi, 2 / 1Gi | 15m / 320Mi, 640Mi | `infrastructure` |
+| `flux-system` | helm-controller | `manager` | 164Mi | 5.7m | 11m / 105Mi | 100m / 64Mi, 1 / 1Gi | 10m / 208Mi, 416Mi | `infrastructure` |
+| `flux-system` | kustomize-controller | `manager` | 174Mi | 37.0m | 11m / 121Mi | 100m / 64Mi, 1 / 1Gi | 40m / 224Mi, 448Mi | `infrastructure` |
+| `flux-system` | notification-controller | `manager` | 34Mi | 1.6m | 11m / 35Mi | 100m / 64Mi, 1 / 1Gi | 5m / 48Mi, 96Mi | `infrastructure` |
+| `flux-system` | source-controller | `manager` | 117Mi | 4.9m | 11m / 61Mi | 50m / 64Mi, 1 / 1Gi | 5m / 144Mi, 288Mi | `infrastructure` |
+| `kube-system` | cilium ×2 | `cilium-agent` | 640Mi | 133.0m | 126m / 335Mi | - / -, - / - | 140m / 832Mi, 1664Mi | `system-node-critical` |
+| `kube-system` | cilium-envoy ×2 | `cilium-envoy` | 60Mi | 4.7m | 11m / 75Mi | - / -, - / - | 5m / 80Mi, 160Mi | `system-node-critical` |
+| `kube-system` | intel-gpu-plugin-intel-gpu ×2 | `intel-gpu-plugin` | 21Mi | 0.3m | 11m / 16Mi | 40m / 45Mi, 100m / 115Mi | unchanged (set by its operator) | - (set by its operator) |
+| `kube-system` | spegel ×2 | `registry` | 63Mi | 5.8m | 11m / 75Mi | 10m / 128Mi, - / 128Mi | 10m / 80Mi, 160Mi | `infrastructure` |
+| `kube-system` | cilium-operator ×2 | `cilium-operator` | 175Mi | 10.5m | 11m / 105Mi | - / -, - / - | 15m / 224Mi, 448Mi | `system-cluster-critical` |
+| `kube-system` | coredns ×2 | `coredns` | 52Mi | 3.1m | 11m / 61Mi | 100m / 128Mi, 100m / 128Mi | 5m / 64Mi, 128Mi | `system-cluster-critical` |
+| `kube-system` | hubble-relay | `hubble-relay` | 32Mi | 2.1m | 11m / 35Mi | - / -, - / - | 5m / 48Mi, 96Mi | `infrastructure` |
+| `kube-system` | hubble-ui | `backend` | 125Mi | 39.8m | 49m / 156Mi | 10m / 64Mi, - / 256Mi | 40m / 160Mi, 320Mi | `infrastructure` |
+| `kube-system` | hubble-ui | `frontend` | 12Mi | 0.3m | 11m / 22Mi | 10m / 16Mi, - / 64Mi | 5m / 16Mi, 64Mi | `infrastructure` |
+| `kube-system` | inteldeviceplugins-controller-manager | `manager` | 25Mi | 2.1m | 11m / 35Mi | 100m / 100Mi, 100m / 120Mi | 5m / 32Mi, 64Mi | `infrastructure` |
+| `kube-system` | reloader | `reloader` | 97Mi | 0.9m | 11m / 61Mi | 10m / 64Mi, - / 256Mi | 5m / 128Mi, 256Mi | `infrastructure` |
+| `kube-system` | snapshot-controller ×2 | `snapshot-controller` | 65Mi | 1.2m | 11m / 22Mi | - / -, - / - | 5m / 80Mi, 160Mi | `infrastructure` |
+| `network` | cloudflare-ddns | `cloudflare-ddns` | 23Mi | 0.5m | 11m / 16Mi | 5m / 16Mi, - / 64Mi | 5m / 32Mi, 64Mi | `infrastructure` |
+| `network` | external-dns | `external-dns` | 131Mi | 1.6m | 11m / 47Mi | - / -, - / - | 5m / 160Mi, 320Mi | `infrastructure` |
+| `network` | k8s-gateway ×2 | `k8s-gateway` | 62Mi | 1.5m | 11m / 61Mi | 100m / 128Mi, 100m / 128Mi | 5m / 80Mi, 160Mi | `infrastructure` |
+| `observability` | blackbox-exporter | `blackbox-exporter` | 24Mi | 3.7m | 11m / 35Mi | 10m / 32Mi, - / 128Mi | 5m / 32Mi, 64Mi | `infrastructure` |
+| `observability` | grafana | `download-dashboards` | 3Mi | - | - | - / -, - / - | 10m / 16Mi, 64Mi | `infrastructure` |
+| `observability` | grafana | `grafana` | 485Mi | 91.1m | 35m / 454Mi | 50m / 256Mi, - / 512Mi | 100m / 640Mi, 1280Mi | `infrastructure` |
+| `observability` | grafana | `grafana-init-sc-datasources` | 4Mi | - | - | 10m / 64Mi, - / 128Mi | 10m / 16Mi, 64Mi | `infrastructure` |
+| `observability` | grafana | `grafana-sc-dashboard` | 83Mi | 25.7m | 23m / 105Mi | 10m / 64Mi, - / 128Mi | 30m / 112Mi, 224Mi | `infrastructure` |
+| `observability` | mktxp | `app` | 29Mi | 6.5m | 23m / 35Mi | 10m / 64Mi, - / 128Mi | 10m / 48Mi, 96Mi | `infrastructure` |
+| `observability` | nut-exporter | `app` | 10Mi | 2.6m | 11m / 22Mi | 10m / 32Mi, - / 64Mi | 5m / 16Mi, 64Mi | `infrastructure` |
+| `observability` | opnsense-exporter | `app` | 14Mi | 1.8m | 11m / 22Mi | 10m / 32Mi, - / 128Mi | 5m / 32Mi, 64Mi | `infrastructure` |
+| `observability` | snmp-exporter | `snmp-exporter` | 36Mi | 5.7m | 23m / 35Mi | 10m / 64Mi, - / 256Mi | 10m / 48Mi, 96Mi | `infrastructure` |
+| `observability` | victoria-metrics-k8s-stack-kube-state-metrics | `kube-state-metrics` | 127Mi | 5.2m | 11m / 156Mi | 10m / 64Mi, - / 128Mi | 10m / 160Mi, 320Mi | `infrastructure` |
+| `observability` | victoria-metrics-k8s-stack-victoria-metrics-operator | `operator` | 82Mi | 10.2m | 23m / 89Mi | 20m / 128Mi, - / 256Mi | 15m / 112Mi, 224Mi | `infrastructure` |
+| `observability` | vlsingle-victoria-metrics-k8s-stack | `vlsingle` | 320Mi | 23.2m | 35m / 335Mi | 50m / 256Mi, - / 1Gi | 25m / 1Gi, 1Gi | `infrastructure` |
+| `observability` | vmagent-victoria-metrics-k8s-stack ×2 | `config-reloader` | 21Mi | 0.9m | 11m / 22Mi | 10m / 25Mi, - / - | 5m / 32Mi, 64Mi | `infrastructure` |
+| `observability` | vmagent-victoria-metrics-k8s-stack ×2 | `vmagent` | 397Mi | 85.6m | 109m / 454Mi | 50m / 256Mi, - / 512Mi | 90m / 512Mi, 1Gi | `infrastructure` |
+| `observability` | vmalert-victoria-metrics-k8s-stack ×2 | `config-reloader` | 19Mi | 0.9m | 11m / 22Mi | 10m / 25Mi, - / - | 5m / 32Mi, 64Mi | `infrastructure` |
+| `observability` | vmalert-victoria-metrics-k8s-stack ×2 | `vmalert` | 83Mi | 18.8m | 35m / 105Mi | 20m / 64Mi, - / 256Mi | 20m / 112Mi, 224Mi | `infrastructure` |
+| `observability` | vmauth-victoria-metrics-k8s-stack-internal ×2 | `config-reloader` | 18Mi | 0.9m | 11m / 22Mi | 10m / 25Mi, - / - | 5m / 32Mi, 64Mi | `infrastructure` |
+| `observability` | vmauth-victoria-metrics-k8s-stack-internal ×2 | `vmauth` | 14Mi | 14.3m | 23m / 22Mi | 10m / 32Mi, - / 128Mi | 15m / 32Mi, 64Mi | `infrastructure` |
+| `observability` | vmsingle-victoria-metrics-k8s-stack | `vmsingle` | 1478Mi | 281.0m | 350m / 1751Mi | 100m / 512Mi, - / 1536Mi | 290m / 1536Mi, 1536Mi | `infrastructure` |
+| `observability` | victoria-metrics-k8s-stack-sync-job | `sync-job` | 41Mi | 24.1m | - | 10m / 64Mi, - / 256Mi | 25m / 64Mi, 128Mi | - (no field) |
+| `observability` | vector-aggregator ×2 | `vector` | 90Mi | 29.5m | 35m / 105Mi | 20m / 64Mi, - / 512Mi | 30m / 112Mi, 512Mi (kept) | `infrastructure` |
+| `observability` | vmalertmanager-victoria-metrics-k8s-stack ×2 | `alertmanager` | 49Mi | 5.9m | 11m / 35Mi | 10m / 64Mi, - / 128Mi | 10m / 64Mi, 128Mi | `infrastructure` |
+| `observability` | vmalertmanager-victoria-metrics-k8s-stack ×2 | `config-reloader` | 22Mi | 1.0m | 11m / 22Mi | 10m / 25Mi, - / - | 5m / 32Mi, 64Mi | `infrastructure` |
+| `observability-agents` | vector-agent ×2 | `vector` | 153Mi | 25.8m | 35m / 175Mi | 20m / 128Mi, - / 1Gi | 30m / 192Mi, 1Gi (kept) | `infrastructure` |
+| `observability-agents` | victoria-metrics-k8s-stack-prometheus-node-exporter ×2 | `node-exporter` | 31Mi | 6.8m | 11m / 47Mi | 10m / 32Mi, - / 64Mi | 10m / 48Mi, 96Mi | `infrastructure` |
+| `piraeus-datastore` | ha-controller ×2 | `ha-controller` | 63Mi | 3.2m | 11m / 75Mi | - / -, - / - | 5m / 80Mi, 160Mi | `system-cluster-critical` |
+| `piraeus-datastore` | linstor-csi-node ×2 | `csi-livenessprobe` | 11Mi | 0.5m | 11m / 22Mi | - / -, - / - | 5m / 16Mi, 64Mi | `system-node-critical` |
+| `piraeus-datastore` | linstor-csi-node ×2 | `csi-node-driver-registrar` | 14Mi | 0.6m | 11m / 22Mi | - / -, - / - | 5m / 32Mi, 64Mi | `system-node-critical` |
+| `piraeus-datastore` | linstor-csi-node ×2 | `linstor-csi` | 10Mi | 0.5m | 11m / 22Mi | - / -, - / - | 5m / 16Mi, 64Mi | `system-node-critical` |
+| `piraeus-datastore` | linstor-satellite.kube-01 | `drbd-reactor` | 8Mi | 0.0m | 11m / 11Mi | - / -, - / - | 5m / 16Mi, 64Mi | `system-node-critical` |
+| `piraeus-datastore` | linstor-satellite.kube-01 | `linstor-satellite` | 331Mi | 2.3m | 11m / 363Mi | - / -, - / - | 5m / 448Mi, 896Mi, `-Xmx448m` | `system-node-critical` |
+| `piraeus-datastore` | linstor-satellite.kube-03 | `drbd-reactor` | 9Mi | 0.1m | 11m / 11Mi | - / -, - / - | 5m / 16Mi, 64Mi | `system-node-critical` |
+| `piraeus-datastore` | linstor-satellite.kube-03 | `linstor-satellite` | 338Mi | 3.8m | 11m / 392Mi | - / -, - / - | 5m / 448Mi, 896Mi, `-Xmx448m` | `system-node-critical` |
+| `piraeus-datastore` | linstor-affinity-controller | `linstor-affinity-controller` | 24Mi | 0.7m | 11m / 35Mi | - / -, - / - | 5m / 32Mi, 64Mi | `infrastructure` |
+| `piraeus-datastore` | linstor-controller | `linstor-controller` | 909Mi | 5.4m | 11m / 826Mi | - / -, - / - | 10m / 1280Mi, 2560Mi, `-Xmx1280m` | `system-cluster-critical` |
+| `piraeus-datastore` | linstor-csi-controller | `csi-attacher` | 15Mi | 1.3m | 11m / 22Mi | - / -, - / - | 5m / 32Mi, 64Mi | `system-cluster-critical` |
+| `piraeus-datastore` | linstor-csi-controller | `csi-livenessprobe` | 11Mi | 0.5m | 11m / 11Mi | - / -, - / - | 5m / 16Mi, 64Mi | `system-cluster-critical` |
+| `piraeus-datastore` | linstor-csi-controller | `csi-provisioner` | 20Mi | 4.5m | 11m / 22Mi | - / -, - / - | 5m / 32Mi, 64Mi | `system-cluster-critical` |
+| `piraeus-datastore` | linstor-csi-controller | `csi-resizer` | 15Mi | 3.1m | 11m / 22Mi | - / -, - / - | 5m / 32Mi, 64Mi | `system-cluster-critical` |
+| `piraeus-datastore` | linstor-csi-controller | `csi-snapshotter` | 15Mi | 1.0m | 11m / 22Mi | - / -, - / - | 5m / 32Mi, 64Mi | `system-cluster-critical` |
+| `piraeus-datastore` | linstor-csi-controller | `linstor-csi` | 17Mi | 0.5m | 11m / 22Mi | - / -, - / - | 5m / 32Mi, 64Mi | `system-cluster-critical` |
+| `piraeus-datastore` | linstor-csi-controller | `linstor-wait-api-online` | 8Mi | - | - | - / -, - / - | 10m / 16Mi, 64Mi | `system-cluster-critical` |
+| `piraeus-datastore` | piraeus-operator-controller-manager | `manager` | 72Mi | 16.5m | 35m / 75Mi | - / -, - / - | 20m / 96Mi, 192Mi | `infrastructure` |
+
+Not in the data (shorter than a scrape), at 10m / 32Mi, limit 128Mi ([answer 6](#sizing-answers)): the init containers of Cilium, LINSTOR (`setup-lvm-configuration`, `linstor-wait-node-online`), mktxp and the VictoriaMetrics resources (`config-init`), the Jobs `startupapicheck` and `certgen`, the CronJob of Hubble. `volsync-monitor` keeps its values. The VolSync movers: [below](#sizing-questions). `run-migration` of LINSTOR: the values of the controller, `-Xmx1280m` included. It is a JVM that loads the database, killed at 128Mi on 2026-11-14. Its start script sets `-Xms32M` only.
+
+The memory limits of Vector are kept (1Gi for the agent, 512Mi for the aggregator): they are sized for a catch-up, not for the usage ([memory of Vector](observability/evaluations.md#memory-of-vector)). Two containers take the values of another one: the init container `grafana-init-sc-datasources` those of the sidecars of Grafana (one `sidecar.resources` in the chart), 30m / 112Mi instead of 10m / 16Mi; `config-init` of the VictoriaMetrics resources their `configReloaderResources` (the operator sets them on both). The request of an init container counts only when it is above those of the pod: no change.
+
+Totals, the replicas counted, the init containers and Jobs left out:
+
+| Namespace | CPU requests | Memory requests | Memory limits | Memory requests today |
+| --- | --- | --- | --- | --- |
+| `backups` | 5m | 112Mi | 224Mi | 64Mi |
+| `cert-manager` | 15m | 352Mi | 704Mi | - |
+| `cluster-tools` | 25m | 224Mi | 480Mi | 288Mi |
+| `envoy-gateway-system` | 65m | 496Mi | 992Mi | 2432Mi |
+| `external-secrets` | 20m | 320Mi | 640Mi | - |
+| `flux-system` | 75m | 944Mi | 1888Mi | 320Mi |
+| `kube-system` | 430m | 3168Mi | 6368Mi | 846Mi |
+| `network` | 20m | 352Mi | 704Mi | 272Mi |
+| `observability` | 875m | 5680Mi | 9408Mi | 2664Mi |
+| `observability-agents` | 80m | 480Mi | 2240Mi | 320Mi |
+| `piraeus-datastore` | 125m | 2800Mi | 5824Mi | - |
+| **Total** | **1.7 cores** | **14.6 GiB** | **28.8 GiB** | **7.0 GiB** |
+
+What it shows:
+
+- **14.6 GiB requested of the 28 GiB allocatable** (52 %), the static pods apart; 7 GiB today. One node alone (14 GiB) no longer holds them: accepted until kube-02 joins. The limits (28.8 GiB) go above the allocatable: a limit reserves nothing, and all the components are not at their limit at once.
+- **The largest moves**: the Envoy proxies from 2.4 GiB to 0.5 GiB; LINSTOR from nothing to 2.7 GiB (the controller 1280Mi); the Cilium agents from nothing to 1.6 GiB.
+- **Peaks above 1.5 times the target of the VPA**: the starts of the controllers (cert-manager, Flux, the Cilium operator, external-dns, snapshot-controller, Reloader, VolSync). Kept ([answer 2](#sizing-answers)): a few MiB each. Only the Cilium agent weighs: 640 MiB against 335 MiB, 0.8 GiB of requests over the two nodes.
+- **Near their limit today**: Grafana (485 MiB of 512 MiB), VMSingle (1478 MiB of 1536 MiB, its cache).
+- **OOM kills** (`oom.csv`, `talosctl dmesg`), all at the limit of their container (`CONSTRAINT_MEMCG`), none of the node: Vector on 2026-11-06 (492 MiB, a catch-up of logs during its tests, before its 1Gi), VMSingle on 2026-11-13 at 03:41 UTC (1522 MiB, its limit of 1536Mi), a `tail` on 2026-11-13 at 16:52 UTC (15 MiB, a test pod). Values kept: one-off loads, to watch at the [check](#sizing-plan).
+- **Small limits**: at least 64Mi ([question 2](#sizing-questions)), for Go binaries (the CSI sidecars, kubelet-csr-approver) measured at 10 MiB to 15 MiB.
+
+### Sizing questions
+
+Answered on 2026-11-14:
+
+1. **Cilium agent**: its peak, 140m / 832Mi, limit 1664Mi. A kill cuts the network of its node, and a start comes back at each upgrade. Its daily peaks (`cilium-agent.csv`) hold a single point, not enough to read.
+2. **A floor for the limits**: 64Mi, the request unchanged. A limit reserves nothing; at 32Mi, a burst of a Go binary (a list, a CSI operation) kills it.
+3. **VolSync movers**: 128Mi, limit 256Mi. `movers-memory.csv` and `movers-cpu.csv` hold one run of restic only (9 MiB, 1.6m), too few for its peak.
 
 ### Sizing plan
 
-- [ ] **Data.** The CSVs, `vpa.json` and `live.tsv` in `.scratch/sizing/` (Victor), the reservations and the JVM read ([queries](#queries)).
-- [ ] **Table.** Per component and container: the peak, the 95th percentile, the target of the VPA, the values today, the new requests and limit, its class, the totals per namespace and against the 28 GiB.
-- [ ] **Apply**, in waves of the same `wip` commit, the network and the storage first. The requests, the limits and the class of each component, with `dependsOn` `priority-classes` on its Kustomization. The class of the convention where the chart or the operator sets another: Spegel (`system-node-critical`, its section of [cluster](cluster/README.md#spegel) with it), the Flux controllers, the Piraeus operator and the affinity controller to `infrastructure`; the LINSTOR controller and the CSI controller to `system-cluster-critical`. After each push: no pod `Pending`, the requests per node (`kubectl describe node`), no OOM kill.
-- [ ] **Alert** `ContainerWithoutMemoryLimit` to `warning`, once it no longer fires.
+- [x] **Data.** The CSVs, `vpa.json` and `live.tsv` in `.scratch/sizing/` (Victor), the reservations and the JVM read ([queries](#queries)). Done on 2026-11-13, except the two CSVs (the rename of the cluster, queries fixed) and `memory.stat`. Done on 2026-11-14.
+- [x] **Table.** Per component and container: the peak, the 95th percentile, the target of the VPA, the values today, the new requests and limit, its class, the totals per namespace and against the 28 GiB.
+- [x] **Apply**, in waves of the same `wip` commit, the network and the storage first. The requests, the limits and the class of each component, with `dependsOn` `priority-classes` on its Kustomization. The class of the convention where the chart or the operator sets another: Spegel (`system-node-critical`, its section of [cluster](cluster/README.md#spegel) with it), the Flux controllers, the Piraeus operator and the affinity controller to `infrastructure`; the LINSTOR controller and the CSI controller to `system-cluster-critical`. After each push: no pod `Pending`, the requests per node (`kubectl describe node`), no OOM kill. Wave 1 (`kube-system`, `piraeus-datastore`) written on 2026-11-14. Wave 2 (`flux-system`, `envoy-gateway-system` and the Envoy proxies, `network`, `cert-manager`, `external-secrets`, `backups` and the VolSync movers) written on 2026-11-14. Wave 3 (`observability`, `observability-agents`, `cluster-tools`) written on 2026-11-14. Checked on 2026-11-14: no pod `Pending`, 16.2 GiB requested (64 % and 56 % of the nodes, the static pods included), no OOM kill after the waves. During the rollout of wave 3, `ContainerWithoutMemoryLimit` fired for the pods not yet replaced (the rule applied before them), then resolved. `ContainerOOMKilled` fired for the VMSingle pod killed on 2026-11-13: the new kube-state-metrics pod made new series, whose first value `increase` counts. Fixed with `increase_prometheus` ([observability](observability/README.md#alerting)).
+- [x] **Alert** `ContainerWithoutMemoryLimit` to `warning`, with wave 3: no container is left without a limit. After the push, it must not fire (the `curl` of the [checks](cluster/bootstrap.md#resources-and-priorities)).
 - [ ] **Check** two weeks later: the usage against the requests and limits, adjusted.
-- [ ] **Docs:** the status in [cluster](cluster/README.md), the item ticked in the [roadmap](roadmap.md#cluster-tools).
+- [x] **Docs:** the [convention](conventions.md#resources-and-priorities) (the usage first, Goldilocks to cross-check), the status in [cluster](cluster/README.md), [observability](observability/README.md) (the resources and the alert), the item ticked in the [roadmap](roadmap.md#cluster-tools).
 
 ## 4. OIDC authentication
 

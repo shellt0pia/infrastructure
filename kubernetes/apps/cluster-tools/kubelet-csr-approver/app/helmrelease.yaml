@@ -39,10 +39,11 @@ spec:
     replicas: 1
     leaderElection: false
     priorityClassName: infrastructure
+    # From the usage (docs/conventions.md#resources-and-priorities).
     resources:
       requests:
-        cpu: 10m
-        memory: 32Mi
+        cpu: 5m
+        memory: 16Mi
       limits:
         # Helm merges maps: null removes the CPU limit of the chart.
         cpu: null

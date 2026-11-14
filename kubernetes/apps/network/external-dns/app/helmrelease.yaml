@@ -75,5 +75,13 @@ spec:
         - 192.168.0.0/16
         - fc00::/7
       cloudflare-record-comment: managed by external-dns (kubecluster-01)
+    priorityClassName: infrastructure
+    # From the usage (docs/conventions.md#resources-and-priorities).
+    resources:
+      requests:
+        cpu: 5m
+        memory: 160Mi
+      limits:
+        memory: 320Mi
     serviceMonitor:
       enabled: true

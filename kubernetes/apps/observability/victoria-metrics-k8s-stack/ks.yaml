@@ -8,6 +8,8 @@ metadata:
   name: victoria-metrics-k8s-stack
 spec:
   dependsOn:
+    - name: priority-classes
+      namespace: kube-system
     - name: external-secrets-stores
       namespace: external-secrets
     - name: prometheus-operator-crds

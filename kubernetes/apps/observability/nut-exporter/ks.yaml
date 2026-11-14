@@ -1,12 +1,15 @@
 ---
-# The exporter of the UPS, see docs/observability/README.md#external-devices. No dependsOn: the
-# CRDs of its ServiceMonitor and PrometheusRule are there long before it, as for
-# vector-aggregator.
+# The exporter of the UPS, see docs/observability/README.md#external-devices. No dependsOn but the
+# priority classes: the CRDs of its ServiceMonitor and PrometheusRule are there long before it, as
+# for vector-aggregator.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
   name: nut-exporter
 spec:
+  dependsOn:
+    - name: priority-classes
+      namespace: kube-system
   interval: 1h
   path: ./kubernetes/apps/observability/nut-exporter/app
   prune: true

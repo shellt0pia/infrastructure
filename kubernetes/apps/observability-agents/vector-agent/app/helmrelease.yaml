@@ -73,16 +73,17 @@ spec:
       readOnlyRootFilesystem: true
       capabilities:
         drop: ["ALL"]
-    # To resize from the metrics. The limit is for the catch-up (a backlog of pod logs, or the disk
-    # buffers after an outage of VictoriaLogs): about 340 MiB at the peak with 1 MiB batches on the
-    # bench, but an agent was OOM killed at 512Mi (503 MB anon-rss) when the network came back on
-    # 2026-11-06, with all its sinks and a relist at once
-    # (docs/observability/evaluations.md#memory-of-vector). Idle: 40 to 65 MB, up to 150 MB kept
-    # by the allocator after a catch-up.
+    # The request from the usage (docs/conventions.md#resources-and-priorities). The limit is for
+    # the catch-up (a backlog of pod logs, or the disk buffers after an outage of VictoriaLogs),
+    # not the usage: about 340 MiB at the peak with 1 MiB batches on the bench, but an agent was
+    # OOM killed at 512Mi (503 MB anon-rss) when the network came back on 2026-11-06, with all its
+    # sinks and a relist at once (docs/observability/evaluations.md#memory-of-vector). Idle: 40 to
+    # 65 MB, up to 150 MB kept by the allocator after a catch-up.
+    podPriorityClassName: infrastructure
     resources:
       requests:
-        cpu: 20m
-        memory: 128Mi
+        cpu: 30m
+        memory: 192Mi
       limits:
         memory: 1Gi
 

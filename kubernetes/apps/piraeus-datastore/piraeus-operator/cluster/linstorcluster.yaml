@@ -23,13 +23,164 @@ spec:
   # NFS exports of LINSTOR volumes, for ReadWriteMany: not needed, shared data lives on the NAS.
   nfsServer:
     enabled: false
+
+  # Requests and memory limits from the usage, classes of the convention where the operator sets
+  # another (docs/conventions.md#resources-and-priorities). The podTemplates are strategic merge
+  # patches of the operator manifests: containers and env merged by name. The satellites:
+  # resources.yaml. The HA controller keeps the system-cluster-critical of the operator.
+  controller:
+    enabled: true
+    podTemplate:
+      spec:
+        # system-node-critical from the operator.
+        priorityClassName: system-cluster-critical
+        initContainers:
+          # A JVM that loads the database like the controller, at its values: its start script
+          # sets no -Xmx. The pod requests the max of an init container and of the containers: no
+          # extra request.
+          - name: run-migration
+            env:
+              - name: LINSTOR_CONFIG_OPTS
+                value: -Xmx1280m
+            resources:
+              requests:
+                cpu: 10m
+                memory: 1280Mi
+              limits:
+                memory: 2560Mi
+        containers:
+          - name: linstor-controller
+            # The start script sets -Xmx8G: the heap at the request, the rest of the limit for
+            # the rest of the JVM. <APP>_OPTS comes after JAVA_OPTS, left to the operator.
+            env:
+              - name: CONTROLLER_OPTS
+                value: -Xmx1280m
+            resources:
+              requests:
+                cpu: 10m
+                memory: 1280Mi
+              limits:
+                memory: 2560Mi
+  csiController:
+    enabled: true
+    podTemplate:
+      spec:
+        # system-node-critical from the operator.
+        priorityClassName: system-cluster-critical
+        initContainers:
+          - name: linstor-wait-api-online
+            resources:
+              requests:
+                cpu: 10m
+                memory: 16Mi
+              limits:
+                memory: 64Mi
+        containers:
+          - name: linstor-csi
+            resources:
+              requests:
+                cpu: 5m
+                memory: 32Mi
+              limits:
+                memory: 64Mi
+          - name: csi-attacher
+            resources:
+              requests:
+                cpu: 5m
+                memory: 32Mi
+              limits:
+                memory: 64Mi
+          - name: csi-provisioner
+            resources:
+              requests:
+                cpu: 5m
+                memory: 32Mi
+              limits:
+                memory: 64Mi
+          - name: csi-resizer
+            resources:
+              requests:
+                cpu: 5m
+                memory: 32Mi
+              limits:
+                memory: 64Mi
+          - name: csi-snapshotter
+            resources:
+              requests:
+                cpu: 5m
+                memory: 32Mi
+              limits:
+                memory: 64Mi
+          - name: csi-livenessprobe
+            resources:
+              requests:
+                cpu: 5m
+                memory: 16Mi
+              limits:
+                memory: 64Mi
   # Talos: /etc/selinux/config for the `mount` of the CSI node plugin (talos.yaml).
   csiNode:
     enabled: true
     podTemplate:
       spec:
+        initContainers:
+          - name: linstor-wait-node-online
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                memory: 128Mi
+        containers:
+          - name: linstor-csi
+            resources:
+              requests:
+                cpu: 5m
+                memory: 16Mi
+              limits:
+                memory: 64Mi
+          - name: csi-livenessprobe
+            resources:
+              requests:
+                cpu: 5m
+                memory: 16Mi
+              limits:
+                memory: 64Mi
+          - name: csi-node-driver-registrar
+            resources:
+              requests:
+                cpu: 5m
+                memory: 32Mi
+              limits:
+                memory: 64Mi
         volumes:
           - name: etc-selinux
             hostPath: null
             configMap:
               name: talos-selinux-config
+  highAvailabilityController:
+    enabled: true
+    podTemplate:
+      spec:
+        containers:
+          - name: ha-controller
+            resources:
+              requests:
+                cpu: 5m
+                memory: 80Mi
+              limits:
+                memory: 160Mi
+  affinityController:
+    enabled: true
+    podTemplate:
+      spec:
+        # system-cluster-critical from the operator: the volumes keep running without it.
+        priorityClassName: infrastructure
+        containers:
+          - name: linstor-affinity-controller
+            resources:
+              requests:
+                cpu: 5m
+                memory: 32Mi
+              limits:
+                memory: 64Mi

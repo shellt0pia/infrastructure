@@ -27,6 +27,13 @@ spec:
     cleanupTempPVC: true
     cleanupCachePVC: true
     enableFileDeletion: true
+    # The values of the backup (replicationsource.yaml).
+    moverResources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
     moverSecurityContext:
       runAsNonRoot: true
       runAsUser: ${VOLSYNC_UID:=1000}

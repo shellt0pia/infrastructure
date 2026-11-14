@@ -102,23 +102,30 @@ spec:
       relay:
         enabled: true
         rollOutPods: true
+        priorityClassName: infrastructure
+        resources:
+          requests:
+            cpu: 5m
+            memory: 48Mi
+          limits:
+            memory: 96Mi
       # No login of its own: never exposed without the SecurityPolicy of ../hubble-ui. Its backend
       # reads Relay and the API server with its own ServiceAccount (read-only ClusterRole).
       ui:
         enabled: true
         rollOutPods: true
-        # To resize from the metrics.
+        priorityClassName: infrastructure
         backend:
           resources:
             requests:
-              cpu: 10m
-              memory: 64Mi
+              cpu: 40m
+              memory: 160Mi
             limits:
-              memory: 256Mi
+              memory: 320Mi
         frontend:
           resources:
             requests:
-              cpu: 10m
+              cpu: 5m
               memory: 16Mi
             limits:
               memory: 64Mi
@@ -159,10 +166,60 @@ spec:
           enabled: true
           namespace: observability
 
+    # The Job and the CronJob that generate the certificates of Hubble.
+    certgen:
+      priorityClassName: infrastructure
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 128Mi
+
+    # Requests and memory limits from the usage (docs/conventions.md#resources-and-priorities).
+    # Classes: the chart defaults, system-node-critical for the agent and Envoy,
+    # system-cluster-critical for the operator. The agent at its peak, a start included: a kill
+    # cuts the network of its node.
+    resources:
+      requests:
+        cpu: 140m
+        memory: 832Mi
+      limits:
+        memory: 1664Mi
+    # The init containers of the agent, but install-cni-binaries (`cni.resources`).
+    initResources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+    cni:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          # Helm merges maps: null removes the CPU limit of the chart.
+          cpu: null
+          memory: 128Mi
+    envoy:
+      resources:
+        requests:
+          cpu: 5m
+          memory: 80Mi
+        limits:
+          memory: 160Mi
+
     # Restart the pods when the Cilium configuration changes.
     rollOutCiliumPods: true
     operator:
       rollOutPods: true
+      resources:
+        requests:
+          cpu: 15m
+          memory: 224Mi
+        limits:
+          memory: 448Mi
       prometheus:
         enabled: true
         serviceMonitor:

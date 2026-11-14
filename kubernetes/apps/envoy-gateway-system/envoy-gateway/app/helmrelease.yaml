@@ -19,6 +19,25 @@ spec:
     crds: CreateReplace
     remediation:
       retries: 3
-  # The chart defaults are kept: the Envoy proxies are configured per Gateway, with the
-  # EnvoyProxy resources of the `network` namespace.
-  values: {}
+  # The Envoy proxies are configured per Gateway, with the EnvoyProxy resources of the `network`
+  # namespace.
+  values:
+    deployment:
+      priorityClassName: infrastructure
+      envoyGateway:
+        # From the usage (docs/conventions.md#resources-and-priorities).
+        resources:
+          requests:
+            cpu: 5m
+            memory: 112Mi
+          limits:
+            memory: 224Mi
+    # A pre-install and pre-upgrade hook. No value for its class: the default (0).
+    certgen:
+      job:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            memory: 128Mi

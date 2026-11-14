@@ -42,12 +42,14 @@ spec:
               repository: ghcr.io/akpw/mktxp
               tag: 2.1.0
             command: ["cp", "/config/mktxp.conf", "/config/_mktxp.conf", "/etc/mktxp/"]
+            # Shorter than a scrape: the values of the init containers
+            # (docs/conventions.md#resources-and-priorities).
             resources:
               requests:
                 cpu: 10m
-                memory: 16Mi
+                memory: 32Mi
               limits:
-                memory: 16Mi
+                memory: 128Mi
         containers:
           app:
             image:
@@ -64,15 +66,16 @@ spec:
               readiness:
                 enabled: true
                 type: TCP
-            # To resize from the metrics.
+            # From the usage (docs/conventions.md#resources-and-priorities).
             resources:
               requests:
                 cpu: 10m
-                memory: 64Mi
+                memory: 48Mi
               limits:
-                memory: 128Mi
+                memory: 96Mi
 
     defaultPodOptions:
+      priorityClassName: infrastructure
       # `restricted`: the user of the image (mktxp, 1000).
       securityContext:
         runAsNonRoot: true

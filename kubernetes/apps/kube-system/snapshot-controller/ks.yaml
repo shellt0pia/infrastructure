@@ -8,6 +8,8 @@ kind: Kustomization
 metadata:
   name: snapshot-controller
 spec:
+  dependsOn:
+    - name: priority-classes
   interval: 1h
   path: ./kubernetes/apps/kube-system/snapshot-controller/app
   prune: true

@@ -35,7 +35,10 @@ enabled: false
 apiVersion: v1alpha1
 kind: KubeletConfig
 config:
-  # 16 GiB per node. etcd and the Talos services are accounted in systemReserved.
+  # 16 GiB per node. systemReserved: the Talos services (cgroups init and system); kubeReserved:
+  # etcd, the kubelet and containerd (cgroup podruntime). The kubelet only subtracts them from the
+  # allocatable (it limits the pods alone): their sum counts, not their split. About 1.1 GiB not
+  # reclaimable on 2026-11-13 (docs/cluster/README.md#resources-and-priorities).
   systemReserved:
     cpu: 500m
     memory: 1Gi

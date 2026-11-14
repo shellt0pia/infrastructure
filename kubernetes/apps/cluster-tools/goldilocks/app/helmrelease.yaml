@@ -65,12 +65,13 @@ spec:
               - get
               - list
               - watch
+      # From the usage (docs/conventions.md#resources-and-priorities).
       resources:
         requests:
-          cpu: 10m
-          memory: 64Mi
+          cpu: 5m
+          memory: 48Mi
         limits:
-          memory: 128Mi
+          memory: 96Mi
     dashboard:
       replicaCount: 1
       flags:
@@ -88,9 +89,10 @@ spec:
             verbs:
               - get
               - list
+      # From the usage (docs/conventions.md#resources-and-priorities).
       resources:
         requests:
-          cpu: 10m
+          cpu: 5m
           memory: 64Mi
         limits:
           memory: 128Mi

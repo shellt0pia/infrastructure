@@ -81,13 +81,14 @@ spec:
       capabilities:
         drop: ["ALL"]
 
-    # To resize from the metrics.
+    # From the usage (docs/conventions.md#resources-and-priorities).
+    priorityClassName: infrastructure
     resources:
       requests:
         cpu: 10m
-        memory: 64Mi
+        memory: 48Mi
       limits:
-        memory: 256Mi
+        memory: 96Mi
 
     # Both families (docs/conventions.md#listen-addresses): one socket, the default `:9116` of the
     # exporter (Go). The probes read `/-/healthy`, which does not walk a device.

@@ -25,3 +25,11 @@ spec:
       replicaCount: 2
       pdb:
         maxUnavailable: 1
+      priorityClassName: infrastructure
+      # From the usage (docs/conventions.md#resources-and-priorities).
+      resources:
+        requests:
+          cpu: 5m
+          memory: 80Mi
+        limits:
+          memory: 160Mi

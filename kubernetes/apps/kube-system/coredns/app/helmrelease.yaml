@@ -26,6 +26,15 @@ spec:
       create: true
     priorityClassName: system-cluster-critical
     replicaCount: 2
+    # From the usage (docs/conventions.md#resources-and-priorities).
+    resources:
+      requests:
+        cpu: 5m
+        memory: 64Mi
+      limits:
+        # Helm merges maps: null removes the CPU limit of the chart.
+        cpu: null
+        memory: 128Mi
     podDisruptionBudget:
       minAvailable: 1
     service:

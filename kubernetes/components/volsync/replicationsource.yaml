@@ -24,6 +24,14 @@ spec:
       daily: 28
       weekly: 8
       monthly: 6
+    # The default of every application (docs/conventions.md#resources-and-priorities): one restic
+    # run measured at 9 MiB. No field for the class: the one of the application.
+    moverResources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
     moverSecurityContext:
       runAsNonRoot: true
       runAsUser: ${VOLSYNC_UID:=1000}

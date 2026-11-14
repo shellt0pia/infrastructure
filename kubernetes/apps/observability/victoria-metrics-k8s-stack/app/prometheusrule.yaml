@@ -15,8 +15,6 @@ spec:
         # finished pods (`Succeeded`, `Failed`), kept by Kubernetes after a rollout, an eviction
         # or a node shutdown, which would keep firing after the fix; the Talos static pods (owned
         # by their Node), which keep the settings of Talos; and `debug`, the throwaway test pods.
-        # `info` until the sizing of the existing components, `warning` after it
-        # (docs/cluster-tools.md#3-sizing).
         - alert: ContainerWithoutMemoryLimit
           expr: |
             max by (namespace, pod, container) (
@@ -29,23 +27,26 @@ spec:
                 (kube_pod_status_phase{phase=~"Succeeded|Failed"} == 1)
             )
           labels:
-            severity: info
+            severity: warning
           annotations:
             summary: "{{ $labels.container }} of {{ $labels.pod }} has no memory limit."
             description: >-
               The container {{ $labels.container }} of {{ $labels.namespace }}/{{ $labels.pod }}
               has no memory limit: its memory is not bounded, and if it has no request either,
-              the scheduler counts none of it. Set its requests and limit from the
-              recommendations of Goldilocks (docs/conventions.md#resources-and-priorities).
+              the scheduler counts none of it. Set its requests and limit from its usage in
+              VictoriaMetrics (docs/conventions.md#resources-and-priorities).
         # A container killed for its memory: past its limit, or chosen by the kernel when the node
         # ran out of memory. Either restarted in the last 15 minutes after an OOM kill, or
         # terminated by one and not restarted (the pod of a Job). Not seen: a process of the
-        # container killed while the container keeps running.
+        # container killed while the container keeps running. `increase_prometheus`: `increase`
+        # counts the first value of a new series, so a new kube-state-metrics pod would fire it
+        # again for every container once killed (an OOM kill in the first scrape of a pod is
+        # missed, the next restart is not).
         - alert: ContainerOOMKilled
           expr: |
             max by (namespace, pod, container) (
               (
-                increase(kube_pod_container_status_restarts_total[15m]) > 0
+                increase_prometheus(kube_pod_container_status_restarts_total[15m]) > 0
                 and on (namespace, pod, container)
                 kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
               )
@@ -59,5 +60,5 @@ spec:
             description: >-
               The container {{ $labels.container }} of {{ $labels.namespace }}/{{ $labels.pod }}
               was OOM killed: it went past its memory limit, or the node ran out of memory. Its
-              usage against its request and limit in Grafana, then raise them from the
-              recommendations of Goldilocks (docs/conventions.md#resources-and-priorities).
+              usage against its request and limit in Grafana, then raise them
+              (docs/conventions.md#resources-and-priorities).

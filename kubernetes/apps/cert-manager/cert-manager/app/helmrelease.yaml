@@ -20,6 +20,37 @@ spec:
       enabled: true
       # Keep the CRDs (and therefore every Certificate) if the release is ever uninstalled.
       keep: true
+    # Every pod of the chart, the startupapicheck Job included.
+    global:
+      priorityClassName: infrastructure
+    # From the usage (docs/conventions.md#resources-and-priorities).
+    resources:
+      requests:
+        cpu: 5m
+        memory: 112Mi
+      limits:
+        memory: 224Mi
+    cainjector:
+      resources:
+        requests:
+          cpu: 5m
+          memory: 144Mi
+        limits:
+          memory: 288Mi
+    webhook:
+      resources:
+        requests:
+          cpu: 5m
+          memory: 96Mi
+        limits:
+          memory: 192Mi
+    startupapicheck:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 128Mi
     # The internal DNS is split-horizon (Unbound overrides shelltopia.net and forwards
     # shelltopia.org to k8s-gateway, which answers the routes itself and adds a layer of caches
     # for the rest): the DNS-01 propagation check must only query public resolvers, never the

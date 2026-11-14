@@ -9,6 +9,8 @@ spec:
   dependsOn:
     - name: external-secrets-stores
       namespace: external-secrets
+    - name: priority-classes
+      namespace: kube-system
   interval: 1h
   path: ./kubernetes/apps/backups/volsync-monitor/app
   prune: true

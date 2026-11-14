@@ -34,6 +34,16 @@ spec:
           matchLabels:
             app.kubernetes.io/name: k8s-gateway
             app.kubernetes.io/instance: k8s-gateway
+    priorityClassName: infrastructure
+    # From the usage (docs/conventions.md#resources-and-priorities).
+    resources:
+      requests:
+        cpu: 5m
+        memory: 80Mi
+      limits:
+        # Helm merges maps: null removes the CPU limit of the chart.
+        cpu: null
+        memory: 160Mi
     serviceType: LoadBalancer
     service:
       ipFamilyPolicy: RequireDualStack

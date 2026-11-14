@@ -31,6 +31,7 @@ spec:
     spec:
       automountServiceAccountToken: false
       enableServiceLinks: false
+      priorityClassName: infrastructure
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -62,9 +63,10 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+          # From the usage (docs/conventions.md#resources-and-priorities).
           resources:
             requests:
               cpu: 5m
-              memory: 16Mi
+              memory: 32Mi
             limits:
               memory: 64Mi

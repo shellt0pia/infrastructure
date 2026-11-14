@@ -6,6 +6,7 @@ metadata:
 spec:
   # The operator webhook gets its serving certificate from a cert-manager Issuer.
   dependsOn:
+    - name: priority-classes
     - name: cert-manager
       namespace: cert-manager
   interval: 1h

@@ -68,15 +68,16 @@ spec:
               readOnlyRootFilesystem: true
               capabilities:
                 drop: ["ALL"]
-            # To resize from the metrics.
+            # From the usage (docs/conventions.md#resources-and-priorities).
             resources:
               requests:
-                cpu: 10m
+                cpu: 5m
                 memory: 32Mi
               limits:
-                memory: 128Mi
+                memory: 64Mi
 
     defaultPodOptions:
+      priorityClassName: infrastructure
       # `restricted`: the image (distroless `static`) runs as root by default, 65534 (nobody)
       # here.
       securityContext:

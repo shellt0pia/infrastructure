@@ -4,6 +4,9 @@ kind: Kustomization
 metadata:
   name: external-secrets
 spec:
+  dependsOn:
+    - name: priority-classes
+      namespace: kube-system
   interval: 1h
   path: ./kubernetes/apps/external-secrets/external-secrets/app
   prune: true

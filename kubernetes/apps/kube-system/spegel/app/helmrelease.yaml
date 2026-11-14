@@ -31,11 +31,15 @@ spec:
       # cluster: `latest` is always resolved upstream.
       registryFilters:
         - ":latest$"
+    # From the usage (docs/conventions.md#resources-and-priorities), also for the init container.
     resources:
       requests:
         cpu: 10m
-        memory: 128Mi
+        memory: 80Mi
       limits:
-        memory: 128Mi
+        memory: 160Mi
+    # Instead of system-node-critical (chart default): a node keeps pulling from the upstream
+    # registries without Spegel (docs/cluster/README.md#spegel).
+    priorityClassName: infrastructure
     serviceMonitor:
       enabled: true

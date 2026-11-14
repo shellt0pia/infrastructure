@@ -4,6 +4,9 @@ kind: Kustomization
 metadata:
   name: cert-manager
 spec:
+  dependsOn:
+    - name: priority-classes
+      namespace: kube-system
   interval: 1h
   path: ./kubernetes/apps/cert-manager/cert-manager/app
   prune: true

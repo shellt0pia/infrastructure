@@ -508,7 +508,7 @@ The class `infrastructure` and the alerts of the convention ([README](README.md#
   curl -s localhost:8080/api/v1/rules | jq -r '.data.groups[] | select(.name == "resources") | .rules[] | .name + " " + .labels.severity + " " + .health + " " + .lastError'
   ```
 
-  Expected: `ContainerWithoutMemoryLimit info ok` and `ContainerOOMKilled warning ok`.
+  Expected: `ContainerWithoutMemoryLimit warning ok` (`info` until the [sizing](../cluster-tools.md#3-sizing)) and `ContainerOOMKilled warning ok`.
 
 - [x] **Series of kube-state-metrics.** A rule on a series that does not exist never fires. Through `VMSingle`:
 
