@@ -6,7 +6,7 @@ Where the secrets live, and how the workstation and the cluster read them. The c
 | --- | --- |
 | [bootstrap.md](bootstrap.md) | First setup: the service accounts and the items to create before the first `just bootstrap cluster`. |
 | [runbook.md](runbook.md) | Day-to-day: rotating the workstation token, replacing a token synced to the cluster, 1Password unavailable, the tokens to renew. |
-| [evaluations.md](evaluations.md) | The approval prompt problem, the options evaluated, and why a read-only service account was chosen. |
+| [evaluations.md](evaluations.md) | The approval prompt problem, the options evaluated, and why a read-only service account was chosen. The rate limits of External Secrets, and 1Password Connect. |
 
 The cluster side is in `kubernetes/apps/external-secrets` (operator and `onepassword` ClusterSecretStore) and `bootstrap/resources/secrets.yaml.j2` (token of the store, injected at the bootstrap). The workstation side is the `op inject` and `op read` calls of the recipes (`talos/mod.just`, `bootstrap/mod.just`, `tofu/mod.just`, `kubernetes/mod.just`), and the shell functions of the toolbox (`just`, `opsa`), which are outside of this repository.
 
@@ -64,8 +64,19 @@ Items are named after what they connect, in lowercase with hyphens. Three forms:
 
 - External Secrets Operator reads the `kubernetes` vault through the `onepassword` ClusterSecretStore (1Password SDK, no Connect server). ESO keeps the provider replaceable.
 - Its service account is read-only and sees **only** the `kubernetes` vault. Its token is the only secret injected by the bootstrap (`op inject` of `bootstrap/resources/secrets.yaml.j2`), everything else is pulled afterwards by `ExternalSecret`s (`remoteRef.key: <item>/<field>`).
-- The service accounts have rate limits: keep the refresh intervals of the `ExternalSecret`s long.
+- Every `ExternalSecret` refreshes every 12 hours, because of the [rate limits](#rate-limits). A rotated value is synced now with a [`force-sync`](runbook.md#replacing-a-token-synced-to-the-cluster).
 - A rotated value reaches the pods that read it at startup only through a restart: [Reloader](../cluster/README.md#reloader) does it for the workloads that opt in.
+
+### Rate limits
+
+[1Password limits the service accounts](https://developer.1password.com/docs/service-accounts/rate-limits/):
+
+- **1,000 requests per 24 hours for the whole account** (the limit of our plan), shared by External Secrets and the workstation. The window starts at the first request. Past it, every read fails until the reset ([runbook](runbook.md#daily-limit-reached)).
+- 1,000 reads per hour and per token: never the first one reached.
+- **About 3 requests per field and per refresh.** The store resolves `op://Kubernetes/<item>/<field>` by names (the vault, the item, then its content), as an [`op read`](https://developer.1password.com/docs/service-accounts/use-with-1password-cli/#commands-that-make-multiple-requests) does. Inferred from the measures: the SDK is not open source.
+- Measured on 2026-11-14 with `externalsecret_provider_api_calls_count{provider="1Password/SDK"}`: about 200 resolves a day stayed under the limit, about 480 (22 fields at `1h`) exhausted it.
+
+Hence `12h` for every `ExternalSecret`: about 27 fields, some 160 requests a day, the rest for the workstation. A new field costs about 6 requests a day. A Connect server, without limits, was [evaluated](evaluations.md#external-secrets-rate-limits-and-connect).
 
 ## On the workstation: a read-only service account
 
@@ -117,4 +128,4 @@ Compared with the native mode (desktop app integration from a host terminal):
 - `talos render-config` no longer needs the single `op inject` and the `awk` split: one `op inject` per template is fine.
 - `just tofu run` works: `op run` and `tofu` both run in the toolbox.
 - `op` without a token fails in the toolbox: anything outside these recipes that expects the desktop app must call `host-spawn op`.
-- Service accounts have rate limits (`op service-account ratelimit`), far above the needs of these recipes.
+- The recipes share the daily limit of the account with External Secrets ([rate limits](#rate-limits), `op service-account ratelimit`). An `op read` by names costs 3 requests.

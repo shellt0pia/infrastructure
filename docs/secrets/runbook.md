@@ -26,7 +26,7 @@ A stolen token stays usable until the next rotation, from anywhere, and can be r
 
 ## Replacing a token synced to the cluster
 
-For a secret of the `kubernetes` vault pulled by an `ExternalSecret` (the Cloudflare tokens, the `restic-*` keys...): the ExternalSecrets refresh every hour or so, force them when the new value is needed now.
+For a secret of the `kubernetes` vault pulled by an `ExternalSecret` (the Cloudflare tokens, the `restic-*` keys...): the ExternalSecrets refresh every 12 hours ([rate limits](README.md#rate-limits)), force them when the new value is needed now.
 
 - [ ] **New token.** Create it at its provider (the Cloudflare dashboard, `just tofu apply backblaze` for the B2 keys of the backups), then write it in the **existing** item and field. The workstation service account is read-only: use the web interface or `host-spawn op item edit`.
 - [ ] **Sync:**
@@ -66,6 +66,28 @@ The service is down, the account is locked, or the workstation token was revoked
 
 A revoked or expired workstation token only needs the [rotation](#rotating-the-workstation-token). If the revocation follows a suspicion of compromise, see the [compromised cluster](../backups/runbook.md#ransomware-or-compromised-cluster) procedure.
 
+## Daily limit reached
+
+The service accounts share 1,000 requests per 24 hours ([rate limits](README.md#rate-limits)). Past it, every read fails until the reset: the ExternalSecrets go `SecretSyncedError` and the recipes fail, as when [1Password is unavailable](#1password-unavailable).
+
+- [ ] **Check the limit**, with the personal account:
+
+  ```sh
+  host-spawn op service-account ratelimit kubernetes-external-secrets
+  ```
+
+  The `account` line counts the 24 hours of every service account, `RESET` gives the end of the window. The `token` lines only count the current hour of this one: `USED 0` there does not clear External Secrets.
+
+- [ ] **Find the consumer.** The calls of External Secrets, in Grafana (Explore, VictoriaMetrics), about 3 requests per `Resolve`:
+
+  ```promql
+  sum by (call, status) (increase(externalsecret_provider_api_calls_count{provider="1Password/SDK"}[24h]))
+  ```
+
+  The rest of the 1,000 is the workstation. A `refreshInterval` shorter than `12h` multiplies the requests ([conventions](../conventions.md#secrets)).
+
+- [ ] **Wait for the reset.** The ExternalSecrets retry on their own. Force only the ones needed now ([sync](#replacing-a-token-synced-to-the-cluster)): each sync costs requests.
+
 ## Changing the permissions of a service account
 
 The permissions of a service account cannot be changed after its creation, and its token is shown only once ([creation](bootstrap.md#5-service-account-for-external-secrets)).
@@ -77,7 +99,6 @@ The permissions of a service account cannot be changed after its creation, and i
 | Workstation service account | `personal` vault | Every recipe, [rotation above](#rotating-the-workstation-token) |
 | `kubernetes-external-secrets` service account | `kubernetes/1password-external-secrets-operator` | External Secrets |
 | Docker Hub personal access token | `infrastructure/docker-hub-kubecluster-01` | containerd of the nodes (rate limit) |
-
 | Cloudflare tokens | `kubernetes/cloudflare-cert-manager`, `kubernetes/cloudflare-external-dns`, `kubernetes/cloudflare-ddns`, `infrastructure/cloudflare-tofu` | cert-manager, external-dns, cloudflare-ddns, OpenTofu |
 | B2 keys | `kubernetes/restic-volsync`, `infrastructure/restic-nas`, `infrastructure/backblaze-b2-tofu-*` | VolSync, Backrest, OpenTofu (the `restic-*` keys are managed by OpenTofu, see [tofu/README.md](../../tofu/README.md)) |
 

@@ -161,8 +161,8 @@ The tokens to renew and their consumers are in the [secrets runbook](secrets/run
 | Every minute | The `Watchdog` alert pings healthchecks.io (grace 3 minutes), once the rules run | [observability](observability/README.md#alerting) |
 | Every minute | The HTTP checks of blackbox-exporter (Pocket ID, Uptime Kuma, IPv4 and IPv6) | [observability](observability/README.md#external-devices) |
 | Every 5 minutes | cloudflare-ddns detects the WAN IPv4 | [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
-| Every hour | Refresh of the ExternalSecrets of the Cloudflare tokens, reconciliation of the Kustomizations and HelmReleases | [conventions](conventions.md#flux-kustomizations) |
-| Every 12 hours | Refresh of the ExternalSecrets of VolSync and of its monitoring | [backups](backups/runbook.md#refreshing-the-secrets) |
+| Every hour | Reconciliation of the Kustomizations and HelmReleases | [conventions](conventions.md#flux-kustomizations) |
+| Every 12 hours | Refresh of every ExternalSecret (1Password rate limits) | [secrets](secrets/README.md#rate-limits) |
 | Daily, 01:30 UTC | VolSync backups, by default | [backups](backups/README.md) |
 | Daily, 09:00 | `volsync-monitor`, then the ping of its healthchecks check | [backups](backups/README.md#monitoring) |
 | Every 7 days | VolSync prune | [backups](backups/README.md) |

@@ -176,7 +176,7 @@ Every container has requests and a memory limit, and each component of the platf
 ### Secrets
 
 - Never in Git: an `ExternalSecret` next to the application, `secretStoreRef` on the `onepassword` `ClusterSecretStore`, `remoteRef.key: <item>/<field>` ([secrets](secrets/README.md#in-the-cluster-external-secrets)).
-- A long `refreshInterval` (`1h`, `12h` for VolSync): the service account has rate limits.
+- `refreshInterval: 12h`: 1Password allows 1,000 requests a day for the whole account, about 3 per field at each refresh ([rate limits](secrets/README.md#rate-limits)).
 - One item and one token per tool, so that a leaked one gives no access to the others, named `<provider>-<app>` or `<host>-<service>` (`cloudflare-external-dns`, `sw-01-mktxp`: [naming](secrets/README.md#naming-of-the-items)). Items of the cluster in the `kubernetes` vault, the rest in `infrastructure` ([reference](reference.md#1password-items)).
 
 ### Reloads

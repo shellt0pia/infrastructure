@@ -1,6 +1,6 @@
 # Secrets: evaluations and open points
 
-How the recipes of this repository came to read 1Password through a service account: the problem, the constraints, and the options that were evaluated. The resulting design is in [README.md](README.md#on-the-workstation-a-read-only-service-account).
+How the recipes of this repository came to read 1Password through a service account: the problem, the constraints, and the options that were evaluated. The resulting design is in [README.md](README.md#on-the-workstation-a-read-only-service-account). Then the rate limits of External Secrets, and [1Password Connect](#external-secrets-rate-limits-and-connect).
 
 ## Context
 
@@ -76,6 +76,28 @@ A [1Password service account](https://developer.1password.com/docs/service-accou
 - **1Password Credential Broker:** relies on workload identity federation (GitHub, Google Cloud...), meant for CI/CD, not for a workstation.
 - **One long-lived, read-only service account, rotated manually:** chosen, see [the design](README.md#on-the-workstation-a-read-only-service-account).
 
+## External Secrets: rate limits and Connect
+
+On 2026-11-14, the daily limit of the account (1,000 requests) was reached: the ExternalSecrets went `SecretSyncedError`. Seven ExternalSecrets at `1h` had been added in a day, from about 200 to 480 resolves a day, about 3 requests each ([rate limits](README.md#rate-limits)).
+
+| Option | Requests of External Secrets a day | Why |
+| --- | --- | --- |
+| **`refreshInterval: 12h` for every `ExternalSecret`** | **about 160** | **Chosen**: one line per `ExternalSecret`, a rotation is synced with a `force-sync`. |
+| `refreshPolicy: OnChange` | at a change only | Every rotation needs a `force-sync`, a forgotten one leaves the old value. `12h` is enough. |
+| `cache` of the `onepasswordSDK` store | almost the same | The cache lives in the client, one per namespace, and the keys are per field: the ExternalSecrets read different fields. |
+| Vault and item IDs instead of names | down to a third | Saves the lookups of the vault and of the item (as `op read`, inferred for the SDK), at the cost of unreadable references: the item keeps [the same name everywhere](README.md#naming-of-the-items). |
+| A Teams or Business plan | 5,000 or 50,000 allowed | A higher cost for one problem of configuration. |
+| 1Password Connect server | no limits | See below. |
+
+**[Connect](https://developer.1password.com/docs/secrets-automation/)** keeps an encrypted copy of the vaults in the cluster and serves the reads from it, without limits nor quotas, included in every plan. Not adopted for now:
+
+- The Connect provider of External Secrets (`onepassword`) is deprecated in favour of the SDK one ([ESO docs](https://external-secrets.io/latest/provider/1password-automation/)).
+- A component that every secret depends on: a pod of two containers (`connect-api`, `connect-sync`) sharing the cache, a chart from a Helm repository, its network policies (from External Secrets, to 1Password by name), TLS between External Secrets and Connect (plain HTTP by default), its monitoring. While it is down, nothing refreshes.
+- Two secrets in the bootstrap instead of one: the `1password-credentials.json` of the server and the token of External Secrets (`op connect server create`, `op connect token create`).
+- Every `ExternalSecret` rewritten: `key: <item>` and `property: <field>`, instead of `key: <item>/<field>`.
+
+With `12h`, the need is about 160 requests a day out of 1,000. Connect becomes worth it if the resolves grow past about 300 a day despite the long refreshes ([open point](#open-points)).
+
 ## Open points
 
 | Topic | Notes |
@@ -83,4 +105,5 @@ A [1Password service account](https://developer.1password.com/docs/service-accou
 | Rotation | Manual: `opsa` warns 5 days before and refuses to run past 30 days ([procedure](runbook.md#rotating-the-workstation-token)). |
 | Secret Service (oo7) | Does not change the model for processes outside a Flatpak sandbox, which the toolbox is ([option E](README.md#where-the-token-lives-between-two-commands--b-a-non-exported-shell-parameter-with-a-ttl)). |
 | topf | Not adopted for now ([why](#replacing-the-talos-recipes-with-topf)). |
+| 1Password Connect | To reconsider if External Secrets resolves more than about 300 fields a day with `12h` ([why](#external-secrets-rate-limits-and-connect)). |
 | Copy of the critical secrets outside 1Password | The Talos secrets bundle and the restic passwords only exist in 1Password: without access to the account, the cluster cannot be rebuilt nor the backups read ([1Password unavailable](runbook.md#1password-unavailable)). Decide whether an offline copy is wanted, and where. |
