@@ -10,7 +10,7 @@ Temporary document: the plan of the [Cluster tools](roadmap.md#cluster-tools) of
 | [2](#2-kubelet-serving-certificates-metrics-server-and-vpa) | kubelet serving certificates, metrics-server, VPA and Goldilocks | Grouped: metrics-server needs the verified kubelet certificates, the VPA recommender needs metrics-server. | Done |
 | [3](#3-sizing) | Resources and `PriorityClass`es: the sizing | From the history of VictoriaMetrics (since 2026-11-03), cross-checked with the recommendations of step 2. | Applied on 2026-11-14, the check two weeks later |
 | [4](#4-oidc-authentication) | Kubernetes OIDC authentication | Before the UIs: both log in through it, and their rights are the bindings of its groups. | Done on 2026-11-14 |
-| [5](#5-flux-web-ui-and-headlamp) | Flux web UI, Headlamp | Grouped: same pattern (a client in the Pocket ID, an `HTTPRoute` on the `internal` Gateway, the groups of step 4). The Flux UI first: nothing to deploy. | To do |
+| [5](#5-flux-web-ui-and-headlamp) | Flux web UI, Headlamp | Grouped: same pattern (a client in the Pocket ID, an `HTTPRoute` on the `internal` Gateway, the groups of step 4). The Flux UI first: nothing to deploy. | Done on 2026-11-14, checked with an admin. Left: the login of a viewer (no account yet) and the link of the Flux notifications |
 | [6](#6-descheduler) | Descheduler, `topologySpreadConstraints` | Once kube-02 joins: it uses the requests of step 3 and metrics-server of step 2. Stays in the roadmap until then. | Waits for kube-02 |
 
 ## 1. Resources and priorities
@@ -488,10 +488,73 @@ One `wip` commit, amended. Each item pushed after the checks of the previous one
 
 ## 5. Flux web UI and Headlamp
 
-Roadmap items as written ([roadmap](roadmap.md#cluster-tools)). Questions and plan once step 4 is done.
+Roadmap items as written ([roadmap](roadmap.md#cluster-tools)).
 
-- [ ] Flux web UI: OIDC in flux-operator, the `HTTPRoute` on the `internal` Gateway, the roles of the chart checked, then the links in the Flux notifications.
-- [ ] Headlamp: its release with the resources and class of the convention, OIDC, the `HTTPRoute` on the `internal` Gateway, the groups of [step 4](#oidc-answers) (no restart for `kubernetes_viewers`).
+### UIs upstream
+
+Checked on 2026-11-14, in `.scratch/flux-web/` (the sources of flux-operator v0.61.0 and Headlamp v0.46.0).
+
+| Component | Notes |
+| --- | --- |
+| flux-operator 0.61.0, web UI | Port 9080 (`http-web`) of the `flux-operator` Service. OIDC in its Web Config API (`web.fluxcd.controlplane.io/v1`, `Config`): `baseURL`, `authentication.type: OAuth2`, `oauth2.provider: OIDC`, `clientID`, `clientSecret` (both required: a confidential client), `issuerURL`. Callback `<baseURL>/oauth2/callback`. Default scopes `openid offline_access profile email groups`, PKCE always on. The flux-operator checks the ID token itself (audience its client id), the API server never sees it: no audience in Talos. Sessions of one week by default (`sessionDuration`), the ID token refreshed with the refresh token, the claims read again at each refresh. |
+| Its impersonation | CEL expressions on the claims (`impersonation.username`, `impersonation.groups`), `map` and `filter` allowed: `'oidc:' + claims.preferred_username` and `claims.groups.map(g, 'oidc:' + g)` give the identities of the API server, so the bindings of [step 4](#oidc-answers) apply. `Impersonated` (the default): an action needs its own verb (`reconcile`, `suspend`, `resume`, `restart`, `download`, `delete` on pods) **and** the native one (`patch`…). `cluster-admin` has both, `view` neither. `FineGrained` acts with the rights of the operator, only for a standalone web server (`web.serverOnly`). |
+| Its roles | `web.rbac.createRoles` (default `true`) creates `flux-web-user` (`get/list/watch` on `*/*`, Secrets included) and `flux-web-admin` (the same, the actions, restarts, Jobs, pod deletion); bound to nobody. The namespaces of the dropdowns: those where the user can `get` `ResourceSet`s. Aggregated to `view`: the Flux CRDs (`flux-view`, from the Flux distribution) and `resourcesets`, `resourcesetinputproviders` (`flux-operator-view`, `rbac.createAggregation`). Not `fluxinstances` nor `fluxreports`. |
+| Its config | `web.config` (the chart renders a Secret) or `web.configSecretName` (a Secret with the key `config.yaml`), not both. A `--web-config` file that fails to validate (an OAuth2 config without `clientID`) stops the operator (`os.Exit(1)`, `cmd/operator/main.go`). A Secret is watched instead: missing or invalid, the error is logged, the operator runs, the API of the UI answers 503 until a valid one; a change is applied without a restart. The doc's other way, `valuesFrom` on the HelmRelease, is not read by the bootstrap helmfile (`spec.values` only): it would install the operator with a config that stops it. |
+| Its route | `web.httpRoute` of the chart: `parentRefs`, `hostnames`, the backend `flux-operator:9080`. The bootstrap helmfile installs the operator before Envoy Gateway, which brings the Gateway API CRDs (`crds/` of its chart): the chart route fails the install at the bootstrap ([question 1](#uis-questions)). |
+| Its URLs | `/resource/<kind>/<namespace>/<name>`; `/resources?namespace=<ns>&status=Failed`: the filters (`kind`, `name`, `namespace`, `status`) are read from the URL at load (`useRestoreFiltersFromUrl`) and by the API (`internal/web/resources.go`). `Failed` is a resource `Ready=False`, what `FluxResourceNotReady` reads. |
+| Headlamp 0.46.0, chart | Only in a Helm repository, `https://kubernetes-sigs.github.io/headlamp/` (no OCI found). By default: a `ClusterRoleBinding` of its ServiceAccount to `cluster-admin` (`clusterRoleBinding.create`), the bundled static plugins (Prometheus, `config.staticPlugins.enabled`), no resources, no class, a partial security context (`runAsUser: 100`, `runAsGroup: 101`). `httpRoute` in the chart. `automountServiceAccountToken` stays: `-in-cluster` reads the CA and the address of the API server from it. |
+| Its OIDC | `config.oidc.externalSecret`: `envFrom` a Secret with `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_ISSUER_URL`, and `OIDC_SCOPES` with `hasScopes: true`; read at the start only (Reloader). Default scopes `profile,email`: `groups` and `offline_access` to add. Callback `https://<host>/oidc-callback`, from the request (`-oidc-callback-url` to fix it). `usePKCE` available. Sends the ID token to the API server (`useAccessToken: false`): its audience, the client id of Headlamp, must be in the `KubeAuthenticationConfig`. Refresh tokens kept in the memory of the pod: a restart asks for a new login. Session 24 h (`sessionTTL`). |
+| Gateway `internal` | Idle and stream timeouts of 1 h, no route timeout (`kubernetes/apps/network/gateways/app`): the logs and the websockets of the UIs are not cut. |
+
+### UIs answers
+
+Answered on 2026-11-14:
+
+1. **Name of the Flux UI**: `flux.shelltopia.org`. The name of the project, not of the folder: the [convention](conventions.md#routes-and-names) reworded so.
+2. **Routes**: the one of the chart when it has one, a manifest of the app otherwise (Goldilocks). Also in the convention. Except flux-operator ([question 1](#uis-questions)).
+3. **Flux impersonation**: the username and the groups prefixed `oidc:`; no audience of the Flux UI in Talos.
+4. **Flux roles**: the bindings of step 4 only. `kubernetes_admins` gets every action, `kubernetes_viewers` reads (`view`, no Secrets). `web.rbac.createRoles: false`: `flux-web-user` would give the Secrets to the viewers, everywhere (a binding is not limited to the UI), `flux-web-admin` adds nothing to `cluster-admin`. `access: Impersonated` written in the config.
+5. **Flux client**: confidential (required by flux-operator).
+6. **Flux notifications**: the filtered list, `/resources?namespace=<namespace>&status=Failed` ([question 2](#uis-questions)).
+7. **Headlamp**: the app `cluster-tools/headlamp`, `headlamp.shelltopia.org`.
+8. **Headlamp plugins**: none, the static ones disabled; never the Flux plugin (the Flux UI does it).
+9. **Headlamp ServiceAccount**: no rights, the `ClusterRoleBinding` of the chart disabled. The pod acts with the token of the user only.
+10. **Headlamp client**: confidential, with PKCE; client id and secret read from 1Password. The client id is also in `talos/vars.yaml` for the audience: a comment on both sides.
+11. **Talos**: the audience of Headlamp and `audienceMatchPolicy: MatchAny` in `authentication.yaml.j2`, applied node by node as in [step 4](#oidc-commits), before Headlamp.
+12. **Headlamp token**: the ID token, scopes `profile email groups offline_access`, the defaults of the client (1 h, refresh 30 days).
+13. **Viewers**: a read-only `ClusterRole` for what `view` lacks, bound to `oidc:kubernetes_viewers` in `kube-system/oidc` ([question 3](#uis-questions)).
+14. **Commits**: one per roadmap item, the Flux UI then Headlamp.
+
+By default, unless said otherwise: class `infrastructure` for Headlamp (as the dashboard of Goldilocks and Hubble UI), its first resources from the chart render and its usage, then the cross-check of Goldilocks; no blackbox probe of the UIs (none for the other UIs); no `CiliumNetworkPolicy` (the baseline lets the Gateways in and the pods out to the Pocket ID).
+
+### UIs questions
+
+Answered on 2026-11-14:
+
+1. **Route of the Flux UI**: an `httproute.yaml` of the app, not the route of the chart. The bootstrap helmfile installs flux-operator before the Gateway API CRDs (Envoy Gateway): the chart route would fail it. The exception is named in the [convention](conventions.md#routes-and-names). Not chosen: the chart route disabled at the bootstrap by a `set` of the helmfile, one more difference between the bootstrap and Flux.
+2. **Link of the Flux notifications**: the link of the Flux UI as the last line of the message, Grafana kept in `url` (Pushover makes the URLs of the message clickable). If it reads badly: the `url` and `url_title` switched to the Flux UI for `FluxResourceNotReady`, by a condition in the template of the receivers.
+3. **Viewers role**: narrow. `get`, `list`, `watch` on `nodes`, `persistentvolumes`, `storageclasses`, `csinodes`, `volumeattachments`, `priorityclasses`, `customresourcedefinitions`, `fluxinstances` and `fluxreports`. Not the other CRDs (Gateway API, cert-manager, Cilium…): RBAC has no "all but Secrets", each new CRD would have to be listed.
+4. **Layout of the Flux config**: a second Kustomization `flux-operator-web` in the `ks.yaml` of flux-operator, path `web/`: the `ExternalSecret` (the whole `config.yaml`, templated) and the `HTTPRoute`, `dependsOn` `external-secrets-stores` and `gateways`. Flux itself never waits for ESO.
+
+### UIs commits
+
+One commit per roadmap item, the Flux UI first. Each item pushed after the checks of the previous one.
+
+Flux web UI:
+
+- [x] **Pocket ID**, by Victor: the confidential client `flux` (callback `https://flux.shelltopia.org/oauth2/callback`, groups `kubernetes_admins` and `kubernetes_viewers`), its client id and secret in the item `pocket-id-flux` of the `kubernetes` vault (`username`, `credential`, as `pocket-id-goldilocks`).
+- [x] **Manifests.** The HelmRelease: `web.configSecretName: flux-operator-web-config`, `web.rbac.createRoles: false`. The Kustomization `flux-operator-web` ([question 4](#uis-questions)): the `ExternalSecret` `flux-operator-web-config` (the `Config` of [answers 3 to 5](#uis-answers), `userActions.access: Impersonated`) and the `HTTPRoute` `flux` on the `internal` Gateway. Rendered locally: `flux build`, the chart without the roles, kubeconform.
+  - Check: the Kustomizations `flux-operator` and `flux-operator-web` `Ready`, the Secret created, no config error in the logs of the operator; the login on `https://flux.shelltopia.org`, the user `oidc:<username>` in the UI, a reconcile from the UI. A viewer: the lists, no action, no Secret. Done on 2026-11-14 with a member of `kubernetes_admins`; the viewer not checked yet, no account.
+- [ ] **Notifications.** The annotation `link` of `FluxResourceNotReady` (the filtered list of its namespace), added as the last line of the Pushover message by both receivers ([question 2](#uis-questions)). Check: a notification of the alert, the link opens the list. Pushed on 2026-11-14, the check waits for the next alert.
+- [x] **Docs**, in the same commit: the [convention](conventions.md#routes-and-names) (the name of the project, the route of the chart, the flux-operator exception), [cluster](cluster/README.md) (a section, the status), [bootstrap](cluster/bootstrap.md) (the checks), [runbook](cluster/runbook.md), [observability](observability/README.md#alerting) (the link), [reference](reference.md) (the name, the client, the item, the Kustomization). The [roadmap](roadmap.md#cluster-tools) item ticked.
+
+Headlamp:
+
+- [x] **Pocket ID**, by Victor: the confidential client `headlamp` with PKCE (callback `https://headlamp.shelltopia.org/oidc-callback`, the same groups), the item `pocket-id-headlamp`.
+- [x] **Talos**: the client id in `talos/vars.yaml`, the audience and `audienceMatchPolicy: MatchAny` in `authentication.yaml.j2` ([answer 11](#uis-answers)). Applied by Victor node by node, as in [step 4](#oidc-commits), before Headlamp. Rendered locally: both audiences and `audienceMatchPolicy`. Applied on 2026-11-14.
+- [x] **Viewers**: the `ClusterRole` `oidc:cluster-view` of [question 3](#uis-questions) and its binding `oidc:kubernetes_viewers:cluster-view`, in `kube-system/oidc`.
+- [x] **Headlamp**: the app `cluster-tools/headlamp` ([answers 7 to 12](#uis-answers)), the route of the chart. Unlike [answer 12](#uis-answers), only the client id, the secret and the issuer in the Secret: the callback, the scopes and PKCE are arguments (`config.extraArgs`), not secret, visible in Git. Rendered locally: `flux build`, the chart (no `ClusterRoleBinding`, no Secret of the chart), kubeconform. Checked on 2026-11-14 with a member of `kubernetes_admins`; a viewer by `kubectl auth can-i` only, no account yet.
+- [x] **Docs**, in the same commit, as for the Flux UI. The [roadmap](roadmap.md#cluster-tools) item ticked.
 
 ## 6. Descheduler
 

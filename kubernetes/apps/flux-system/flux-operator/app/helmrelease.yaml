@@ -35,7 +35,20 @@ spec:
     serviceMonitor:
       create: true
     web:
+      # The Web Config of the UI (OIDC on the Pocket ID), rendered by an ExternalSecret of the
+      # Kustomization flux-operator-web (../web/externalsecret.yaml). Watched by the operator: missing
+      # or invalid, the UI answers 503 and the operator keeps running. Not `web.config` nor
+      # `valuesFrom`: the bootstrap helmfile reads `spec.values` only, and a partial OAuth2 config in
+      # a file stops the operator (docs/cluster/README.md#flux-web-ui).
+      configSecretName: flux-operator-web-config
       # No NetworkPolicy: it would open the web UI (9080) to every namespace, over the Cilium
       # baseline (docs/cluster/README.md#network-policies).
       networkPolicy:
         create: false
+      # Not the roles flux-web-user and flux-web-admin: the first reads the Secrets, the second
+      # adds nothing to cluster-admin. The UI acts as the user, with the bindings of the OIDC
+      # groups (kubernetes/apps/kube-system/oidc).
+      rbac:
+        createRoles: false
+      # Not the route of the chart: the bootstrap installs the operator before the Gateway API
+      # CRDs. The route is ../web/httproute.yaml.

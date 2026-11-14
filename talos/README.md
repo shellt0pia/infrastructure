@@ -4,7 +4,7 @@ Machine configs of the cluster nodes, rendered by `just talos render-config <nod
 
 | Path | Content |
 | --- | --- |
-| `vars.yaml` | Variables shared by the templates (minijinja) and the recipes (yq): domain, cluster, network, versions, node list, OIDC issuer and client. |
+| `vars.yaml` | Variables shared by the templates (minijinja) and the recipes (yq): domain, cluster, network, versions, node list, OIDC issuer and the client ids of the audiences (`kubelogin`, Headlamp). |
 | `schematic.yaml` | Image Factory schematic (extensions, kernel arguments, Secure Boot). Its ID selects the installer image and the ISO. |
 | `patches/` | Patches common to all the nodes, including the hostname (`hostname.yaml.j2`) and the OIDC login of the API server (`authentication.yaml.j2`). |
 | `nodes/<node>.yaml` | Hardware-specific patches of a node (plain YAML): disks, NIC, labels. |

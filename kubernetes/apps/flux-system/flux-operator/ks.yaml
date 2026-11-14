@@ -16,3 +16,26 @@ spec:
     namespace: flux-system
   targetNamespace: flux-system
   wait: true
+---
+# Separate Kustomization: the config of the web UI needs External Secrets, its route the Gateway
+# API CRDs. In the app, an outage of ESO or 1Password would block the upgrades of the operator.
+# Details: docs/cluster/README.md#flux-web-ui.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: flux-operator-web
+spec:
+  dependsOn:
+    - name: gateways
+      namespace: network
+    - name: external-secrets-stores
+      namespace: external-secrets
+  interval: 1h
+  path: ./kubernetes/apps/flux-system/flux-operator/web
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: flux-system
+  wait: true

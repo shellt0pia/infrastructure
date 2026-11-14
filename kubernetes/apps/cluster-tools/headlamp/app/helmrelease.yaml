@@ -1,0 +1,91 @@
+---
+# Headlamp: the web UI of the cluster (workloads, logs, events, restarts). It logs in with the
+# Pocket ID and sends the ID token of the user to the API server: the rights are the bindings of
+# the OIDC groups (kubernetes/apps/kube-system/oidc). See docs/cluster/README.md#headlamp.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: headlamp
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: headlamp
+      version: 0.46.0
+      sourceRef:
+        kind: HelmRepository
+        name: headlamp
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  values:
+    # Deployment, Service and HTTPRoute `headlamp`.
+    fullnameOverride: headlamp
+    config:
+      oidc:
+        # The Secret of externalsecret.yaml (client id, secret, issuer), not one of the chart.
+        secret:
+          create: false
+        externalSecret:
+          enabled: true
+          name: headlamp-oidc
+      # No plugin: the bundled ones (Prometheus) are disabled, and never the Flux plugin (the
+      # Flux UI of flux-operator does it).
+      staticPlugins:
+        enabled: false
+      # The settings of the client that are not secret. A confidential client with PKCE. The ID
+      # token goes to the API server (`-oidc-use-access-token` stays false): its audience is the
+      # client id, listed in talos/patches/authentication.yaml.j2. `groups` for the bindings,
+      # `offline_access` for the refresh token. The callback fixed rather than built from the
+      # request.
+      extraArgs:
+        - -oidc-callback-url=https://headlamp.shelltopia.org/oidc-callback
+        - -oidc-scopes=profile,email,groups,offline_access
+        - -oidc-use-pkce=true
+    # No rights for the ServiceAccount (the chart binds it to cluster-admin by default): every
+    # request carries the token of the user. Its token stays mounted: `-in-cluster` reads the
+    # address and the CA of the API server from it.
+    clusterRoleBinding:
+      create: false
+    # Reloads the OIDC variables of headlamp-oidc, read at the start only (envFrom).
+    deploymentAnnotations:
+      reloader.stakater.com/auto: "true"
+    # The chart sets a partial one. Headlamp copies its frontend to /tmp at its start: the chart
+    # mounts an emptyDir there with readOnlyRootFilesystem.
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 100
+      runAsGroup: 101
+      fsGroup: 101
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 100
+      runAsGroup: 101
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: ["ALL"]
+    # The internal Gateway only. Its own login: no SecurityPolicy. Headlamp listens on `:4466`
+    # (`-listen-addr` empty): one socket for both families.
+    httpRoute:
+      enabled: true
+      parentRefs:
+        - name: internal
+          namespace: network
+      hostnames:
+        - headlamp.shelltopia.org
+    priorityClassName: infrastructure
+    # First values, before any usage: to size from the usage and Goldilocks after a week
+    # (docs/conventions.md#resources-and-priorities).
+    resources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
+      limits:
+        memory: 256Mi

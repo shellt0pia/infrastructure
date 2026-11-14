@@ -16,7 +16,7 @@ Day-to-day operations on the cluster. Architecture: [README.md](README.md).
   Expected: the browser opens at the first call (`xdg-open`, from the toolbox too), then `oidc:<username>` and its groups, `oidc:kubernetes_admins` among them. The tokens are cached in `~/.kube/cache/oidc-login` and refreshed without the browser for 30 days of inactivity.
 
 - [ ] **Log in again**, if a refresh fails (`Unauthorized`, a refresh token expired or revoked in the Pocket ID): `rm -r ~/.kube/cache/oidc-login`, then any `kubectl` command.
-- [ ] **Give the rights**: add the user to a group of the Pocket ID, `kubernetes_admins` (`cluster-admin`) or `kubernetes_viewers` (`view`, read only). The new group shows at the next token (within 1 h): `kubelogin get-token --force-refresh` with the arguments of the kubeconfig, or the cache deleted. A new right is a binding in `kubernetes/apps/kube-system/oidc/app`, to a group, never to a user.
+- [ ] **Give the rights**: add the user to a group of the Pocket ID, `kubernetes_admins` (`cluster-admin`) or `kubernetes_viewers` (`view` and `oidc:cluster-view`, read only). The same groups give the rights in the Flux web UI and Headlamp. The new group shows at the next token (within 1 h): `kubelogin get-token --force-refresh` with the arguments of the kubeconfig, or the cache deleted; in the UIs, a new login. A new right is a binding in `kubernetes/apps/kube-system/oidc/app`, to a group, never to a user.
 - [ ] **Change the authentication config** (`talos/patches/authentication.yaml.j2`): the API server of each node restarts, and does not start with an invalid config. One node at a time, and the login checked through it before the other:
 
   ```sh
@@ -95,6 +95,8 @@ The version and the image come from the repository: `talos_version` in `talos/va
   Expected: warnings only for the namespaces below `restricted` (`piraeus-datastore`, `debug`, those of the applications at `baseline`). Run it again on each of these with its own level (`--overwrite ns <namespace> pod-security.kubernetes.io/enforce=baseline`): no warning. A pod listed otherwise would be refused at its next restart: [fix it](#pod-security) before.
 
 ## Diagnosing Flux
+
+The [Flux web UI](README.md#flux-web-ui), `https://flux.shelltopia.org` (internal network), shows the same as the commands below: the failed resources (the link of the Pushover notification), their events, the reconcile, suspend and resume for `kubernetes_admins`. If it answers 503, its config is missing or invalid: `kubectl -n flux-system get externalsecret flux-operator-web-config` and the logs of `deploy/flux-operator`. The commands work without it.
 
 Start from what is not `Ready`:
 

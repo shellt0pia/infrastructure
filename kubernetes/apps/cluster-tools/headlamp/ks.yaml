@@ -1,0 +1,25 @@
+---
+# Headlamp: the web UI of the cluster, behind the Pocket ID. It acts with the token of the user,
+# its ServiceAccount has no rights. Needs Envoy Gateway for its route and External Secrets for its
+# client. Details: docs/cluster/README.md#headlamp.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: headlamp
+spec:
+  dependsOn:
+    - name: priority-classes
+      namespace: kube-system
+    - name: gateways
+      namespace: network
+    - name: external-secrets-stores
+      namespace: external-secrets
+  interval: 1h
+  path: ./kubernetes/apps/cluster-tools/headlamp/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: cluster-tools
+  wait: true

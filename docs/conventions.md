@@ -40,7 +40,7 @@ kubernetes/apps/<namespace>/
 
 - `interval: 1h`, `prune: true`, `sourceRef` to `flux-system`, `wait: true`: a Kustomization is `Ready` once what it deploys is. No `timeout`: the wait lasts up to the `interval`, and a new revision cancels it ([cluster](cluster/README.md#decisions)).
 - `dependsOn` for what the manifests need before they can be applied: the CRDs of another release, and the `ClusterSecretStore` (`external-secrets-stores` in `external-secrets`) for an `ExternalSecret`.
-- A **separate Kustomization** when the manifests need the CRDs or the webhook installed by the release of the same application: `cert-manager` and `cert-manager-issuers`, `envoy-gateway` and `gateways`. The comment of the `ks.yaml` says why.
+- A **separate Kustomization** when the manifests need the CRDs or the webhook installed by the release of the same application: `cert-manager` and `cert-manager-issuers`, `envoy-gateway` and `gateways`. Or to keep a `dependsOn` away from a release the cluster needs: `flux-operator-web`, so that flux-operator never waits for External Secrets. The comment of the `ks.yaml` says why.
 - Variables: `spec.postBuild.substitute`, no `$` in a manifest of a Kustomization that substitutes (it applies to every one of them, a literal `${...}` is written `$${...}`).
 - Components: `spec.components`, with a path relative to `spec.path` ([backups](backups/runbook.md#backing-up-an-application)).
 
@@ -187,7 +187,8 @@ Every container has requests and a memory limit, and each component of the platf
 
 ### Routes and names
 
-- A route lists its `hostnames` and its `parentRefs`: the DNS records are created from them ([dns](dns/README.md#overview)). Applications are served in `shelltopia.org`, as `<appname>.shelltopia.org` where `<appname>` is the name of the application (its folder in `kubernetes/apps`): `grafana.shelltopia.org`.
+- A route lists its `hostnames` and its `parentRefs`: the DNS records are created from them ([dns](dns/README.md#overview)). Applications are served in `shelltopia.org`, as `<name>.shelltopia.org` where `<name>` is the name of the project, not of its folder in `kubernetes/apps`: `grafana.shelltopia.org`, `flux.shelltopia.org` (not `flux-operator`).
+- The route of the chart when it has one (`httpRoute` in its values), an `httproute.yaml` of the app otherwise (Goldilocks). Except flux-operator: the bootstrap helmfile installs it before the Gateway API CRDs (Envoy Gateway), its route is a manifest of the Kustomization `flux-operator-web` ([cluster](cluster/README.md#flux-web-ui)).
 - A public route is attached to both Gateways ([ingress](ingress/runbook.md#exposing-an-application)).
 - A UI without a login of its own is never exposed without one: a `SecurityPolicy` with `oidc` on its route, its own client in the Pocket ID with the allowed groups, the `internal` Gateway only ([ingress](ingress/runbook.md#a-ui-without-a-login-of-its-own)). No `SecurityPolicy` on the Gateways: the one of a route replaces it.
 - A volume to back up goes through the `volsync` component, one volume per application ([backups](backups/runbook.md#backing-up-an-application)).

@@ -52,6 +52,10 @@ oidc:
   issuer: https://id.shelltopia.org
   # Public client with PKCE, for kubelogin (kubectl).
   kubelogin_client_id: 145b99e4-4944-442a-968c-37b1338f701e
+  # Confidential client with PKCE, for Headlamp: an audience of the API server
+  # (patches/authentication.yaml.j2). Also in 1Password (item `pocket-id-headlamp`, read by
+  # kubernetes/apps/cluster-tools/headlamp/app/externalsecret.yaml): keep both in sync.
+  headlamp_client_id: 23c638e7-0954-4b6b-b0bc-332cf9b93daa
 
 # talosctl (mise.toml) is pinned to the same version.
 # renovate: datasource=docker depName=ghcr.io/siderolabs/installer

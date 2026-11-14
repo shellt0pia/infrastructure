@@ -1,6 +1,6 @@
 # Cluster: first deployment
 
-The Git repository, the checks before the bootstrap, `just bootstrap cluster` and the checks of the cluster, of the network policies, of Pod Security and of the OIDC login. Architecture: [README.md](README.md). The order of the whole bootstrap is in [first-bootstrap.md](../first-bootstrap.md).
+The Git repository, the checks before the bootstrap, `just bootstrap cluster` and the checks of the cluster, of the network policies, of Pod Security, of the OIDC login, of the Flux web UI and of Headlamp. Architecture: [README.md](README.md). The order of the whole bootstrap is in [first-bootstrap.md](../first-bootstrap.md).
 
 Create every prerequisite of a step before starting it, then follow the steps in order. The statuses and checkboxes track `kubecluster-01`.
 
@@ -817,3 +817,75 @@ A VPA per workload and the dashboard behind the Pocket ID ([README](README.md#go
   Expected: `admin`, groups `system:masters` and `system:authenticated`.
 
   Done on 2026-11-14, then `kubeconfig-admin` deleted.
+
+### Flux web UI
+
+The UI of flux-operator behind the Pocket ID ([README](README.md#flux-web-ui)). After the [OIDC authentication](#oidc-authentication), once the confidential client `flux` is in the Pocket ID (callback `https://flux.shelltopia.org/oauth2/callback`, groups `kubernetes_admins` and `kubernetes_viewers`) and its item `pocket-id-flux` in the `kubernetes` vault (`username` the client id, `credential` the secret).
+
+- [x] **Release and config.** Push, then once Flux has reconciled:
+
+  ```sh
+  flux -n flux-system get ks flux-operator flux-operator-web
+  kubectl -n flux-system get externalsecret,httproute
+  kubectl get clusterrole flux-web-user flux-web-admin
+  kubectl -n flux-system logs deploy/flux-operator | grep -i -E 'web|config' | grep -i -E 'error|fail|invalid'
+  ```
+
+  Expected: both `Ready`, `SecretSynced`, the route `Accepted`; no role `flux-web-*` (`NotFound`); no config error in the logs.
+
+  Done on 2026-11-14: as expected.
+
+- [x] **Login**, in a browser on `https://flux.shelltopia.org`: the Pocket ID, then the UI. A member of `kubernetes_admins`: every namespace, a reconcile of a Kustomization works. A member of `kubernetes_viewers`: the lists, the actions refused, no Secret. Another user: refused by the Pocket ID.
+
+  Done on 2026-11-14 with a member of `kubernetes_admins`, a reconcile included. A viewer not logged in yet, no account: its rights are checked with `kubectl auth can-i` ([Headlamp](#headlamp)).
+
+- [ ] **Notification link**, at the next `FluxResourceNotReady`: the Pushover message ends with the link of the Flux UI, which opens the failed resources of the namespace.
+
+### Headlamp
+
+The web UI of the cluster behind the Pocket ID ([README](README.md#headlamp)). After the [OIDC authentication](#oidc-authentication), once the confidential client `headlamp` is in the Pocket ID (PKCE, callback `https://headlamp.shelltopia.org/oidc-callback`, groups `kubernetes_admins` and `kubernetes_viewers`), its item `pocket-id-headlamp` in the `kubernetes` vault (`username` the client id, `credential` the secret), and the client id in `talos/vars.yaml` (`oidc.headlamp_client_id`).
+
+- [x] **Talos**, before the release, one node at a time ([runbook](runbook.md#logging-in)):
+
+  ```sh
+  just talos apply-node kube-01 --dry-run
+  just talos apply-node kube-01
+  kubectl --server https://kube-01.shelltopia.net:6443 --tls-server-name kubecluster-01.shelltopia.net auth whoami
+  ```
+
+  Expected: the dry-run adds the audience of Headlamp and `audienceMatchPolicy: MatchAny` only. Through kube-01, `oidc:<username>` and its groups: the token of `kubelogin` is still accepted. Then kube-03, the same. The restart of the API server leaves an `Unhealthy` event of its readiness probe (`connect: connection refused`), once per node.
+
+  Done on 2026-11-14: as expected, on both nodes.
+
+- [x] **Viewers.** Push, then once Flux has reconciled:
+
+  ```sh
+  flux -n kube-system get ks oidc
+  kubectl auth can-i list nodes --as=oidc:test --as-group=oidc:kubernetes_viewers
+  kubectl auth can-i list fluxinstances.fluxcd.controlplane.io -A --as=oidc:test --as-group=oidc:kubernetes_viewers
+  kubectl auth can-i get secrets -A --as=oidc:test --as-group=oidc:kubernetes_viewers
+  kubectl auth can-i delete nodes --as=oidc:test --as-group=oidc:kubernetes_viewers
+  ```
+
+  Expected: `Ready`, then `yes`, `yes`, `no`, `no`.
+
+  Done on 2026-11-14: as expected.
+
+- [x] **Release:**
+
+  ```sh
+  flux -n cluster-tools get ks headlamp
+  flux -n cluster-tools get hr headlamp
+  kubectl -n cluster-tools get pods -l app.kubernetes.io/name=headlamp -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,CLASS:.spec.priorityClassName
+  kubectl -n cluster-tools get externalsecret headlamp-oidc
+  kubectl -n cluster-tools get httproute headlamp
+  kubectl get clusterrolebinding headlamp-admin
+  ```
+
+  Expected: both `Ready`, the pod `Running` in the class `infrastructure`, `SecretSynced`, the route `Accepted`, no binding `headlamp-admin` (`NotFound`). An `Unhealthy` event of the readiness probe at the start of the pod (`connect: connection refused`): the probes of the chart start at once, before Headlamp listens.
+
+  Done on 2026-11-14: as expected.
+
+- [x] **Login**, in a browser on `https://headlamp.shelltopia.org`: the Pocket ID, then the UI. A member of `kubernetes_admins`: every namespace, the nodes, the logs of a pod, the restart of a Deployment works. A member of `kubernetes_viewers`: the lists, the nodes, the logs, no Secret, the restart refused. Another user: refused by the Pocket ID. A restart of the pod asks for a new login ([README](README.md#headlamp)).
+
+  Done on 2026-11-14 with a member of `kubernetes_admins`. A viewer not logged in yet, no account: its rights checked above ([Viewers](#headlamp)).

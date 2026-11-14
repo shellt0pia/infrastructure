@@ -37,6 +37,10 @@ spec:
               The {{ $labels.kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} has
               been failing for 10 minutes. The error is in the summary; else `flux get` or the
               web UI of the flux-operator.
+            # The failed resources of the namespace in the Flux UI: the last line of the Pushover
+            # message (the receivers of
+            # kubernetes/apps/observability/victoria-metrics-k8s-stack/app/helmrelease.yaml).
+            link: https://flux.shelltopia.org/resources?namespace={{ $labels.namespace }}&status=Failed
         - alert: FluxResourceSuspended
           expr: |
             label_replace(

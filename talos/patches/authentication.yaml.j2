@@ -22,10 +22,13 @@ configuration:
   jwt:
     - issuer:
         url: {{ oidc.issuer }}
-        # One client per tool: the audience of each UI joins this list, with
-        # `audienceMatchPolicy: MatchAny`.
+        # One client per tool that sends its ID token to the API server (not the Flux UI: it
+        # checks its token itself and impersonates the user). MatchAny: a token is accepted when
+        # its `aud` holds one of them.
         audiences:
           - {{ oidc.kubelogin_client_id }}
+          - {{ oidc.headlamp_client_id }}
+        audienceMatchPolicy: MatchAny
       claimMappings:
         # Set by the admins of the Pocket ID, the users cannot change it. Prefixed, as the
         # groups, so that it cannot match a user or a group of Kubernetes (`system:`).

@@ -30,3 +30,17 @@ subjects:
   - apiGroup: rbac.authorization.k8s.io
     kind: Group
     name: oidc:kubernetes_viewers
+---
+# And what `view` lacks, read only too (clusterroles.yaml).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oidc:kubernetes_viewers:cluster-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: oidc:cluster-view
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: oidc:kubernetes_viewers

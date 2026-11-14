@@ -73,7 +73,7 @@ Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: dis
 
 | Namespace | Content | Pod Security | Described in |
 | --- | --- | --- | --- |
-| `flux-system` | flux-operator, flux-instance | `restricted` | [cluster](cluster/README.md#decisions) |
+| `flux-system` | flux-operator (and its web UI, `flux-operator-web`), flux-instance | `restricted` | [cluster](cluster/README.md#decisions) |
 | `external-secrets` | External Secrets Operator, the `onepassword` ClusterSecretStore | `restricted` | [secrets](secrets/README.md#in-the-cluster-external-secrets) |
 | `cert-manager` | cert-manager, the `ClusterIssuer`s | `restricted` | [ingress](ingress/README.md#certificate) |
 | `envoy-gateway-system` | Envoy Gateway | `restricted` | [ingress](ingress/README.md#envoy-gateway) |
@@ -83,8 +83,8 @@ Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: dis
 | `observability` | `victoria-metrics-k8s-stack` (operator, `VMSingle`, `VLSingle`, `VMAgent`, `VMAlert`, `VMAlertmanager`, kube-state-metrics), Grafana, `prometheus-operator-crds`, the Vector aggregator. Deployed by stage ([status](observability/README.md#status)) | `restricted` | [observability](observability/README.md#network-and-pod-security) |
 | `observability-agents` | node-exporter (from the stack), the Vector agent | `privileged` | [observability](observability/README.md#network-and-pod-security) |
 | `debug` | Throwaway test pods, `kubectl debug node` | `privileged` | [cluster](cluster/README.md#pod-security) |
-| `cluster-tools` | kubelet-csr-approver, metrics-server, the VPA recommender, Goldilocks, Reloader, snapshot-controller | `restricted` | [cluster](cluster/README.md#pod-security) |
-| `kube-system` | Cilium, CoreDNS, Intel device plugin, Spegel, the bindings of the OIDC groups (`oidc`) | exempt | [cluster](cluster/README.md) |
+| `cluster-tools` | kubelet-csr-approver, metrics-server, the VPA recommender, Goldilocks, Headlamp, Reloader, snapshot-controller | `restricted` | [cluster](cluster/README.md#pod-security) |
+| `kube-system` | Cilium, CoreDNS, Intel device plugin, Spegel, the roles and bindings of the OIDC groups (`oidc`) | exempt | [cluster](cluster/README.md) |
 
 A namespace whose applications are exposed on the internet carries the label `shelltopia.net/gateway-external: "true"` ([ingress](ingress/runbook.md#exposing-an-application)).
 
@@ -106,8 +106,10 @@ The class of each component and the why in [cluster](cluster/README.md#resources
 | --- | --- | --- |
 | Issuer | `https://id.shelltopia.org`, `oidc.issuer` in `talos/vars.yaml` | [cluster](cluster/README.md#oidc-authentication) |
 | Client `kubelogin` | Public, PKCE, callbacks `http://localhost:8000` and `http://localhost:18000`, its id in `oidc.kubelogin_client_id` | [cluster](cluster/README.md#oidc-authentication) |
+| Client `flux` | Confidential, callback `https://flux.shelltopia.org/oauth2/callback`, item `pocket-id-flux`. No audience in Talos | [cluster](cluster/README.md#flux-web-ui) |
+| Client `headlamp` | Confidential, PKCE, callback `https://headlamp.shelltopia.org/oidc-callback`, item `pocket-id-headlamp`. Its id also an audience in Talos, `oidc.headlamp_client_id` | [cluster](cluster/README.md#headlamp) |
 | Group `kubernetes_admins` | `oidc:kubernetes_admins`, `cluster-admin`. Also lets in Hubble UI and Goldilocks | [cluster](cluster/README.md#oidc-authentication) |
-| Group `kubernetes_viewers` | `oidc:kubernetes_viewers`, `view` (read only) | [cluster](cluster/README.md#oidc-authentication) |
+| Group `kubernetes_viewers` | `oidc:kubernetes_viewers`, `view` and `oidc:cluster-view` (read only). Also in the Flux web UI and Headlamp, read only | [cluster](cluster/README.md#oidc-authentication) |
 | `kubeconfig` | OIDC, at the root, `just talos kubeconfig` | [runbook](cluster/runbook.md#logging-in) |
 | `kubeconfig-admin` | `system:masters`, at the root, `just bootstrap kubeconfig`, deleted after use | [runbook](cluster/runbook.md#break-glass) |
 
@@ -128,6 +130,8 @@ The class of each component and the why in [cluster](cluster/README.md#resources
 | `kubernetes` | `pocket-id-grafana` | Grafana, OIDC client of the Pocket ID (`username`: the client id, `credential`: the secret) | [observability](observability/README.md#grafana) |
 | `kubernetes` | `pocket-id-hubble` | Hubble UI, OIDC client of the Pocket ID used by Envoy (`username`: the client id, `credential`: the secret) | [cluster](cluster/README.md#network-policies) |
 | `kubernetes` | `pocket-id-goldilocks` | Goldilocks, OIDC client of the Pocket ID used by Envoy (`username`: the client id, `credential`: the secret) | [cluster](cluster/README.md#goldilocks) |
+| `kubernetes` | `pocket-id-flux` | Flux web UI, OIDC client of the Pocket ID used by flux-operator (`username`: the client id, `credential`: the secret) | [cluster](cluster/README.md#flux-web-ui) |
+| `kubernetes` | `pocket-id-headlamp` | Headlamp, OIDC client of the Pocket ID (`username`: the client id, also in `talos/vars.yaml`; `credential`: the secret) | [cluster](cluster/README.md#headlamp) |
 | `kubernetes` | `sw-01-mktxp`, `fw-01-opnsense-exporter`, `ap-01-snmp` | The exporters of the devices: MKTXP (*Login*: `username`, `password`), opnsense-exporter (`username`: the API key, `credential`: its secret), snmp-exporter (*API*, plus `privacy_key`) | [observability](observability/README.md#external-devices) |
 | `kubernetes` | `backblaze-b2-cnpg` | CloudNativePG, later | [backups](backups/README.md#destination-backblaze-b2) |
 | `personal` | Token of the workstation service account | The shell of the workstation | [secrets](secrets/README.md#on-the-workstation-a-read-only-service-account) |
@@ -144,7 +148,7 @@ The tokens to renew and their consumers are in the [secrets runbook](secrets/run
 | 1Password | Every secret | [secrets](secrets/README.md) |
 | healthchecks.io | Checks of the backups, dead man's switch of Alertmanager | [backups](backups/README.md#monitoring), [observability](observability/README.md#alerting) |
 | Pushover | Notifications of Alertmanager | [observability](observability/README.md#alerting) |
-| Pocket ID (PikaPods) | OIDC login of Grafana, Hubble UI, Goldilocks and `kubectl`; HTTP check of blackbox-exporter | [observability](observability/README.md#grafana), [cluster](cluster/README.md#oidc-authentication), [checks](observability/README.md#external-devices) |
+| Pocket ID (PikaPods) | OIDC login of Grafana, Hubble UI, Goldilocks, the Flux web UI, Headlamp and `kubectl`; HTTP check of blackbox-exporter | [observability](observability/README.md#grafana), [cluster](cluster/README.md#oidc-authentication), [checks](observability/README.md#external-devices) |
 | Uptime Kuma (PikaPods) | External observer; HTTP check of blackbox-exporter | [observability](observability/README.md#external-devices) |
 | GitHub | The repository followed by Flux | [cluster](cluster/README.md#decisions) |
 | Docker Hub | Pulls through the credentials of containerd | [secrets](secrets/bootstrap.md#3-docker-hub) |
