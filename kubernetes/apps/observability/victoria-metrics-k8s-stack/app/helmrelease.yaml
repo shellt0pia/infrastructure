@@ -688,13 +688,10 @@ spec:
               - storage_pool
         # Both Pushover receivers share the same short template: the status, the name and the
         # namespace in the title; one line per alert in the body (its summary, else its
-        # description); the link to the notifications of the group in Grafana (Alerting, the
-        # Alertmanager data source), from where "See source" opens the generatorURL (an Explore
-        # of the expression) and "Silence" silences it. Not the generatorURL itself: often over
-        # the 512 characters of Pushover. The annotation `link` of the alerts of the group, when
-        # they share one, as the last line of the body (Pushover makes it clickable): the Flux UI
-        # for FluxResourceNotReady (kubernetes/apps/flux-system/flux-operator/app/prometheusrule.yaml).
-        # Pushover cuts the body at 1024 characters: a large group loses the link.
+        # description). The link is the common `link` annotation when present (the Flux UI for
+        # FluxResourceNotReady), otherwise the notifications of the group in Grafana. There,
+        # "See source" opens the generatorURL and "Silence" silences it. Not the generatorURL
+        # itself: often over the 512 characters of Pushover.
         receivers:
           - name: "null"
           - name: pushover-warning
@@ -703,9 +700,9 @@ spec:
                 token_file: /etc/vm/secrets/alertmanager/pushover-token
                 priority: "0"
                 title: '[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.alertname }}{{ with .GroupLabels.namespace }} ({{ . }}){{ end }}'
-                message: '{{ range .Alerts }}{{ if eq .Status "resolved" }}[resolved] {{ end }}{{ or .Annotations.summary .Annotations.description "(no details)" }}{{ "\n" }}{{ end }}{{ with .CommonAnnotations.link }}{{ . }}{{ end }}'
-                url: 'https://grafana.shelltopia.org/alerting/groups?alertmanager=Alertmanager&queryString={{ printf "alertname=%q" .GroupLabels.alertname | urlquery }}{{ with .GroupLabels.namespace }}{{ printf ",namespace=%q" . | urlquery }}{{ end }}'
-                url_title: Grafana
+                message: '{{ range .Alerts }}{{ if eq .Status "resolved" }}[resolved] {{ end }}{{ or .Annotations.summary .Annotations.description "(no details)" }}{{ "\n" }}{{ end }}'
+                url: '{{ with .CommonAnnotations.link }}{{ . }}{{ else }}https://grafana.shelltopia.org/alerting/groups?alertmanager=Alertmanager&queryString={{ printf "alertname=%q" .GroupLabels.alertname | urlquery }}{{ with .GroupLabels.namespace }}{{ printf ",namespace=%q" . | urlquery }}{{ end }}{{ end }}'
+                url_title: '{{ if .CommonAnnotations.link }}{{ or .CommonAnnotations.link_title "Link" }}{{ else }}Grafana{{ end }}'
           - name: pushover-critical
             pushover_configs:
               - user_key_file: /etc/vm/secrets/alertmanager/pushover-user-key
@@ -714,9 +711,9 @@ spec:
                 # mode of the phone), 0 for the resolution.
                 priority: '{{ if eq .Status "firing" }}1{{ else }}0{{ end }}'
                 title: '[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.alertname }}{{ with .GroupLabels.namespace }} ({{ . }}){{ end }}'
-                message: '{{ range .Alerts }}{{ if eq .Status "resolved" }}[resolved] {{ end }}{{ or .Annotations.summary .Annotations.description "(no details)" }}{{ "\n" }}{{ end }}{{ with .CommonAnnotations.link }}{{ . }}{{ end }}'
-                url: 'https://grafana.shelltopia.org/alerting/groups?alertmanager=Alertmanager&queryString={{ printf "alertname=%q" .GroupLabels.alertname | urlquery }}{{ with .GroupLabels.namespace }}{{ printf ",namespace=%q" . | urlquery }}{{ end }}'
-                url_title: Grafana
+                message: '{{ range .Alerts }}{{ if eq .Status "resolved" }}[resolved] {{ end }}{{ or .Annotations.summary .Annotations.description "(no details)" }}{{ "\n" }}{{ end }}'
+                url: '{{ with .CommonAnnotations.link }}{{ . }}{{ else }}https://grafana.shelltopia.org/alerting/groups?alertmanager=Alertmanager&queryString={{ printf "alertname=%q" .GroupLabels.alertname | urlquery }}{{ with .GroupLabels.namespace }}{{ printf ",namespace=%q" . | urlquery }}{{ end }}{{ end }}'
+                url_title: '{{ if .CommonAnnotations.link }}{{ or .CommonAnnotations.link_title "Link" }}{{ else }}Grafana{{ end }}'
           - name: healthchecks
             webhook_configs:
               - url_file: /etc/vm/secrets/alertmanager/healthchecks-url
