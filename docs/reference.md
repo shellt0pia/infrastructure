@@ -13,6 +13,7 @@ The names, addresses, ports, namespaces, items and schedules scattered in the to
 | `gateway-external.kubecluster-01.shelltopia.net` | Entry name of the external Gateway, target of the public CNAMEs | [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
 | `syslog.kubecluster-01.shelltopia.net` | The Vector aggregator: syslog of the devices. Unbound host overrides, `A` and `AAAA` to its pinned addresses | [observability](observability/README.md#logs) |
 | `ntp-01.shelltopia.net`, `ups-01-dmz.shelltopia.net` | NTP (OPNsense) and NUT server (the NAS) of the nodes | [network](network/README.md#principles) |
+| `nas-01-dmz.shelltopia.net` | NAS on the nodes subnet, AAAA only; NFS server | [network](network/README.md#nas-no-asymmetric-path), [storage plan](storage/nfs.md#shares-and-test) |
 
 ## Addresses
 
@@ -79,7 +80,8 @@ Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: dis
 | `envoy-gateway-system` | Envoy Gateway | `restricted` | [ingress](ingress/README.md#envoy-gateway) |
 | `network` | The Gateways, the wildcard certificate, k8s-gateway, external-dns, cloudflare-ddns | `restricted` | [ingress](ingress/README.md), [dns](dns/README.md) |
 | `piraeus-datastore` | Piraeus/LINSTOR | `privileged` | [storage](storage/README.md#decisions) |
-| `backups` | VolSync, `volsync-monitor` | `restricted` | [backups](backups/README.md) |
+| `backups` | VolSync, `volsync-monitor`, the groupware NFS claim and future backup jobs | `restricted` | [backups](backups/README.md), [storage](storage/README.md#decisions) |
+| `media` | Media NFS claim and future media applications | `restricted` | [storage](storage/README.md#decisions) |
 | `observability` | `victoria-metrics-k8s-stack` (operator, `VMSingle`, `VLSingle`, `VMAgent`, `VMAlert`, `VMAlertmanager`, kube-state-metrics), Grafana, `prometheus-operator-crds`, the Vector aggregator. Deployed by stage ([status](observability/README.md#status)) | `restricted` | [observability](observability/README.md#network-and-pod-security) |
 | `observability-agents` | node-exporter (from the stack), the Vector agent | `privileged` | [observability](observability/README.md#network-and-pod-security) |
 | `debug` | Throwaway test pods, `kubectl debug node` | `privileged` | [cluster](cluster/README.md#pod-security) |

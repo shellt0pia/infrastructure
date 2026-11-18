@@ -1,0 +1,36 @@
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: backups-groupware
+  annotations:
+    # Keep the binding through a Flux refactoring; the NAS owns the data.
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  capacity:
+    storage: 1Ti # Kubernetes matching only, not a NAS quota
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions: [nfsvers=4.2]
+  nfs:
+    server: nas-01-dmz.shelltopia.net
+    path: /mnt/vault/backups/groupware
+  claimRef:
+    namespace: backups
+    name: groupware
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: groupware
+  annotations:
+    # Keep the binding through a Flux refactoring.
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: backups-groupware
+  resources:
+    requests:
+      storage: 1Ti

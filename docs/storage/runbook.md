@@ -135,7 +135,7 @@ The StorageClasses mount the volumes with the `ephemeral_t` SELinux context ([de
 
 ## Mounting a NAS share
 
-The shares of the NAS already exist, with their data: a static PersistentVolume points to one, nothing is provisioned. The inline `nfs` pod volumes are forbidden by [Pod Security](../cluster/README.md#pod-security). A PV binds a single PVC: one PV per share and per namespace that mounts it, named `<namespace>-<share>`, next to the application (in `app/`).
+The shares of the NAS already exist, with their data: a static PersistentVolume points to one, nothing is provisioned. The inline `nfs` pod volumes are forbidden by [Pod Security](../cluster/README.md#pod-security). A PV binds a single PVC: one PV per share and per namespace that mounts it, named `<namespace>-<share>`. The shared volumes live in `kubernetes/apps/<namespace>/nfs/volume/`, independent of the applications.
 
 ```yaml
 ---
@@ -173,9 +173,10 @@ spec:
       storage: 1Ti
 ```
 
-- **Binding**: `volumeName` on the PVC and `claimRef` on the PV, so that neither binds to anything else.
+- **Binding**: `volumeName` on the PVC and `claimRef` on the PV, so that neither binds to anything else. The media and groupware PV/PVC pairs are managed by `media-nfs` and `backups-nfs`, independently of the future applications. Flux pruning is disabled on both objects to preserve the binding through a refactoring.
+- **Capacity**: the PV capacity and PVC request are Kubernetes binding values, not NAS quotas, reservations or limits on writes. The NAS reports its own filesystem capacity. `media` uses `100Ti` and `groupware` `1Ti`; these values do not describe their actual usage or available space.
 - **Read-only**: `readOnly: true` on the `volumeMount` of the pod (Plex, Navidrome).
-- **Permissions**: the exports use `mapall=<uid>`, every access is done as that UID on the NAS, whatever the UID of the pod. `fsGroup` does not apply to NFS volumes. An application that checks the owner of its files runs with the same UID (`runAsUser`).
+- **Permissions**: the existing exports map all clients to the NAS user `nfsnobody` and a group with access to the share. The server checks the mapped identity against the permissions of each directory; the pod UID/GID need not match the mapped IDs. An application can still impose its own ownership checks. Check actual access and ownership in the pod; do not rely on `fsGroup` to change NAS permissions. The test export and media directory modes are in the [plan](nfs.md#shares-and-test).
 - **Network**: the kubelet of the node mounts the share, not the pod: the network policies do not apply, the exports must allow the nodes subnet.
 - **User namespaces**: a pod with an NFS volume cannot use `hostUsers: false` (no idmapped mounts on NFS).
 

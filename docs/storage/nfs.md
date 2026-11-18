@@ -26,13 +26,28 @@ Temporary document: the plan of the two NFS items of the [Storage](../roadmap.md
 - Keep the static NFS PVs for datasets that already hold files (media, mail/calendar archives, external libraries of Immich). Nothing in Kubernetes creates or deletes these datasets. The PV capacity is required by Kubernetes, not a quota on the NAS.
 - A share that an application only reads is mounted read-only. For an external library of Immich, this is the default unless an application feature needs writes.
 - The two patterns are separate: static PVs for existing shares, dynamic PVCs for storage owned by an application. No adoption of the static shares by the CSI, and no inline `nfs` volume (`restricted` [Pod Security](../cluster/README.md#pod-security)).
-- Keep the permissions of the existing exports (`mapall` to the UID on the NAS, [runbook](runbook.md#mounting-a-nas-share)). A pod that checks the owner of its files must use that UID. No reliance on `fsGroup` for a static NFS volume; no `hostUsers: false` (no idmapped mounts on NFS).
+- Keep the permissions of the existing exports: Mapall User `nfsnobody` and a Mapall Group with write access to the share ([runbook](runbook.md#mounting-a-nas-share)). The server maps client credentials to these identities; the pod's UID/GID need not match them. Check actual access and ownership in the pod; do not assume that `fsGroup` changes the NAS permissions. No `hostUsers: false` (no idmapped mounts on NFS).
+- Validate with the disposable export `nas-01-dmz.shelltopia.net:/mnt/vault/kube-test` before migrating services. It is created and the Kubernetes hosts are authorized. Its intended Mapall User is `nfsnobody` (UID `65534`), its Mapall Group `dataset-media` (GID `4002`). The test pod uses UID/GID `65534:65534`.
+
+### Shares and test
+
+The two existing exports are intended for the future applications, not for the disposable test. A PV binds one PVC in one namespace: if consumers use different namespaces, each namespace needs its own PV/PVC for the same export.
+
+| Export on `nas-01-dmz.shelltopia.net` | Consumers | Access |
+| --- | --- | --- |
+| `/mnt/vault/media` | Media stack, including Sonarr, SABnzbd and Plex; PVC `media` in `media` | Mostly read/write; Plex currently mounts its library directories read-only. |
+| `/mnt/vault/backups/groupware` | mbsync (`emails`), vdirsyncer (`calendars`, `contacts`); PVC `groupware` in `backups` | Separate directories; access to confirm at migration. |
+| `/mnt/vault/kube-test` | Disposable test only | Read/write and read-only checked on kube-03; [test](bootstrap.md#4-static-nfs-test) not complete. |
+
+The existing media hierarchy has `root:dataset-media` directories with mode `0750` for `media` and `media/library`, and `0775` for `media/library/books`. The test export reproduces this layout; its writable directory is `library/books`. The mapped group can traverse the first two directories but cannot write there. Test writes in the group-writable child, not at the export root.
+
+The FQDN has an AAAA record only. The existing exports authorize the Kubernetes nodes by host. The kube-03 test mounted over IPv6; the return path remains to check. The group mapped by the groupware export is to confirm.
 
 ### Plan
 
-- [ ] **NAS.** The exports allow the nodes subnet, with the server-side permissions and the desired read/write mode. Check the FQDN of the NAS interface on that subnet; use the name in the PVs ([addresses](../conventions.md#addresses)). NFSv4 uses TCP 2049. Check the actual source address of the mounts, IPv4 or IPv6, and the return path.
-- [ ] **Test.** A throwaway application and a static PV/PVC as in the [runbook](runbook.md#mounting-a-nas-share). Check the bound PV, the contents of the export, the UID/GID, a write under the intended UID and a read-only mount. Check `vers=4.2` and the [read-ahead](../nodes/runbook.md#checking-the-nfs-read-ahead) on the node. Deleting the test PV must not touch the dataset.
-- [ ] **Docs.** The checks in [bootstrap](bootstrap.md), the example in [runbook](runbook.md#mounting-a-nas-share) if it changes, the status in [storage](README.md#status), the open point in [evaluations](evaluations.md#open-points), the first NFS item of the [roadmap](../roadmap.md#storage) ticked.
+- [x] **NAS.** The user created the test dataset and export and authorized the nodes. The kube-03 mount used IPv6; the return path remains to check. NFSv4 uses TCP 2049.
+- [x] **Test.** Run the ephemeral PV, PVC and pod in [bootstrap](bootstrap.md#4-static-nfs-test). Check binding, mapped permissions, read/write and read-only mounts, NFS 4.2 and read-ahead. Deleting the test PV must not touch the dataset.
+- [x] **Deploy and document.** The two Flux-managed PV/PVC pairs are ready; check their binding once deployed. Update [bootstrap](bootstrap.md), [storage](README.md#status), [evaluations](evaluations.md#open-points) and the first NFS item of the [roadmap](../roadmap.md#storage) once verified.
 
 ## 2. Dynamic NFS volumes
 

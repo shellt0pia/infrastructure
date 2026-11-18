@@ -7,5 +7,6 @@ components:
   - ../../components/network-policies
 resources:
   - ./namespace.yaml
+  - ./nfs/ks.yaml
   - ./volsync/ks.yaml
   - ./volsync-monitor/ks.yaml
