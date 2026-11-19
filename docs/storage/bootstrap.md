@@ -361,3 +361,17 @@ Only for a cluster bootstrapped before the storage was added: the nodes need the
   ```
 
   Expected: `media-nfs` and `backups-nfs` are `Ready`; both PVCs are `Bound` to their respective PVs. Test actual access and permissions when the applications are migrated.
+
+## 6. LINSTOR GUI
+
+The Flux Kustomization `linstor-gui` exposes `https://linstor.shelltopia.org/ui/` on the `internal` Gateway. The same `SecurityPolicy` protects `/ui`, `/v1`, `/api` and the OIDC callback and logout paths. `/metrics` is not routed. Controller Auth and LINSTOR tokens remain disabled for existing clients ([decisions](README.md#decisions)).
+
+Before rolling out, follow the [ingress procedure](../ingress/runbook.md#a-ui-without-a-login-of-its-own):
+
+- [x] **Pocket ID.** Create a confidential Pocket ID client with PKCE, restricted to `kubernetes_admins`. Use `https://linstor.shelltopia.org/oauth2/callback` as the redirect URI and `https://linstor.shelltopia.org/` as the logout callback.
+- [x] **1Password.** Create `pocket-id-linstor-gui` in the `kubernetes` vault: `username` is the client ID, `credential` the client secret.
+
+- [x] **Root redirect.** `curl -sI https://linstor.shelltopia.org/` should return `302` with a `Location` pointing to `/ui/`. The destination still requires OIDC.
+- [x] **Paths.** In a signed-in browser, check that all GUI requests succeed through `/ui/` and `/v1`. From a fresh session, both `/ui/` and `/v1/nodes` must redirect to Pocket ID, not return controller data. `/metrics` must not be routed.
+- [x] **Access.** Check the policy is accepted, an administrator can sign in and view nodes, pools and volumes, and an unauthenticated or unauthorized user cannot access the GUI or its API. Test without making storage changes.
+- [x] **Bypasses.** Check the route is attached only to the `internal` Gateway, review network policies and Kubernetes access to the controller Service and port-forward, and verify that the intended external access cannot bypass OIDC. OIDC does not protect direct cluster access to the API.

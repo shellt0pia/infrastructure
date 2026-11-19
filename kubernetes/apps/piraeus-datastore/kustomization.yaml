@@ -8,3 +8,4 @@ components:
 resources:
   - ./namespace.yaml
   - ./piraeus-operator/ks.yaml
+  - ./linstor-gui/ks.yaml

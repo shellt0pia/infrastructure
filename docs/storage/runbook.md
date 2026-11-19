@@ -2,6 +2,12 @@
 
 Day-to-day operations on the volumes. Architecture: [README.md](README.md). The LINSTOR commands use the `kubectl linstor` plugin (installed by mise).
 
+## LINSTOR GUI
+
+The controller serves the GUI at `/ui/`; it has been checked through port-forward. It can modify and delete storage objects. A port-forward reaches the controller API directly and bypasses Envoy OIDC: reserve Kubernetes permissions for it to trusted administrators.
+
+Open [the GUI](https://linstor.shelltopia.org/ui/) on the internal network and sign in with a `kubernetes_admins` account. For setup and rollout checks, see [bootstrap](bootstrap.md#6-linstor-gui).
+
 ## Orphan volumes
 
 The StorageClasses use `reclaimPolicy: Retain`: when a PVC is deleted, its PV stays `Released` and its data stays in LINSTOR. To remove a volume for good:
