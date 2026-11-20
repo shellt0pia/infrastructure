@@ -1,0 +1,8 @@
+---
+# Explicit opt-in: LINSTOR stays the default snapshot driver.
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: truenas-nfs
+driver: tns.csi.io
+deletionPolicy: Retain

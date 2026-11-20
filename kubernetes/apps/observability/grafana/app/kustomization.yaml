@@ -18,6 +18,7 @@ configMapGenerator:
       - ./dashboards/denied-flows.json
       - ./dashboards/snmp-device.json
       - ./dashboards/wifi.json
+      - ./dashboards/tns-csi-overview.json
     options:
       disableNameSuffixHash: true
       labels:

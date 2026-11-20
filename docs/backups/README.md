@@ -134,6 +134,8 @@ The NAS backs up its own datasets with [Backrest](https://github.com/garethgeorg
 - Restores from the Backrest UI (LAN only, with authentication), to a scratch dataset or a download, never over the live data.
 - The Backrest configuration (`config.json`, the plans) is kept in 1Password (`restic-nas` item).
 
+Before migrating Immich or Nextcloud, verify that Backrest can read the child datasets under `vault/workloads/kubernetes/tns.csi.io/nfs`, back them up to B2 and restore them to separate storage. After a NAS restart, unlock `vault/workloads` before running or verifying these backups. Do not assume that mounting the parent exposes new child datasets. The hourly TrueNAS snapshots retained for two weeks are local recovery points, not off-NAS backups ([validation plan](../storage/nfs.md#4-validation-and-recovery)).
+
 Setup: [bootstrap.md](bootstrap.md#3-nas-data-backrest). No Backrest instance reads the cluster repositories: the [recipes](runbook.md#recipes) list and restore them from the workstation ([why](evaluations.md#rejected-options)).
 
 ## Monitoring

@@ -59,6 +59,7 @@ Every LoadBalancer Service pins its addresses (`lbipam.cilium.io/ips`), allocate
 | TCP 3366 (LINSTOR satellite), 7000-7999 (DRBD), 9942 (drbd-reactor metrics) | Between the nodes | [storage](storage/README.md#decisions) |
 | TCP 30020 (NodePort), TCP and UDP 5001 (libp2p) | Node → local Spegel, Spegel → Spegel | [cluster](cluster/README.md#spegel) |
 | TCP 6443, TCP and UDP 53 (Talos host DNS) | Pods → nodes, the only node ports open to every pod (host firewall) | [cluster](cluster/README.md#network-policies) |
+| TCP 19808 | Kubelet → TNS CSI node health probe on the host network | [storage](storage/bootstrap.md#7-dynamic-nfs-trial) |
 | TCP 3366 | LINSTOR controller pod → satellites (host network) | [cluster](cluster/README.md#network-policies) |
 | TCP 4244 | Hubble Relay → Hubble server of each Cilium agent | [cluster](cluster/README.md#network-policies) |
 | TCP 4245 | Workstation → Hubble Relay, through `kubectl port-forward` (`hubble -P`) | [cluster](cluster/runbook.md#network-policies) |
@@ -80,6 +81,7 @@ Every namespace of `kubernetes/apps` has `kustomize.toolkit.fluxcd.io/prune: dis
 | `envoy-gateway-system` | Envoy Gateway | `restricted` | [ingress](ingress/README.md#envoy-gateway) |
 | `network` | The Gateways, the wildcard certificate, k8s-gateway, external-dns, cloudflare-ddns | `restricted` | [ingress](ingress/README.md), [dns](dns/README.md) |
 | `piraeus-datastore` | Piraeus/LINSTOR | `privileged` | [storage](storage/README.md#decisions) |
+| `tns-csi` | TNS CSI controller and node plugin (trial, HelmRelease suspended) | `privileged` | [storage](storage/bootstrap.md#7-dynamic-nfs-trial) |
 | `backups` | VolSync, `volsync-monitor`, the groupware NFS claim and future backup jobs | `restricted` | [backups](backups/README.md), [storage](storage/README.md#decisions) |
 | `media` | Media NFS claim and future media applications | `restricted` | [storage](storage/README.md#decisions) |
 | `observability` | `victoria-metrics-k8s-stack` (operator, `VMSingle`, `VLSingle`, `VMAgent`, `VMAlert`, `VMAlertmanager`, kube-state-metrics), Grafana, `prometheus-operator-crds`, the Vector aggregator. Deployed by stage ([status](observability/README.md#status)) | `restricted` | [observability](observability/README.md#network-and-pod-security) |
@@ -126,12 +128,14 @@ The class of each component and the why in [cluster](cluster/README.md#resources
 | `infrastructure` | `restic-nas` | Backrest on the NAS, never synced to the cluster | [backups](backups/README.md#destination-backblaze-b2) |
 | `kubernetes` | `1password-external-secrets-operator` | Token of the store, injected by the bootstrap | [secrets](secrets/bootstrap.md#5-service-account-for-external-secrets) |
 | `kubernetes` | `cloudflare-cert-manager`, `cloudflare-external-dns`, `cloudflare-ddns` | cert-manager, external-dns, cloudflare-ddns (field `credential`) | [ingress](ingress/README.md#certificate), [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
+| `kubernetes` | `nas-01-tns-csi` | TNS CSI (`username`: dedicated account, `credential`: TrueNAS API key) | [storage](storage/bootstrap.md#7-dynamic-nfs-trial) |
 | `kubernetes` | `restic-volsync` | VolSync | [backups](backups/README.md#destination-backblaze-b2) |
 | `kubernetes` | `healthchecks` | Ping URLs of the checks, one field per check: the backups, the dead man's switch of Alertmanager (`kubecluster-01-alertmanager`) | [backups](backups/README.md#monitoring), [observability](observability/README.md#alerting) |
 | `kubernetes` | `pushover-alertmanager` | Alertmanager (field `username`: the Pushover user key, `credential`: the application token) | [observability](observability/README.md#alerting) |
 | `kubernetes` | `pocket-id-grafana` | Grafana, OIDC client of the Pocket ID (`username`: the client id, `credential`: the secret) | [observability](observability/README.md#grafana) |
 | `kubernetes` | `pocket-id-hubble` | Hubble UI, OIDC client of the Pocket ID used by Envoy (`username`: the client id, `credential`: the secret) | [cluster](cluster/README.md#network-policies) |
 | `kubernetes` | `pocket-id-goldilocks` | Goldilocks, OIDC client of the Pocket ID used by Envoy (`username`: the client id, `credential`: the secret) | [cluster](cluster/README.md#goldilocks) |
+| `kubernetes` | `pocket-id-tns-csi` | TNS CSI dashboard, Pocket ID client (`username`: client ID, `credential`: client secret) | [storage](storage/bootstrap.md#8-tns-csi-dashboard-and-metrics) |
 | `kubernetes` | `pocket-id-linstor-gui` | LINSTOR GUI, OIDC client of the Pocket ID used by Envoy (`username`: the client id, `credential`: the secret) | [storage](storage/bootstrap.md#6-linstor-gui) |
 | `kubernetes` | `pocket-id-flux` | Flux web UI, OIDC client of the Pocket ID used by flux-operator (`username`: the client id, `credential`: the secret) | [cluster](cluster/README.md#flux-web-ui) |
 | `kubernetes` | `pocket-id-headlamp` | Headlamp, OIDC client of the Pocket ID (`username`: the client id, also in `talos/vars.yaml`; `credential`: the secret) | [cluster](cluster/README.md#headlamp) |

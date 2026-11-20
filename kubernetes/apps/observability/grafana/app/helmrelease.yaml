@@ -17,6 +17,38 @@ spec:
     cleanupOnFail: true
     remediation:
       retries: 3
+  # The chart writes downloads to the PVC and never prunes removed files. Share an emptyDir
+  # between the downloader and Grafana so old JSON cannot clash with the sidecar, without
+  # touching SQLite (docs/observability/README.md#grafana).
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              group: apps
+              kind: Deployment
+              name: grafana
+            patch: |
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: grafana
+              spec:
+                template:
+                  spec:
+                    initContainers:
+                      - name: download-dashboards
+                        volumeMounts:
+                          - name: community-dashboards
+                            mountPath: /var/lib/grafana/dashboards
+                    containers:
+                      - name: grafana
+                        volumeMounts:
+                          - name: community-dashboards
+                            mountPath: /var/lib/grafana/dashboards
+                            readOnly: true
+                    volumes:
+                      - name: community-dashboards
+                        emptyDir: {}
   values:
     fullnameOverride: grafana
     # Restarted when the OIDC client changes (envFromSecret below, `auto`), and when the data

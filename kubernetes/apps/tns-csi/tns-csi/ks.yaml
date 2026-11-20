@@ -1,0 +1,22 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: tns-csi
+spec:
+  dependsOn:
+    - name: external-secrets-stores
+      namespace: external-secrets
+    - name: snapshot-controller
+      namespace: cluster-tools
+    - name: prometheus-operator-crds
+      namespace: observability
+  interval: 1h
+  path: ./kubernetes/apps/tns-csi/tns-csi/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: tns-csi
+  wait: true

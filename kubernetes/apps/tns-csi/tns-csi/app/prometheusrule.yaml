@@ -1,0 +1,17 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: tns-csi
+spec:
+  groups:
+    - name: tns-csi
+      rules:
+        - alert: TNSCSITrueNASDisconnected
+          expr: tns_csi_websocket_connection_status{namespace="tns-csi"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: TNS CSI has lost its WebSocket connection to TrueNAS.
+            description: Check the controller logs, DNS, TLS and TrueNAS API access.

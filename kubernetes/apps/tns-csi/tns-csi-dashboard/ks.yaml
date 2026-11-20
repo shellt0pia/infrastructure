@@ -1,0 +1,22 @@
+---
+# Keep the route separate so storage does not depend on Envoy Gateway or External Secrets.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: tns-csi-dashboard
+spec:
+  dependsOn:
+    - name: tns-csi
+    - name: gateways
+      namespace: network
+    - name: external-secrets-stores
+      namespace: external-secrets
+  interval: 1h
+  path: ./kubernetes/apps/tns-csi/tns-csi-dashboard/app
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: tns-csi
+  wait: true

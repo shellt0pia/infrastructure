@@ -194,3 +194,9 @@ spec:
   ```
 
   Expected: the PVC is `Bound` to `<namespace>-<share>`, the mount shows `vers=4.2`.
+
+## TNS CSI inventory
+
+Use the [internal dashboard](https://tns-csi.shelltopia.org/dashboard/) with the Pocket ID administrator group. Use **TNS CSI Overview** in Grafana for historical metrics. See [first deployment](bootstrap.md#8-tns-csi-dashboard-and-metrics) for login and scrape checks.
+
+Install the pinned kubectl plugin with `mise install github:fenio/tns-csi`, then run `kubectl tns-csi --version` and `kubectl tns-csi summary`. The plugin can read the driver's TrueNAS key from Kubernetes; use an administrator context and do not grant viewers Secret access for it. Do not run cleanup or adoption as ordinary inventory operations.

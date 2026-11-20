@@ -78,7 +78,7 @@ Architecture and status: [backups/README.md](backups/README.md#status). Order: v
 
 - [ ] LINSTOR GUI: manifests written for the internal Gateway and OIDC for administrators. Set up the Pocket ID client and 1Password item, then check the GUI, API paths and bypasses ([plan](storage/bootstrap.md#6-linstor-gui)).
 - [ ] NFS access to the NAS, through static PersistentVolumes ([runbook](storage/runbook.md#mounting-a-nas-share)): the exports must allow the nodes subnet, then the [read-ahead check](nodes/runbook.md#checking-the-nfs-read-ahead).
-- [ ] NFS access to the NAS, through truenas-csi or democratic-csi for the storage of Nextcloud and Immich.
+- [ ] Dynamic NFS for the storage of Nextcloud and Immich: TNS CSI accepted after the available trial checks; finish the recovery and Backrest restore checks before migration. Decisions and validation in the [plan](storage/nfs.md#2-dynamic-nfs-volumes).
 - [ ] Once kube-02 joins: the tie-breakers of the existing volumes, then the [failover test](storage/bootstrap.md#3-failover-test) ([status](storage/README.md#status)).
 
 ### PostgreSQL

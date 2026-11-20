@@ -1,0 +1,105 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tns-csi
+spec:
+  interval: 1h
+  chartRef:
+    kind: OCIRepository
+    name: tns-csi
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  postRenderers:
+    - kustomize:
+        patches:
+          # Both workloads read the TrueNAS key from their environment at startup.
+          - target:
+              labelSelector: app.kubernetes.io/name=tns-csi-driver
+              kind: Deployment|DaemonSet
+            patch: |
+              - op: add
+                path: /metadata/annotations
+                value:
+                  reloader.stakater.com/auto: "true"
+          # Resolve the NAS FQDN before trying search suffixes that Cilium denies.
+          - target:
+              kind: Deployment
+              labelSelector: app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller
+            patch: |
+              - op: add
+                path: /spec/template/spec/dnsConfig
+                value:
+                  options:
+                    - name: ndots
+                      value: "1"
+  values:
+    truenas:
+      existingSecret: tns-csi-truenas
+    node:
+      # The host-networked node plugin cannot share the default CSI health port.
+      healthPort: 19808
+      resources:
+        limits:
+          cpu: null
+      # Talos has a read-only /etc; this trial has no iSCSI volumes.
+      iscsi:
+        enabled: false
+    controller:
+      dashboard:
+        enabled: true
+      resources:
+        limits:
+          cpu: null
+      metrics:
+        serviceMonitor:
+          enabled: true
+    snapshots:
+      enabled: true
+      volumeSnapshotClass:
+        create: false
+    storageClasses:
+      - name: truenas-nfs
+        enabled: true
+        protocol: nfs
+        pool: vault
+        parentDataset: workloads/kubernetes/tns.csi.io/nfs
+        server: nas-01-dmz.shelltopia.net
+        reclaimPolicy: Retain
+        allowVolumeExpansion: true
+        volumeBindingMode: Immediate
+        # Match the driver default key: nfsvers would be passed alongside vers.
+        mountOptions: [vers=4.2, hard]
+        parameters:
+          # NFS export ACLs take CIDRs. Verify the mount source in the trial.
+          nfsNetworks: 'fd38:4c4d:8f66:f::/64'
+    sidecars:
+      provisioner:
+        resources:
+          limits:
+            cpu: null
+      attacher:
+        resources:
+          limits:
+            cpu: null
+      resizer:
+        resources:
+          limits:
+            cpu: null
+      nodeDriverRegistrar:
+        resources:
+          limits:
+            cpu: null
+      snapshotter:
+        resources:
+          limits:
+            cpu: null
+      livenessprobe:
+        resources:
+          limits:
+            cpu: null

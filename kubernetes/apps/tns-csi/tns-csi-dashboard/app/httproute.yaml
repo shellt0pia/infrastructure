@@ -1,0 +1,52 @@
+---
+# The GUI and the API it calls share one OIDC policy. Do not route the separate Prometheus service.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: tns-csi-dashboard
+spec:
+  hostnames:
+    - tns-csi.shelltopia.org
+  parentRefs:
+    - name: internal
+      namespace: network
+      sectionName: https
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /dashboard
+        - path:
+            type: Exact
+            value: /oauth2/callback
+        - path:
+            type: Exact
+            value: /logout
+      backendRefs:
+        - name: tns-csi-dashboard
+          port: 2137
+---
+# Redirect before login. This route has no backend; /dashboard/ still requires OIDC.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: tns-csi-dashboard-redirect
+spec:
+  hostnames:
+    - tns-csi.shelltopia.org
+  parentRefs:
+    - name: internal
+      namespace: network
+      sectionName: https
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /dashboard/
+            statusCode: 302
