@@ -14,6 +14,7 @@ The names, addresses, ports, namespaces, items and schedules scattered in the to
 | `syslog.kubecluster-01.shelltopia.net` | The Vector aggregator: syslog of the devices. Unbound host overrides, `A` and `AAAA` to its pinned addresses | [observability](observability/README.md#logs) |
 | `ntp-01.shelltopia.net`, `ups-01-dmz.shelltopia.net` | NTP (OPNsense) and NUT server (the NAS) of the nodes | [network](network/README.md#principles) |
 | `nas-01-dmz.shelltopia.net` | NAS on the nodes subnet, AAAA only; NFS server | [network](network/README.md#nas-no-asymmetric-path), [storage plan](storage/nfs.md#shares-and-test) |
+| `<app>.nas-01.shelltopia.net` | The web UIs of the containers of the NAS: Unbound host overrides written by dnsweaver, `A` and `AAAA` to the address of Traefik, wildcard certificate `*.nas-01.shelltopia.net` | [nas](nas/README.md#names-appnas-01shelltopianet-by-dnsweaver) |
 
 ## Addresses
 
@@ -27,7 +28,8 @@ The names, addresses, ports, namespaces, items and schedules scattered in the to
 | Pods | `10.244.0.0/16` | `fd1b:654d:9afe:100::/56` | [cluster](cluster/README.md#cluster-ranges) |
 | Services | `10.96.0.0/12` | `fd1b:654d:9afe:200::/112` | [cluster](cluster/README.md#cluster-ranges) |
 | Cluster DNS | `10.96.0.10` | `fd1b:654d:9afe:200::a` | [cluster](cluster/README.md#coredns) |
-| NAS main interface | `192.168.14.0/24` | | [network](network/README.md#nas-no-asymmetric-path) |
+| NAS main interface | `192.168.14.0/24` | `fd38:4c4d:8f66:e::/64` | [network](network/README.md#nas-no-asymmetric-path) |
+| Traefik of the NAS (macvlan on `vlan14`) | `192.168.14.<x>`, to allocate outside of the DHCP pool | `fd38:4c4d:8f66:e::<x>`, same host part | [nas](nas/README.md#reverse-proxy-traefik-on-its-own-address) |
 
 The cluster ranges and the Milkywan /48 are permanent, the ISP GUA prefix of the LAN may change: [what to update](network/runbook.md#ipv6-prefix-change). A manifest or a Talos patch only holds an address of this section where its tool takes no name ([conventions](conventions.md#addresses)).
 
@@ -68,6 +70,8 @@ Every LoadBalancer Service pins its addresses (`lbipam.cilium.io/ips`), allocate
 | TCP and UDP 514 (to the pod port 5514): syslog | Devices → Vector aggregator (`syslog.kubecluster-01.shelltopia.net`) | [observability](observability/README.md#logs) |
 | TCP 6050 (Talos kernel logs), 6051 (Talos service logs), on `127.0.0.1` (IPv4 only) | Talos → the hostPorts of the Vector agent of the same node | [observability](observability/README.md#logs) |
 | TCP 9100 and 8443 (`fw-01`, the web UI for the API), TCP 8729 (`sw-01`), UDP 161 (`ap-01`), TCP 3493 (`ups-01-dmz`) | Nodes (the exporters, `VMAgent`) → the scraped devices, IPv6 (`AAAA` only) | [observability](observability/README.md#external-devices) |
+| TCP 80 and 443 | LAN and VPN clients → Traefik of the NAS | [nas](nas/README.md#reverse-proxy-traefik-on-its-own-address) |
+| TCP 8443 (`fw-01`, the web UI for the API) | dnsweaver on the NAS → OPNsense | [nas](nas/README.md#names-appnas-01shelltopianet-by-dnsweaver) |
 
 ## Namespaces
 
@@ -125,7 +129,7 @@ The class of each component and the why in [cluster](cluster/README.md#resources
 | `infrastructure` | `docker-hub-kubecluster-01` | containerd of the nodes (rate limit) | [secrets](secrets/bootstrap.md#3-docker-hub) |
 | `infrastructure` | `nas-01-nut-server` | NUT client of the nodes | [secrets](secrets/bootstrap.md#4-nut) |
 | `infrastructure` | `tofu-state-encryption`, `backblaze-b2-tofu-state`, `backblaze-b2-tofu-admin`, `cloudflare-tofu` | OpenTofu | [tofu/README.md](../tofu/README.md) |
-| `infrastructure` | `restic-nas` | Backrest on the NAS, never synced to the cluster | [backups](backups/README.md#destination-backblaze-b2) |
+| `infrastructure` | `1password-doco-cd` | Token of Doco-CD on the NAS (field `credential`), written to the NAS by its bootstrap | [nas](nas/README.md#secrets) |
 | `kubernetes` | `1password-external-secrets-operator` | Token of the store, injected by the bootstrap | [secrets](secrets/bootstrap.md#5-service-account-for-external-secrets) |
 | `kubernetes` | `cloudflare-cert-manager`, `cloudflare-external-dns`, `cloudflare-ddns` | cert-manager, external-dns, cloudflare-ddns (field `credential`) | [ingress](ingress/README.md#certificate), [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
 | `kubernetes` | `nas-01-tns-csi` | TNS CSI (`username`: dedicated account, `credential`: TrueNAS API key) | [storage](storage/bootstrap.md#7-dynamic-nfs-trial) |
@@ -141,6 +145,12 @@ The class of each component and the why in [cluster](cluster/README.md#resources
 | `kubernetes` | `pocket-id-headlamp` | Headlamp, OIDC client of the Pocket ID (`username`: the client id, also in `talos/vars.yaml`; `credential`: the secret) | [cluster](cluster/README.md#headlamp) |
 | `kubernetes` | `sw-01-mktxp`, `fw-01-opnsense-exporter`, `ap-01-snmp` | The exporters of the devices: MKTXP (*Login*: `username`, `password`), opnsense-exporter (`username`: the API key, `credential`: its secret), snmp-exporter (*API*, plus `privacy_key`) | [observability](observability/README.md#external-devices) |
 | `kubernetes` | `backblaze-b2-cnpg` | CloudNativePG, later | [backups](backups/README.md#destination-backblaze-b2) |
+| `nas` | `restic-nas` | Zerobyte on the NAS, through Doco-CD; never synced to the cluster | [backups](backups/README.md#destination-backblaze-b2), [nas](nas/README.md#secrets) |
+| `nas` | `nas-01-zerobyte` | Zerobyte: `app-secret` read by Doco-CD; `username` and `password`, its local account, read by hand only | [nas](nas/README.md#backups-zerobyte) |
+| `nas` | `pocket-id-zerobyte` | Zerobyte, OIDC client of the Pocket ID (`username`: the client id, `credential`: the secret), entered in its SSO settings | [nas](nas/README.md#login) |
+| `nas` | `pocket-id-oauth2-proxy` | oauth2-proxy of the NAS, OIDC client of the Pocket ID (`username`: the client id, `credential`: the secret, `cookie-secret`) | [nas](nas/README.md#login) |
+| `nas` | `cloudflare-traefik` | Traefik of the NAS, DNS-01 challenges (field `credential`) | [nas](nas/README.md#certificate) |
+| `nas` | `fw-01-dnsweaver` | dnsweaver, API of OPNsense (`username`: the API key, `credential`: its secret) | [nas](nas/README.md#names-appnas-01shelltopianet-by-dnsweaver) |
 | `personal` | Token of the workstation service account | The shell of the workstation | [secrets](secrets/README.md#on-the-workstation-a-read-only-service-account) |
 
 The tokens to renew and their consumers are in the [secrets runbook](secrets/runbook.md#tokens-to-renew). The naming of the items is in [secrets](secrets/README.md#naming-of-the-items).
@@ -149,15 +159,15 @@ The tokens to renew and their consumers are in the [secrets runbook](secrets/run
 
 | Service | Use | Described in |
 | --- | --- | --- |
-| Backblaze B2 | Backups (VolSync, Backrest) and the OpenTofu states | [backups](backups/README.md#destination-backblaze-b2), [tofu/README.md](../tofu/README.md) |
-| Cloudflare | DNS and DNSSEC of both zones, DNS-01 challenges | [dns](dns/README.md), [ingress](ingress/README.md#certificate) |
-| Let's Encrypt | The wildcard certificate, staging and production | [ingress](ingress/README.md#certificate) |
+| Backblaze B2 | Backups (VolSync, Zerobyte) and the OpenTofu states | [backups](backups/README.md#destination-backblaze-b2), [tofu/README.md](../tofu/README.md) |
+| Cloudflare | DNS and DNSSEC of both zones, DNS-01 challenges (cluster and NAS) | [dns](dns/README.md), [ingress](ingress/README.md#certificate), [nas](nas/README.md#certificate) |
+| Let's Encrypt | The wildcard certificates `*.shelltopia.org` (cluster) and `*.nas-01.shelltopia.net` (NAS), staging and production | [ingress](ingress/README.md#certificate), [nas](nas/README.md#certificate) |
 | 1Password | Every secret | [secrets](secrets/README.md) |
 | healthchecks.io | Checks of the backups, dead man's switch of Alertmanager | [backups](backups/README.md#monitoring), [observability](observability/README.md#alerting) |
 | Pushover | Notifications of Alertmanager | [observability](observability/README.md#alerting) |
-| Pocket ID (PikaPods) | OIDC login of Grafana, Hubble UI, Goldilocks, the Flux web UI, Headlamp and `kubectl`; HTTP check of blackbox-exporter | [observability](observability/README.md#grafana), [cluster](cluster/README.md#oidc-authentication), [checks](observability/README.md#external-devices) |
+| Pocket ID (PikaPods) | OIDC login of Grafana, Hubble UI, Goldilocks, the Flux web UI, Headlamp and `kubectl`, and of Zerobyte and oauth2-proxy on the NAS; HTTP check of blackbox-exporter | [observability](observability/README.md#grafana), [cluster](cluster/README.md#oidc-authentication), [nas](nas/README.md#login), [checks](observability/README.md#external-devices) |
 | Uptime Kuma (PikaPods) | External observer; HTTP check of blackbox-exporter | [observability](observability/README.md#external-devices) |
-| GitHub | The repository followed by Flux | [cluster](cluster/README.md#decisions) |
+| GitHub | The repository followed by Flux and Doco-CD | [cluster](cluster/README.md#decisions), [nas](nas/README.md#containers-from-git-doco-cd) |
 | Docker Hub | Pulls through the credentials of containerd | [secrets](secrets/bootstrap.md#3-docker-hub) |
 
 ## Schedules
@@ -169,6 +179,7 @@ The tokens to renew and their consumers are in the [secrets runbook](secrets/run
 | Every minute | The HTTP checks of blackbox-exporter (Pocket ID, Uptime Kuma, IPv4 and IPv6) | [observability](observability/README.md#external-devices) |
 | Every 5 minutes | cloudflare-ddns detects the WAN IPv4 | [dns](dns/README.md#public-external-dns-and-cloudflare-ddns) |
 | Every hour | Reconciliation of the Kustomizations and HelmReleases | [conventions](conventions.md#flux-kustomizations) |
+| Every hour | Doco-CD polls the repository and deploys the stacks of the NAS | [nas](nas/README.md#containers-from-git-doco-cd) |
 | Every 12 hours | Refresh of every ExternalSecret (1Password rate limits) | [secrets](secrets/README.md#rate-limits) |
 | Daily, 01:30 UTC | VolSync backups, by default | [backups](backups/README.md) |
 | Daily, 09:00 | `volsync-monitor`, then the ping of its healthchecks check | [backups](backups/README.md#monitoring) |

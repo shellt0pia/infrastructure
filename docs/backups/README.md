@@ -8,7 +8,7 @@ What is backed up, where, how often, and how. The implementation is tracked in t
 | [runbook.md](runbook.md) | Day-to-day administration: recipes, backing up an application, checks, restores, disaster recovery. |
 | [evaluations.md](evaluations.md) | What was tested, considered or rejected, and the open points. |
 
-The manifests are in `kubernetes/apps/backups` (VolSync controller, monitoring) and `kubernetes/components/volsync` (backup of an application volume). The restore recipes are in `kubernetes/mod.just` (`just kube volsync-*`). The B2 buckets and keys are in `tofu/backblaze`. The NAS data is backed up by the NAS itself, outside of the cluster.
+The manifests are in `kubernetes/apps/backups` (VolSync controller, monitoring) and `kubernetes/components/volsync` (backup of an application volume). The restore recipes are in `kubernetes/mod.just` (`just kube volsync-*`). The B2 buckets and keys are in `tofu/backblaze`. The NAS data is backed up by the NAS itself, outside of the cluster ([nas](../nas/README.md)).
 
 ## Status
 
@@ -17,8 +17,8 @@ The manifests are in `kubernetes/apps/backups` (VolSync controller, monitoring) 
 | etcd | Not backed up | [Decision](evaluations.md#etcd-not-backed-up) |
 | Application volumes (SQLite, files) | VolSync (restic mover) from the `linstor` CSI snapshots, B2 | Deployed, [tested](bootstrap.md#2-test-volsync) with a throwaway application, no real application uses it yet |
 | PostgreSQL (CloudNativePG) | CNPG Barman Cloud plugin | Proposed, implemented with CNPG ([options](evaluations.md#postgresql-options)) |
-| NAS data (documents, photos, mail, calendar, media) | Backrest as a TrueNAS App, B2 | Decided, [to set up](bootstrap.md#3-nas-data-backrest) on the NAS |
-| Monitoring | healthchecks.io (`volsync-monitor` CronJob, Backrest hooks), and Alertmanager for VolSync | Deployed for VolSync; `volsync-monitor` removed at the noise pass of the alerts |
+| NAS data (documents, photos, mail, calendar, media) | Zerobyte on the NAS, deployed by Doco-CD, B2 | Decided, [to set up](bootstrap.md#3-nas-data-zerobyte) on the NAS |
+| Monitoring | healthchecks.io (`volsync-monitor` CronJob, webhooks of Zerobyte), and Alertmanager for VolSync | Deployed for VolSync; `volsync-monitor` removed at the noise pass of the alerts |
 | Restricted B2 keys | Keys without `deleteFiles` + lifecycle rule | [Tested](evaluations.md#restricted-b2-key-test) on 2026-10-25: works |
 | Restores | `just kube volsync-*` recipes, [procedures](runbook.md#restores) | Tested on the test application |
 | Restore tests | Automated in a throwaway namespace | [To do](evaluations.md#open-points) |
@@ -32,7 +32,7 @@ flowchart TD
     RS -->|restic, one repository per PVC| B2V[(B2 bucket volsync)]
     B2V -->|ReplicationDestination, volume populator| NEW[New PVC filled at creation]
     PG[CloudNativePG] -->|WAL + base backups, Barman Cloud plugin| B2C[(B2 bucket cnpg)]
-    NAS[NAS datasets] -->|Backrest App on TrueNAS, restic| B2N[(B2 bucket nas)]
+    NAS[NAS datasets] -->|Zerobyte on the NAS, restic| B2N[(B2 bucket nas)]
 ```
 
 ## Objectives
@@ -51,9 +51,9 @@ flowchart TD
 | --- | --- | --- | --- |
 | Application state (data directories, SQLite) | ~24 GiB with the databases | `replicated` volumes (LINSTOR) | VolSync |
 | PostgreSQL databases | included above | CloudNativePG volumes | CNPG Barman Cloud plugin |
-| Documents and photos (Nextcloud, Immich) | ~140 GiB | NAS | Backrest on the NAS |
-| Mail archives and contacts/calendar (mbsync, vdirsyncer) | ~2 GiB | NAS | Backrest on the NAS |
-| Irreplaceable media (`media/library`: `audiodrama`, `audiobooks`, `books`, `comics`) | ~20 GiB | NAS | Backrest on the NAS |
+| Documents and photos (Nextcloud, Immich) | ~140 GiB | NAS | Zerobyte on the NAS |
+| Mail archives and contacts/calendar (mbsync, vdirsyncer) | ~2 GiB | NAS | Zerobyte on the NAS |
+| Irreplaceable media (`media/library`: `audiodrama`, `audiobooks`, `books`, `comics`) | ~20 GiB | NAS | Zerobyte on the NAS |
 | etcd | small | Control plane nodes | No: everything it holds is rebuilt from Git, 1Password and the backups ([why](evaluations.md#etcd-not-backed-up)) |
 | Logs and metrics | | Cluster | Undecided, depends on the volume (see [observability](../observability/README.md#high-availability)). VictoriaMetrics `vmbackup` to B2 is an option. |
 | Volumes of the `local` class | | Cluster | No: this class is for disposable or application-replicated data |
@@ -84,7 +84,7 @@ Buckets, lifecycle rules and application keys are managed by OpenTofu (`tofu/bac
 | --- | --- | --- |
 | `kubecluster-01-volsync-gz8j9y` | VolSync, one repository per PVC under `<bucket>/<app>` | `restic-volsync` |
 | To name (later) | CloudNativePG | `backblaze-b2-cnpg` (later) |
-| To name (later) | Backrest on the NAS | `restic-nas` (`infrastructure` vault: never synced to the cluster) |
+| To name (later) | Zerobyte on the NAS | `restic-nas` (`nas` vault: never synced to the cluster, read by Doco-CD on the NAS) |
 
 Fields of the `restic-*` items: `repository` (`s3:https://s3.eu-central-003.backblazeb2.com/<bucket>`), `password` (restic repository password, generated when the item is created, never managed by OpenTofu), `access-key-id` and `secret-access-key` (B2 application key restricted to the bucket). OpenTofu writes `repository` and the key.
 
@@ -125,18 +125,19 @@ For an application using the component:
 
 Proposed: the **Barman Cloud plugin** (CNPG-I), with WAL archiving and base backups to a B2 bucket of its own, and a recovery-window retention. The in-tree `barmanObjectStore` is deprecated. Implemented with CloudNativePG; the other options are in [evaluations.md](evaluations.md#postgresql-options).
 
-## NAS data: Backrest on TrueNAS
+## NAS data: Zerobyte on TrueNAS
 
-The NAS backs up its own datasets with [Backrest](https://github.com/garethgeorge/backrest) (restic with a web UI), installed as a TrueNAS App. The data does not cross the cluster nodes (single 1 Gb/s NIC), and the backups keep running while the cluster is down. Nothing is managed from the cluster.
+The NAS backs up its own datasets with [Zerobyte](https://github.com/nicotsx/zerobyte) (restic with a web UI), deployed from Git by Doco-CD ([nas](../nas/README.md#backups-zerobyte)), not as a TrueNAS App nor with the backup tasks of TrueNAS ([why](evaluations.md#rejected-options)). The data does not cross the cluster nodes (single 1 Gb/s NIC), and the backups keep running while the cluster is down. Nothing is managed from the cluster.
 
-- One repository (`restic-nas`), one plan per data set (`documents`, `groupware`, `media`), each with its own schedule and monitoring. Datasets mounted read-only.
+- One repository (`restic-nas`), one volume and one backup job per data set (`documents`, `groupware`, `media`), each with its own schedule and monitoring. Datasets mounted read-only.
 - Daily backups at night, same retention as the cluster repositories, weekly prune, monthly check (`--read-data-subset`).
-- Restores from the Backrest UI (LAN only, with authentication), to a scratch dataset or a download, never over the live data.
-- The Backrest configuration (`config.json`, the plans) is kept in 1Password (`restic-nas` item).
+- Restores from the Zerobyte UI (`https://zerobyte.nas-01.shelltopia.net`, LAN and VPN only, Pocket ID or its local account), to a scratch dataset or a download, never over the live data.
+- The repository and the volumes are in Git (its provisioning file). The jobs, their schedules and their webhooks live in its SQLite database, on a dataset: their settings are in the [checklist](bootstrap.md#3-nas-data-zerobyte), to create them again on a new instance.
+- The repository password is `restic-nas/password`, not one generated by Zerobyte: `restic` alone restores the repository, without Zerobyte.
 
-Before migrating Immich or Nextcloud, verify that Backrest can read the child datasets under `vault/workloads/kubernetes/tns.csi.io/nfs`, back them up to B2 and restore them to separate storage. After a NAS restart, unlock `vault/workloads` before running or verifying these backups. Do not assume that mounting the parent exposes new child datasets. The hourly TrueNAS snapshots retained for two weeks are local recovery points, not off-NAS backups ([validation plan](../storage/nfs.md#4-validation-and-recovery)).
+Before migrating Immich or Nextcloud, verify that Zerobyte can read the child datasets under `vault/workloads/kubernetes/tns.csi.io/nfs`, back them up to B2 and restore them to separate storage. After a NAS restart, unlock `vault/workloads` before running or verifying these backups. Do not assume that mounting the parent exposes new child datasets. The hourly TrueNAS snapshots retained for two weeks are local recovery points, not off-NAS backups ([validation plan](../storage/nfs.md#4-validation-and-recovery)).
 
-Setup: [bootstrap.md](bootstrap.md#3-nas-data-backrest). No Backrest instance reads the cluster repositories: the [recipes](runbook.md#recipes) list and restore them from the workstation ([why](evaluations.md#rejected-options)).
+Setup: [bootstrap.md](bootstrap.md#3-nas-data-zerobyte). Zerobyte does not read the cluster repositories: the [recipes](runbook.md#recipes) list and restore them from the workstation ([why](evaluations.md#rejected-options)).
 
 ## Monitoring
 
@@ -145,7 +146,7 @@ healthchecks.io (the online service: the self-hosted instance on the Hetzner VM 
 | Check | Field | Pinged by |
 | --- | --- | --- |
 | VolSync | `kubecluster-01-volsync` | CronJob `volsync-monitor` (`backups` namespace) at 09:00: success when every ReplicationSource synced in the last 26 hours, `/fail` with the late ones otherwise (a paused ReplicationSource is late) |
-| NAS documents, groupware, media | (Backrest hooks, on the NAS) | Backrest |
+| NAS documents, groupware, media | (webhooks of the jobs, on the NAS) | Zerobyte |
 
 Alertmanager watches VolSync as well since [stage 4 of the observability](../observability/bootstrap.md#4-alert-rules-and-the-dead-mans-switch) (`kubernetes/apps/backups/volsync/app/prometheusrule.yaml`, [alerting](../observability/README.md#alerting)):
 
@@ -156,6 +157,6 @@ Alertmanager watches VolSync as well since [stage 4 of the observability](../obs
 | `VolSyncBackupLate` | `warning` | No successful sync of a ReplicationSource for 26 hours, counted from its creation before the first sync: the rule of `volsync-monitor` |
 | `VolSyncBackupPaused` | `info` (not sent to Pushover) | A ReplicationSource paused for an hour; `VolSyncBackupLate` follows after 26 hours |
 
-The last two read the ReplicationSources exported by kube-state-metrics (its `customResourceState`, in the release of the stack): their last sync and their pause, the same view as `volsync-monitor`. The failed mover Jobs also raise `KubeJobFailed` (default rules). `volsync-monitor` and its healthchecks.io check run in parallel until the noise pass of the alerts ([roadmap](../roadmap.md#observability)), then go away; the Backrest checks stay (the NAS is outside the cluster).
+The last two read the ReplicationSources exported by kube-state-metrics (its `customResourceState`, in the release of the stack): their last sync and their pause, the same view as `volsync-monitor`. The failed mover Jobs also raise `KubeJobFailed` (default rules). `volsync-monitor` and its healthchecks.io check run in parallel until the noise pass of the alerts ([roadmap](../roadmap.md#observability)), then go away; the Zerobyte checks stay (the NAS is outside the cluster).
 
 Limit: these checks look at the jobs, not at the content of the repositories. A malicious `forget` (every snapshot hidden with the cluster key) leaves the next backups successful. A check reading the repositories is an [open point](evaluations.md#open-points).

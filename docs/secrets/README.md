@@ -15,7 +15,8 @@ The cluster side is in `kubernetes/apps/external-secrets` (operator and `onepass
 | Part | Tool | Status |
 | --- | --- | --- |
 | Secrets of the cluster | External Secrets Operator, `onepassword` ClusterSecretStore, read-only service account on the `kubernetes` vault | Deployed |
-| Secrets of the workstation | Read-only service account on the `infrastructure` and `kubernetes` vaults, token cached by the shell for 1 hour | [Decided](#on-the-workstation-a-read-only-service-account), used by every recipe |
+| Secrets of the workstation | Read-only service account on the `infrastructure` and `kubernetes` vaults, token cached by the shell for 1 hour | [Decided](#on-the-workstation-a-read-only-service-account), used by every recipe. The `nas` vault too from the next rotation ([nas](../nas/README.md#secrets)) |
+| Secrets of the NAS | Doco-CD, read-only service account `nas-doco-cd` on the `nas` vault | Decided, [to set up](../nas/bootstrap.md#1-1password) |
 | Writes to 1Password | Personal account, through `host-spawn op` (`talos gen-secrets`, `tofu apply`) | In use, one approval per call |
 | Rotation of the workstation token | Manual, every 30 days, reminders by `opsa` | [Procedure](runbook.md#rotating-the-workstation-token) |
 
@@ -26,21 +27,26 @@ flowchart TD
     PA["Personal account, desktop app: host-spawn op"] -->|"writes: talos gen-secrets, keys pushed by tofu apply"| INFRA
     PA --> PERSONAL["personal vault: token of the workstation service account"]
     PERSONAL -->|"loaded by the just function or opsa, once an hour per shell"| WS["Workstation service account, read-only"]
-    WS -->|"op inject, op read, op run in the recipes"| INFRA["infrastructure vault: Talos secrets, Docker Hub, NUT, OpenTofu, restic-nas"]
+    WS -->|"op inject, op read, op run in the recipes"| INFRA["infrastructure vault: Talos secrets, Docker Hub, NUT, OpenTofu, token of Doco-CD"]
     WS --> KUBE["kubernetes vault: Cloudflare tokens, restic-volsync, healthchecks"]
+    WS --> NASV["nas vault: restic-nas"]
+    WS -->|"Ansible at the bootstrap: token of Doco-CD"| DOCO["Doco-CD on the NAS"]
+    NASV -->|"read through the read-only service account of the NAS"| DOCO
+    DOCO -->|"external_secrets"| STACKS["Compose stacks of the NAS"]
     WS -->|"op inject at the bootstrap: token of the store"| ESO["External Secrets Operator: ClusterSecretStore onepassword"]
     KUBE -->|"read through the read-only service account of the cluster"| ESO
     ESO -->|"ExternalSecrets"| SECRETS["Kubernetes Secrets"]
 ```
 
-The cluster only ever sees the `kubernetes` vault. The workstation sees both vaults, and only the personal account writes.
+The cluster only ever sees the `kubernetes` vault, the NAS only the `nas` vault. The workstation sees every vault but `personal`, and only the personal account writes.
 
 ## Vaults and items
 
 | Vault | Content | Read by |
 | --- | --- | --- |
-| `infrastructure` | Secrets of the workstation and of the infrastructure, never synced to the cluster: `talos-secrets` (Talos secrets bundle), `docker-hub-kubecluster-01`, `nas-01-nut-server`, the OpenTofu items (`tofu-state-encryption`, `backblaze-b2-tofu-state`, `backblaze-b2-tofu-admin`, `cloudflare-tofu`), `restic-nas` | The workstation service account |
+| `infrastructure` | Secrets of the workstation and of the infrastructure, never synced to the cluster: `talos-secrets` (Talos secrets bundle), `docker-hub-kubecluster-01`, `nas-01-nut-server`, the OpenTofu items (`tofu-state-encryption`, `backblaze-b2-tofu-state`, `backblaze-b2-tofu-admin`, `cloudflare-tofu`), `1password-doco-cd` (token of Doco-CD, written to the NAS by its bootstrap) | The workstation service account |
 | `kubernetes` | Secrets synced to the cluster: `1password-external-secrets-operator` (token of the store), `cloudflare-cert-manager`, `cloudflare-external-dns`, `cloudflare-ddns`, `pushover-alertmanager`, `restic-volsync`, `healthchecks`, `backblaze-b2-cnpg`, `pocket-id-grafana`, `ap-01-snmp`, `sw-01-mktxp`, `fw-01-opnsense-exporter` | External Secrets, and the workstation service account |
+| `nas` | Secrets of the stacks of the NAS, never synced to the cluster: `restic-nas`, `nas-01-zerobyte`, `pocket-id-zerobyte`, `cloudflare-traefik`, `fw-01-dnsweaver`, `pocket-id-oauth2-proxy` ([nas](../nas/README.md#secrets)) | Doco-CD (service account `nas-doco-cd`), and the workstation service account from its next rotation |
 | `personal` | The token of the workstation service account | The personal account only |
 
 The items of the cluster are described with the tool that uses them: [backups](../backups/README.md#destination-backblaze-b2), [DNS](../dns/README.md#public-external-dns-and-cloudflare-ddns), [certificates](../ingress/README.md#certificate) and [observability](../observability/README.md#alerting). The [Talos secrets bundle](bootstrap.md#2-talos-secrets) is the PKI of the cluster: generated once, never regenerated.
@@ -53,7 +59,7 @@ Items are named after what they connect, in lowercase with hyphens. Three forms:
 | --- | --- | --- |
 | `<provider>-<app>` | A secret that authenticates a tool of the repository to an external service: the service, then the tool that uses it (the name of its folder in `kubernetes/apps`, or of the component for a release that bundles several, as `alertmanager` in `victoria-metrics-k8s-stack`). When the user is the cluster itself, not a tool, the name of the cluster. | `cloudflare-external-dns`, `cloudflare-cert-manager`, `pushover-alertmanager`, `pocket-id-grafana` (its OIDC client), `backblaze-b2-cnpg`, `backblaze-b2-tofu-admin`, `docker-hub-kubecluster-01` (the nodes pull with it), `1password-external-secrets-operator` (the token of its store) |
 | `<host>-<service>` | The credentials of a service exposed by one of our own devices: the host, then the service. | `sw-01-mktxp`, `fw-01-opnsense-exporter`, `ap-01-snmp`, `nas-01-nut-server` |
-| `<tool>-<purpose>` | The settings of a tool for one use, when it is not a connection to a provider. | `restic-volsync`, `restic-nas` (the restic repository of VolSync and of Backrest) |
+| `<tool>-<purpose>` | The settings of a tool for one use, when it is not a connection to a provider. | `restic-volsync`, `restic-nas` (the restic repository of VolSync and of Zerobyte) |
 
 - **One item per pair**, so that a secret that leaks gives access to one application only. A second application on the same provider gets its own item and its own token, never a shared one ([conventions](../conventions.md#secrets)).
 - **The same name everywhere**: the item in 1Password, the `remoteRef.key` of the `ExternalSecret`, and the prerequisite in the `bootstrap.md` of the topic.

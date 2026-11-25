@@ -67,7 +67,7 @@ Architecture and status: [observability/README.md](observability/README.md#statu
 
 Architecture and status: [backups/README.md](backups/README.md#status). Order: volumes, NAS data.
 
-- [ ] NAS data: Backrest App on TrueNAS ([checklist](backups/bootstrap.md#3-nas-data-backrest)), then stop autorestic and delete the old buckets. Independent of the cluster, can be done at any time.
+- [ ] NAS data: Doco-CD on the NAS, bootstrapped by Ansible ([nas](nas/bootstrap.md)), then Traefik, dnsweaver and oauth2-proxy for the web UIs, then Zerobyte ([checklist](backups/bootstrap.md#3-nas-data-zerobyte)), then stop autorestic and delete the old buckets. Independent of the cluster, can be done at any time.
 - [ ] PostgreSQL: Barman Cloud plugin of CloudNativePG, implemented with CNPG, before the applications that have a database. Network policies: the operator and the plugin reach the instances in the namespaces of the applications, which needs an exception for them (in the baseline or per cluster).
 - [ ] The bucket rebuild at a past date, on a new throwaway bucket ([procedure](backups/runbook.md#recovery-after-a-deletion-of-the-backups), [open point](backups/evaluations.md#open-points)).
 - [ ] Once kube-02 joins: the [node down test](backups/bootstrap.md#2-test-volsync) of VolSync.
@@ -78,7 +78,7 @@ Architecture and status: [backups/README.md](backups/README.md#status). Order: v
 
 - [ ] LINSTOR GUI: manifests written for the internal Gateway and OIDC for administrators. Set up the Pocket ID client and 1Password item, then check the GUI, API paths and bypasses ([plan](storage/bootstrap.md#6-linstor-gui)).
 - [ ] NFS access to the NAS, through static PersistentVolumes ([runbook](storage/runbook.md#mounting-a-nas-share)): the exports must allow the nodes subnet, then the [read-ahead check](nodes/runbook.md#checking-the-nfs-read-ahead).
-- [ ] Dynamic NFS for the storage of Nextcloud and Immich: TNS CSI accepted after the available trial checks; finish the recovery and Backrest restore checks before migration. Decisions and validation in the [plan](storage/nfs.md#2-dynamic-nfs-volumes).
+- [ ] Dynamic NFS for the storage of Nextcloud and Immich: TNS CSI accepted after the available trial checks; finish the recovery and Zerobyte restore checks before migration. Decisions and validation in the [plan](storage/nfs.md#2-dynamic-nfs-volumes).
 - [ ] Once kube-02 joins: the tie-breakers of the existing volumes, then the [failover test](storage/bootstrap.md#3-failover-test) ([status](storage/README.md#status)).
 
 ### PostgreSQL
@@ -93,7 +93,7 @@ Architecture and status: [backups/README.md](backups/README.md#status). Order: v
 - [ ] Evaluate user namespaces (`hostUsers: false`) per application: root in the container is mapped to an unprivileged UID of the node, so an image that starts as root could stay as is ([cluster](cluster/README.md#pod-security)). First test a real pod with a LINSTOR volume ([open point](cluster/evaluations.md#open-points)). Not for the pods that mount a NAS share (no idmapped mounts on NFS) nor the `hostNetwork` ones; the s6-overlay and linuxserver.io images still need `baseline` (capabilities `CHOWN`, `SETUID`, `SETGID`).
 - [ ] Replace calibre (KasmVNC) with another application.
 - [ ] For each migrated service, decide whether it must keep running or be stopped (KEDA scale to 0) or cut off from the Internet (Cilium `egressDeny`) while the cluster runs on the LTE backup, and label it accordingly ([lte-backup.md](network/lte-backup.md#workloads-during-a-failover)). Plex and the other stateful applications that must not stay reachable are stopped.
-- [ ] Rewrite `README.md` once Ansible is gone (it still describes the Fedora CoreOS setup).
+- [ ] Rewrite `README.md` once the Fedora CoreOS hosts are gone (it still describes their setup). Ansible stays for the bootstrap of the NAS ([nas](nas/README.md#bootstrap-ansible-then-doco-cd-updates-itself)).
 
 ### Ingress
 

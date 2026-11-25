@@ -237,7 +237,7 @@ Each line has points to [verify](evaluations.md#to-verify) before it is relied o
 
 Later, outside stage 5:
 
-- **NAS metrics**, with the NAS platform work of the [Backups](../roadmap.md#backups) item (Backrest deployed with Doco-CD, FRR, Traefik, a DNS controller for Docker): `node_exporter` (ARC, filesystems, disks, network) and `smartctl_exporter`, scraped by `VMAgent`. Pool health and SMART already alert through the native TrueNAS alerts, routed to Pushover. Neither Graphite nor the API exporter of TrueNAS ([why](evaluations.md#rejected-and-alternative-options)).
+- **NAS metrics**, with the NAS platform work of the [Backups](../roadmap.md#backups) item (Zerobyte, Traefik and dnsweaver deployed with Doco-CD, [nas](../nas/README.md)): `node_exporter` (ARC, filesystems, disks, network) and `smartctl_exporter`, scraped by `VMAgent`. Pool health and SMART already alert through the native TrueNAS alerts, routed to Pushover. Neither Graphite nor the API exporter of TrueNAS ([why](evaluations.md#rejected-and-alternative-options)).
 - **`gw-01.shelltopia.net`** (MikroTik KNOT Embedded LTE4), with the [LTE backup](../network/lte-backup.md) project: the `sw-01` pattern repeated, MKTXP with `lte = True`, item `gw-01-mktxp`, syslog.
 
 **Common to every device:**

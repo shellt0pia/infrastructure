@@ -98,8 +98,9 @@ The permissions of a service account cannot be changed after its creation, and i
 | --- | --- | --- |
 | Workstation service account | `personal` vault | Every recipe, [rotation above](#rotating-the-workstation-token) |
 | `kubernetes-external-secrets` service account | `kubernetes/1password-external-secrets-operator` | External Secrets |
+| `nas-doco-cd` service account | `infrastructure/1password-doco-cd` | Doco-CD on the NAS, [rotation](../nas/runbook.md#rotating-the-token-of-doco-cd) |
 | Docker Hub personal access token | `infrastructure/docker-hub-kubecluster-01` | containerd of the nodes (rate limit) |
-| Cloudflare tokens | `kubernetes/cloudflare-cert-manager`, `kubernetes/cloudflare-external-dns`, `kubernetes/cloudflare-ddns`, `infrastructure/cloudflare-tofu` | cert-manager, external-dns, cloudflare-ddns, OpenTofu |
-| B2 keys | `kubernetes/restic-volsync`, `infrastructure/restic-nas`, `infrastructure/backblaze-b2-tofu-*` | VolSync, Backrest, OpenTofu (the `restic-*` keys are managed by OpenTofu, see [tofu/README.md](../../tofu/README.md)) |
+| Cloudflare tokens | `kubernetes/cloudflare-cert-manager`, `kubernetes/cloudflare-external-dns`, `kubernetes/cloudflare-ddns`, `infrastructure/cloudflare-tofu`, `nas/cloudflare-traefik` | cert-manager, external-dns, cloudflare-ddns, OpenTofu, Traefik of the NAS |
+| B2 keys | `kubernetes/restic-volsync`, `nas/restic-nas`, `infrastructure/backblaze-b2-tofu-*` | VolSync, Zerobyte, OpenTofu (the `restic-*` keys are managed by OpenTofu, see [tofu/README.md](../../tofu/README.md)) |
 
 The expiration dates of the tokens are not tracked in the repository: the [roadmap](../roadmap.md#to-check-or-watch) only keeps a reminder to renew them, and the workstation token has its own 30-day rotation.

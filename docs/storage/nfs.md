@@ -125,7 +125,7 @@ Selected [`tns-csi-driver` 0.23.0](https://github.com/fenio/tns-csi/releases/tag
 
 - **Permissions.** Use `65534:65534` as a test identity, not as a confirmed production identity. Rely on Kubernetes to control which workloads can mount each PVC. Separate NAS identities for Immich and Nextcloud are not required; with shared numeric IDs and `AUTH_SYS`, the NAS does not distinguish them. Test the intended ownership and export restrictions before migration. Check the NFS parameters of the pinned release, root squashing, ACLs, `fsGroupPolicy` and the actual owner seen in the pod. Do not give every client root access to make `chown` work. NFS `AUTH_SYS` trusts the client; network and server permissions matter more than the PVC access mode.
 - **Talos.** Does the node plugin mount the kubelet directories with the propagation Talos needs? Check SELinux on the NFS mounts and the reads/writes under `restricted` before enforcing SELinux. Do not copy the `ephemeral_t` mount option of LINSTOR without checking NFS and its label support. Check the `nfsrahead` setup on the CSI mounts too.
-- **Dataset layout.** Check whether PVC names or UUIDs are used and define the layout of the Backrest sources. Do not assume that a newly created child ZFS dataset is included in a TrueNAS App's existing parent mount.
+- **Dataset layout.** Check whether PVC names or UUIDs are used and define the layout of the Zerobyte volumes. Do not assume that a newly created child ZFS dataset is included in the existing parent mount of the Zerobyte container ([nas](../nas/README.md#backups-zerobyte)).
 - **Secrets and TLS.** Verify certificate trust from the driver, minimum API roles and any dataset scoping supported by TrueNAS 25.10.8, and rotation without dropping mounts; check whether the plugin needs to read the driver Secret. No access for `kubernetes_viewers` to that Secret.
 - **Retention.** How to rebind a retained PV in the same cluster, adopt it in a rebuilt cluster, and explicitly retire a dataset after a backup. What happens to its export and its snapshots at each step? A released PV is not a free volume. No automatic orphan cleanup.
 
@@ -291,7 +291,7 @@ Use a fresh `nfs-trial` namespace and run the steps in order. The imperative com
 
 - [x] **Snapshot, restore and clone.** Stop both test pods first so the source is quiescent. Keep it quiescent until both copies bind.
 
-  Trial finding: TrueNAS returned `EACCES` on `pool.snapshot.create`. The method requires `SNAPSHOT_WRITE`, which `SHARING_ADMIN` does not include. The built-in `REPLICATION_ADMIN` includes it but also grants NAS-wide snapshot and replication rights and keychain credential management. Decide whether that scope is acceptable before adding the role. Otherwise leave CSI snapshot and restore unvalidated and continue testing Backrest and NAS-managed snapshots separately.
+  Trial finding: TrueNAS returned `EACCES` on `pool.snapshot.create`. The method requires `SNAPSHOT_WRITE`, which `SHARING_ADMIN` does not include. The built-in `REPLICATION_ADMIN` includes it but also grants NAS-wide snapshot and replication rights and keychain credential management. Decide whether that scope is acceptable before adding the role. Otherwise leave CSI snapshot and restore unvalidated and continue testing Zerobyte and NAS-managed snapshots separately.
 
   ```sh
   kubectl -n nfs-trial delete pod writer peer
@@ -458,13 +458,13 @@ Use a fresh `nfs-trial` namespace and run the steps in order. The imperative com
 
   Expected: the generated PV has `Retain` and references the recorded driver, handle and export, and the PVC explicitly binds that PV. No new dataset is provisioned. Record the dataset's `tns-csi:*` properties (`zfs get all <source-dataset> | grep 'tns-csi:'` on TrueNAS) and the separately retained snapshot handles. Adoption of the volume does not by itself prove Kubernetes snapshot recovery. Remove the recovery pod and release its retained claim before enabling writes on the source again.
 
-- [ ] **Backrest and restore.** With Backrest installed as in [backup bootstrap](../backups/bootstrap.md#3-nas-data-backrest), add the trial child dataset to a test plan using a read-only source mount. In the Backrest UI, run the plan, browse the resulting B2 snapshot for `probe`, then restore to a distinct writable scratch dataset. On TrueNAS, compare the restored file with the recorded checksum:
+- [ ] **Zerobyte and restore.** With Zerobyte installed as in [backup bootstrap](../backups/bootstrap.md#3-nas-data-zerobyte), add the trial child dataset to a test volume and job using a read-only source mount. In the Zerobyte UI, run the job, browse the resulting B2 snapshot for `probe`, then restore to a distinct writable scratch dataset. On TrueNAS, compare the restored file with the recorded checksum:
 
   ```sh
   sha256sum /mnt/<scratch-dataset>/<restored-path>/probe
   ```
 
-  Expected: the checksum matches without reading the original export or rolling back a ZFS snapshot. Verify that the recursive TrueNAS snapshot task also includes the new child and gives it the expected retention. Before real migration, repeat with the application backup plans and exclusions; restore the corresponding CNPG backup and files into an isolated instance and check it can read the restored data. The disposable file test does not validate application consistency.
+  Expected: the checksum matches without reading the original export or rolling back a ZFS snapshot. Verify that the recursive TrueNAS snapshot task also includes the new child and gives it the expected retention. Before real migration, repeat with the application backup jobs and exclusions; restore the corresponding CNPG backup and files into an isolated instance and check it can read the restored data. The disposable file test does not validate application consistency.
 
 - [x] **Deliberate retirement.** After evidence and backups are recorded, inventory the trial PVs, snapshot content and NAS objects in both clusters. Remove only trial pods and claims; confirm each PV becomes `Released` and still has `Retain` before deleting its Kubernetes record.
 
@@ -489,9 +489,9 @@ Use a fresh `nfs-trial` namespace and run the steps in order. The imperative com
 
 ### Recovery decisions
 
-- The NAS backs up its own datasets, independent of the cluster ([backups](../backups/README.md#nas-data-backrest-on-truenas)): Backrest and B2. No VolSync component on the bulk-data PVCs. The current VolSync setup uses LINSTOR snapshots and `replicated-temporary` volumes, not the NFS class.
-- Check the backup plans when Immich and Nextcloud move: documents and photos are not disposable, even if thumbnails, previews and encoded videos are excluded. If a dataset name changes on adoption or restore, the backup source must follow it.
-- ZFS snapshots protect against some local mistakes, not the loss of the NAS. Configure a recursive TrueNAS periodic snapshot task under `vault/workloads/kubernetes/tns.csi.io/nfs`: hourly, retained for two weeks. Verify coverage of newly provisioned children and expiry. CSI snapshots serve Kubernetes restore and clone workflows and have a separate lifecycle. Backrest provides longer retention off the NAS. A snapshot of the files alone does not make a consistent backup of the database and files. Coordinate the application and CNPG recovery points ([roadmap](../roadmap.md#backups)).
+- The NAS backs up its own datasets, independent of the cluster ([backups](../backups/README.md#nas-data-zerobyte-on-truenas)): Zerobyte and B2. No VolSync component on the bulk-data PVCs. The current VolSync setup uses LINSTOR snapshots and `replicated-temporary` volumes, not the NFS class.
+- Check the backup jobs when Immich and Nextcloud move: documents and photos are not disposable, even if thumbnails, previews and encoded videos are excluded. If a dataset name changes on adoption or restore, the backup source must follow it.
+- ZFS snapshots protect against some local mistakes, not the loss of the NAS. Configure a recursive TrueNAS periodic snapshot task under `vault/workloads/kubernetes/tns.csi.io/nfs`: hourly, retained for two weeks. Verify coverage of newly provisioned children and expiry. CSI snapshots serve Kubernetes restore and clone workflows and have a separate lifecycle. Zerobyte provides longer retention off the NAS. A snapshot of the files alone does not make a consistent backup of the database and files. Coordinate the application and CNPG recovery points ([roadmap](../roadmap.md#backups)).
 - The fallback to `truenas-csi` changes the CSI driver name and volume handles. A change of StorageClass alone does not migrate an existing volume. Plan a controlled copy/restore or a documented import before using the fallback with real data.
 
 ### Done when

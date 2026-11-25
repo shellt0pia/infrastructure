@@ -116,14 +116,18 @@ Adopting it later: run it in parallel first (own bucket `shelltopia-kopiur`, S3 
 | Velero | Backs up the cluster resources (useless with Flux), imperative restores fighting Flux, privileged node-agent, no path exclusions either. VolSync is declarative and its populator rebuilds the volumes on its own. |
 | Kopia mover of VolSync | Only in an unofficial fork. |
 | Kopiur | Too young for now, see [above](#kopiur-evaluated-to-revisit). |
-| Backrest UI for the cluster repositories | About 30 repositories (one per application) to add by hand, read-only use not tested. The [recipes](runbook.md#recipes) list, browse (`ls`) and restore them from 1Password and B2. |
-| Backrest in the cluster for the NAS data | 160 GiB read through the single NIC of the nodes, and no backups while the cluster is down. |
+| Restic UI (Backrest, Zerobyte) for the cluster repositories | About 30 repositories (one per application) to add by hand, read-only use not tested. The [recipes](runbook.md#recipes) list, browse (`ls`) and restore them from 1Password and B2. |
+| Restic UI in the cluster for the NAS data | 160 GiB read through the single NIC of the nodes, and no backups while the cluster is down. |
+| Restic UI as a TrueNAS App | Its configuration lives in the middleware, not in Git: Zerobyte is a stack deployed by Doco-CD ([nas](../nas/evaluations.md#deploying-containers-on-the-nas)). |
+| Backrest on the NAS | More mature than Zerobyte, but no OIDC (a second login behind oauth2-proxy), and its whole configuration in one `config.json` where the secrets cannot be environment variables: kept in 1Password by hand, out of Git. The fallback if Zerobyte does not hold. |
 | Hetzner Storage Box | No S3 (SFTP/Borg/rsync only), 3.20 € ex VAT/month per TB flat: not cheaper for ~250 GB. |
 | Cloudflare R2 | About twice the price of B2. |
 | rsync.net | 800 GiB minimum, about 12 $/month. |
 | BorgBase | 3 $/month for 250 GB, about twice B2. Was the fallback if the restricted B2 key had not worked. |
-| TrueNAS TrueCloud Backup | Storj only, $7/TB/month with a $5 minimum. |
-| TrueNAS Cloud Sync Tasks | No deduplication, no snapshot-style retention. |
+| TrueNAS TrueCloud Backup | Storj only: a 5 $/month minimum where B2 costs about 1.4 $/month today, and egress fees where B2 has none up to 3 times the stored data. |
+| TrueNAS Cloud Sync Tasks | A copy to an S3 bucket, not a backup: no snapshots, so no history nor retention, no deduplication, no immutability (a deletion or an encryption is copied over). |
+| TrueNAS Rsync Tasks | A copy as well, same limits. |
+| TrueNAS Replication Tasks (ZFS) | Need another NAS elsewhere, which there is none, or a service receiving ZFS streams: rsync.net (about 12 $/month minimum) or zfs.rent (about 20 $/month minimum), too expensive for ~160 GiB. |
 | B2 Object Lock | Incompatible with the lock files of restic ([protection](README.md#protection-against-ransomware-and-stolen-keys)). The restricted keys cover a stolen key; Object Lock would only add protection against a compromise of the B2 account itself. |
 
 ## Open points
@@ -139,3 +143,6 @@ Adopting it later: run it in parallel first (own bucket `shelltopia-kopiur`, S3 
 | `mbsync` / `vdirsyncer` replacement | At migration. |
 | Copy to the NAS | When TrueNAS 27 brings an S3 API, for the cluster repositories only. |
 | Kopiur | Look at it again in early 2027 ([checklist](#kopiur-evaluated-to-revisit)). |
+| Zerobyte: prune with the restricted key | Check that it runs `forget` then `prune` as separate operations, and that both work with the restricted key (no `deleteFiles`: the deletions only hide the files). Otherwise, a separate key for the prune. |
+| Zerobyte: failure pings | Check that its webhooks fire on the start, the success and the failure of a job, and that a job never started (Zerobyte down) is caught by the period of the check. |
+| Zerobyte: jobs out of Git | The jobs, schedules and webhooks are not provisioned yet: move them to the provisioning file when Zerobyte supports it. |

@@ -336,7 +336,7 @@ The populator always restores the latest backup. For an older one, restore it [i
    kubectl -n media cp /tmp/restore/data/<path> <pod>:/data/<path>
    ```
 
-For the NAS data, the Backrest UI does the same (restore to a scratch dataset, or download).
+For the NAS data, the Zerobyte UI does the same (restore to the scratch dataset, or download). Without Traefik nor Pocket ID: [nas](../nas/runbook.md#reaching-zerobyte-without-traefik-or-pocket-id).
 
 ## Disaster recovery
 
@@ -381,7 +381,7 @@ Target: one day.
 
 3. **CloudNativePG clusters**: recovery from the object store (to write with CNPG).
 
-4. **NAS data**: not affected (backed up by the NAS itself). If the NAS is lost too: restore the Backrest configuration from 1Password on the new NAS, then each plan.
+4. **NAS data**: not affected (backed up by the NAS itself). If the NAS is lost too: [rebuild it](../nas/runbook.md#rebuilding-the-nas), Doco-CD deploys Zerobyte with its repository from Git, then create the jobs again from the [checklist](bootstrap.md#3-nas-data-zerobyte).
 
 5. **etcd**: not restored, the cluster is new. Let's Encrypt limits duplicate certificates to 5 per week: try with `letsencrypt-staging` first if a rebuild is repeated.
 
@@ -450,7 +450,7 @@ With the restricted keys, a `forget`, a `prune` or any deletion through the S3 A
 
    Then bring the new bucket under OpenTofu ([tofu/README.md](../../tofu/README.md#bucket-rebuilt-by-hand)).
 
-Same procedure for the NAS bucket (Backrest configuration on the NAS).
+Same procedure for the NAS bucket: at step 5, the item `restic-nas` (`nas` vault) and the bucket in the provisioning file of Zerobyte ([nas](../nas/bootstrap.md#5-zerobyte)).
 
 ### Ransomware or compromised cluster
 
@@ -482,6 +482,6 @@ Assumes that the entry point is found and closed and the attacker evicted. Every
 
 8. **CloudNativePG**: recovery with `targetTime` set to T0 (to write with CNPG).
 
-9. **NAS**, if it was reached: roll the datasets back to a ZFS snapshot older than T0 first (the snapshots cannot be changed through NFS), Backrest from the NAS bucket read at T0 otherwise.
+9. **NAS**, if it was reached: roll the datasets back to a ZFS snapshot older than T0 first (the snapshots cannot be changed through NFS), the NAS bucket rebuilt at T0 otherwise (step 4), restored from Zerobyte.
 
 10. **Clean up**, once everything is checked: delete the old buckets and keys.

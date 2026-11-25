@@ -14,7 +14,8 @@ Create every prerequisite of a step before starting it, then follow the steps in
 | 1, 2 | Bucket `kubecluster-01-volsync-gz8j9y` (lifecycle rule of 30 days from hiding to deleting), its restricted key, item `restic-volsync` (`kubernetes` vault: generated `password`, `repository`, `access-key-id`, `secret-access-key`). | Entry `kubecluster-01-volsync` in `restic_repositories` (`tofu/backblaze/main.tf`), `just tofu apply backblaze`, then `just tofu plan backblaze` shows no change. | Done |
 | 1 | healthchecks.io check `kubecluster-01-volsync`, period 1 day, grace 2 hours. | healthchecks.io | Done |
 | 1 | Item `healthchecks` (`kubernetes` vault), field `kubecluster-01-volsync`: the ping URL of the check. Without it, `volsync-monitor` is not ready. | 1Password | Done |
-| 3 | Bucket of the NAS, its restricted key, item `restic-nas` in the **`infrastructure`** vault (never synced to the cluster), same fields as `restic-volsync`. | Entry in `restic_repositories` with the `infrastructure` vault, `just tofu apply backblaze`. | To do |
+| 3 | Doco-CD running on the NAS. | [nas](../nas/bootstrap.md) | To do |
+| 3 | Bucket of the NAS, its restricted key, item `restic-nas` in the **`nas`** vault (never synced to the cluster, read by Doco-CD on the NAS), same fields as `restic-volsync`. | Entry in `restic_repositories` with the `nas` vault, `just tofu apply backblaze` (the workstation service account must read `nas`, [nas](../nas/README.md#secrets)). | To do |
 | 3 | healthchecks.io checks `documents`, `groupware` and `media`, period 1 day, grace 2 hours. | healthchecks.io | To do |
 | 4 | Bucket and restricted key of CloudNativePG, item `backblaze-b2-cnpg` (`kubernetes` vault). | `tofu/backblaze`, to define with CNPG. | Later |
 
@@ -270,20 +271,20 @@ spec:
 
 - [x] **Repository**: delete the `volsync-test/` folder in the B2 web interface (*Browse Files*), or leave it: it is small. The restricted key can only hide files.
 
-## 3. NAS data: Backrest
+## 3. NAS data: Zerobyte
 
 On the NAS:
 
-- [ ] Install the Backrest App. Mount the datasets **read-only**: documents (Nextcloud, Immich), groupware (mail, contacts, calendar), and `media/library/{audiodrama,audiobooks,books,comics}`. Keep the Backrest configuration and cache on a dataset of the App.
-- [ ] Web UI: reachable from the LAN only, with authentication.
-- [ ] One repository (`restic-nas`), one plan per data set (`documents`, `groupware`, `media`):
+- [ ] Deploy the Zerobyte stack (`docker/nas-01/zerobyte`, [nas](../nas/bootstrap.md#5-zerobyte)): its repository `restic-nas` and its volumes come from its provisioning file. Mount the datasets **read-only**: documents (Nextcloud, Immich), groupware (mail, contacts, calendar), and `media/library`. Its database and cache on a dataset.
+- [ ] One backup job per volume (`documents`, `groupware`, `media`), created in the UI: they are not in Git, these settings are the reference to create them again.
   - Schedule: daily, at night, not at the same time as the ZFS snapshots and scrubs.
   - Retention: by time period, daily 28, weekly 8, monthly 6.
-  - Prune: weekly. Check: monthly (`--read-data-subset` to limit the download). Backrest runs `forget` and `prune` as separate operations, both work with the restricted key.
-  - Exclusions (`documents`): `encoded-video`, `thumbs`, `files_external`, `appdata_*/preview`, `*/cache`, `*/files_trashbin`, `*/files_versions`, `*/uploads`, `*.log`, `*.log.[0-9]`, and `--exclude-if-present .nobackup` (all plans) as an extra backup flag. Anchor the patterns to the paths of the mounts, as the previous autorestic configuration did, to avoid excluding a directory of the same name elsewhere.
-  - Hooks: ping the check of the plan at the start, on success and on error.
-- [ ] A first backup of each plan, then a test restore of a few files to a scratch dataset.
-- [ ] Back up the Backrest configuration (`config.json`) in 1Password (`restic-nas` item, as a file).
+  - Paths (`media`): `audiodrama`, `audiobooks`, `books`, `comics` only.
+  - Prune: weekly. Check: monthly (`--read-data-subset` to limit the download). Whether Zerobyte runs `forget` and `prune` separately, so that `prune` works with the restricted key: to check ([open point](evaluations.md#open-points)).
+  - Exclusions (`documents`): `encoded-video`, `thumbs`, `files_external`, `appdata_*/preview`, `*/cache`, `*/files_trashbin`, `*/files_versions`, `*/uploads`, `*.log`, `*.log.[0-9]`, and `.nobackup` as exclude-if-present marker (all jobs). Anchor the patterns to the paths of the volumes, as the previous autorestic configuration did, to avoid excluding a directory of the same name elsewhere.
+  - Webhooks: ping the check of the job at the start, on success and on error (`https://hc-ping.com/...`, allowed by `WEBHOOK_ALLOWED_ORIGINS`).
+- [ ] A first backup of each job, then a test restore of a few files to the scratch dataset (`/restore`).
+- [ ] A restore with `restic` alone, from the workstation, with `restic-nas`: the repository does not depend on Zerobyte.
 - [ ] Once the new backups are trusted: stop autorestic on `home` and delete the old B2 buckets and keys.
 
 ## 4. PostgreSQL: CloudNativePG

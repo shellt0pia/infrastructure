@@ -18,14 +18,16 @@ flowchart TD
         ST["Storage: Piraeus and LINSTOR on the NVMe SSDs"]
         K8S --> ST
     end
-    CL -->|"NFS"| NAS["NAS: bulk data, UPS server, Backrest"]
+    CL -->|"NFS"| NAS["NAS: bulk data, UPS server, Doco-CD, Traefik, Zerobyte"]
     NAS -->|"UPS on battery: shutdown"| CL
     GH["GitHub: this repository"] -->|"Flux pulls"| CL
+    GH -->|"Doco-CD pulls"| NAS
     OP["1Password"] -->|"External Secrets"| CL
     CL -->|"VolSync, restic"| B2["Backblaze B2"]
-    NAS -->|"Backrest"| B2
+    NAS -->|"Zerobyte"| B2
     CL -->|"external-dns, cloudflare-ddns, cert-manager"| CF["Cloudflare"]
-    WS["Workstation: just, OpenTofu"] -->|"talosctl, kubectl"| CL
+    WS["Workstation: just, OpenTofu, Ansible"] -->|"talosctl, kubectl"| CL
+    WS -->|"Ansible: bootstrap of Doco-CD"| NAS
     WS -->|"OpenTofu"| CF
     WS -->|"OpenTofu"| B2
     CL -->|"pings of the backups"| HC["healthchecks.io"]
@@ -55,7 +57,8 @@ Each topic has its own folder, with the same files (only those with content):
 | [Cluster](cluster/README.md) | Bootstrap, Cilium, network policies, Pod Security, CoreDNS, Flux, OIDC login of `kubectl`, GPU, Spegel, Reloader. |
 | [Secrets](secrets/README.md) | 1Password: the workstation service account, External Secrets. |
 | [Storage](storage/README.md) | Piraeus/LINSTOR and NFS. |
+| [NAS](nas/README.md) | TrueNAS, its containers deployed from Git by Doco-CD, bootstrapped by Ansible: Traefik, dnsweaver, oauth2-proxy, Zerobyte. |
 | [Ingress](ingress/README.md) | Envoy Gateway, the Gateways, the certificate, HAProxy on OPNsense. |
 | [DNS](dns/README.md) | k8s-gateway, external-dns, cloudflare-ddns, OpenTofu records. |
-| [Backups](backups/README.md) | VolSync and restic on Backblaze B2, Backrest for the NAS. |
+| [Backups](backups/README.md) | VolSync and restic on Backblaze B2, Zerobyte for the NAS. |
 | [Observability](observability/README.md) | Deployed in stages: `victoria-metrics-k8s-stack` (VictoriaMetrics, VictoriaLogs, Alertmanager), Grafana, Vector, Pushover, and the monitoring of the devices. |
